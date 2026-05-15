@@ -1,0 +1,35 @@
+name: Agente Inteligencia B2B (Cron)
+
+on:
+  schedule:
+    # Corre todos los días a las 15:00 UTC (9:00 AM CDMX)
+    - cron: '0 15 * * *'
+  workflow_dispatch: # Permite ejecutarlo manualmente desde GitHub
+
+jobs:
+  run-scraper:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout del código
+      uses: actions/checkout@v3
+
+    - name: Configurar Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+        cache: 'pip'
+
+    - name: Instalar dependencias
+      run: |
+        cd b2b-python-scraper
+        pip install -r requirements.txt
+
+    - name: Ejecutar Motor B2B
+      env:
+        SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+        SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      run: |
+        cd b2b-python-scraper
+        python run_now.py
