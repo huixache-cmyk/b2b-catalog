@@ -138,6 +138,21 @@ export function useB2BAgent() {
     }
   };
 
+  const deleteOpportunity = async (id: string) => {
+    // Optimistic update
+    setOpportunities(prev => prev.filter(opp => opp.id !== id));
+    
+    const { error } = await supabase
+      .from('b2b_opportunities')
+      .delete()
+      .eq('id', id);
+      
+    if (error) {
+      console.error("Error deleting opportunity:", error);
+      fetchOpportunities(); // Revert
+    }
+  };
+
   const updateOpportunityStage = async (id: string, newStage: string) => {
     // Optimistic update
     setOpportunities(prev => 
@@ -162,6 +177,7 @@ export function useB2BAgent() {
     isLoaded,
     fetchOpportunities,
     updateOpportunityStage,
+    deleteOpportunity,
     updateScraperConfig
   };
 }

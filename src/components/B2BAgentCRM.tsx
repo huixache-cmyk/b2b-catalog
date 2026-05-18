@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Search, Building2, User, FileText, Target, Mail, BrainCircuit, TrendingUp, CheckCircle, BarChart3, Clock, AlertCircle, Wand2 } from "lucide-react";
+import { Search, Building2, User, FileText, Target, Mail, BrainCircuit, TrendingUp, CheckCircle, BarChart3, Clock, AlertCircle, Wand2, Trash2 } from "lucide-react";
 
 import { useB2BAgent, B2BOpportunity } from "@/hooks/useB2BAgent";
 
@@ -18,11 +18,36 @@ const STAGES = [
 ];
 
 export function B2BAgentCRM() {
-  const { opportunities, updateOpportunityStage, isLoaded, scraperConfig, updateScraperConfig } = useB2BAgent();
+  const { opportunities, updateOpportunityStage, deleteOpportunity, isLoaded, scraperConfig, updateScraperConfig, refresh } = useB2BAgent();
   const [activeTab, setActiveTab] = useState<'pipeline' | 'signals' | 'analytics'>('pipeline');
   const [searchTerm, setSearchTerm] = useState("");
   const [isTriggering, setIsTriggering] = useState(false);
   const [triggerMessage, setTriggerMessage] = useState<{type: 'success' | 'error', text: string} | null>(null);
+  const [loadingContactId, setLoadingContactId] = useState<string | null>(null);
+
+  const handleFindContact = async (opp: B2BOpportunity) => {
+    if (!opp.company) return;
+    setLoadingContactId(opp.id);
+    try {
+      const res = await fetch('/api/find-contact', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          company_id: opp.company_id,
+          company_name: opp.company.name,
+          opp_id: opp.id
+        })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      alert(`¡Contacto encontrado! ${data.contact.email}`);
+      refresh(); // Reload data
+    } catch (error: any) {
+      alert(`Error: ${error.message}`);
+    } finally {
+      setLoadingContactId(null);
+    }
+  };
 
   const getScoreColor = (score: number) => {
     if (score >= 90) return "bg-red-100 text-red-800 border-red-200";
@@ -159,13 +184,26 @@ export function B2BAgentCRM() {
                           <span className={`text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded border ${getScoreColor(opp.total_score)}`}>
                             Score: {opp.total_score} ({getScoreLabel(opp.total_score)})
                           </span>
-                          <select 
-                            value={opp.stage}
-                            onChange={(e) => updateOpportunityStage(opp.id, e.target.value)}
-                            className="text-[10px] border border-gray-200 rounded px-1 py-0.5 text-gray-500 bg-white"
-                          >
-                            {STAGES.map(s => <option key={s} value={s}>{s}</option>)}
-                          </select>
+                          <div className="flex items-center gap-1">
+                            <select 
+                              value={opp.stage}
+                              onChange={(e) => updateOpportunityStage(opp.id, e.target.value)}
+                              className="text-[10px] border border-gray-200 rounded px-1 py-0.5 text-gray-500 bg-white"
+                            >
+                              {STAGES.map(s => <option key={s} value={s}>{s}</option>)}
+                            </select>
+                            <button 
+                              onClick={() => {
+                                if(confirm('¿Eliminar esta oportunidad permanentemente?')) {
+                                  deleteOpportunity(opp.id);
+                                }
+                              }}
+                              className="text-gray-300 hover:text-red-500 transition-colors p-1"
+                              title="Eliminar prospecto"
+                            >
+                              <Trash2 className="w-3 h-3" />
+                            </button>
+                          </div>
                         </div>
                         
                         <h3 className="font-black text-gray-900 text-sm mb-1">{opp.company?.name || 'Empresa Desconocida'}</h3>
@@ -193,7 +231,13 @@ export function B2BAgentCRM() {
                         {/* Hover Actions */}
                         <div className="mt-3 pt-3 border-t border-gray-100 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                           {stage === 'Lead Detectado' && (
-                             <button className="flex-1 bg-white border border-gray-200 text-xs font-bold text-gray-700 py-1.5 rounded hover:bg-gray-50">Buscar Contacto</button>
+                             <button 
+                               onClick={() => handleFindContact(opp)}
+                               disabled={loadingContactId === opp.id}
+                               className="flex-1 bg-white border border-gray-200 text-xs font-bold text-gray-700 py-1.5 rounded hover:bg-gray-50 disabled:opacity-50"
+                             >
+                               {loadingContactId === opp.id ? 'Buscando...' : 'Buscar Contacto'}
+                             </button>
                           )}
                           {stage === 'Contacto Identificado' && (
                              <button className="flex-1 bg-primary-50 border border-primary-100 text-xs font-bold text-primary-700 py-1.5 rounded hover:bg-primary-100 flex items-center justify-center gap-1"><Wand2 className="w-3 h-3"/> Generar Hook</button>

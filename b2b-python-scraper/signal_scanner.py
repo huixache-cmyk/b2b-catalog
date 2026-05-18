@@ -155,6 +155,16 @@ def run_scan_cycle(keywords=""):
         
         print(f"-> Procesando: {opp.get('company_name')} ({opp.get('signal_type')})")
         
+        # Filtro Anti-Duplicados
+        company_name = opp.get("company_name", "Desconocida")
+        try:
+            existing = db.table("b2b_companies").select("id").ilike("name", company_name).execute()
+            if existing.data and len(existing.data) > 0:
+                print(f"  [OMITIDO] '{company_name}' ya existe en la base de datos.")
+                continue
+        except Exception as e:
+            print(f"  Error verificando duplicados: {e}")
+            
         try:
             # 1. Insertar Empresa
             db.table("b2b_companies").insert({
