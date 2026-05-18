@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@ai-sdk/google": "^3.0.67",
+    "@google/generative-ai": "^0.24.1",
     "@imgly/background-removal": "^1.7.0",
     "@imgly/background-removal-data": "^1.4.5",
     "@imgly/background-removal-node": "^1.4.5",
