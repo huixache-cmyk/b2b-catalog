@@ -3,6 +3,7 @@ import os
 import json
 import urllib.parse
 import feedparser
+import requests
 import google.generativeai as genai
 from db_client import get_db
 
@@ -13,6 +14,41 @@ def init_gemini():
         return False
     genai.configure(api_key=api_key)
     return True
+
+def find_company_domain(company_name):
+    try:
+        url = f"https://autocomplete.clearbit.com/v1/companies/suggest?query={urllib.parse.quote(company_name)}"
+        resp = requests.get(url, timeout=5)
+        if resp.status_code == 200:
+            data = resp.json()
+            if data and len(data) > 0:
+                return data[0].get('domain')
+    except Exception as e:
+        print(f"Error buscando dominio en Clearbit para {company_name}: {e}")
+    return None
+
+def find_decision_maker(domain):
+    hunter_key = os.getenv("HUNTER_API_KEY")
+    if not hunter_key:
+        return None
+        
+    try:
+        url = f"https://api.hunter.io/v2/domain-search?domain={domain}&department=executive,sales,marketing&limit=5&api_key={hunter_key}"
+        resp = requests.get(url, timeout=10)
+        if resp.status_code == 200:
+            data = resp.json()
+            emails = data.get('data', {}).get('emails', [])
+            if emails:
+                best_email = emails[0]
+                return {
+                    "full_name": f"{best_email.get('first_name', '')} {best_email.get('last_name', '')}".strip() or "Contacto Corporativo",
+                    "email": best_email.get('value'),
+                    "job_title": best_email.get('position') or "Manager",
+                    "confidence": best_email.get('confidence', 50)
+                }
+    except Exception as e:
+        print(f"Error buscando contacto en Hunter.io para {domain}: {e}")
+    return None
 
 def fetch_news(keyword):
     print(f"Buscando noticias para: '{keyword}'...")
@@ -138,22 +174,42 @@ def run_scan_cycle(keywords=""):
                 "score": opp.get("score", 70)
             }).execute()
             
-            # 3. Contacto Placeholder (Como no estamos usando Hunter.io todavía, dejamos uno para que el frontend no falle)
-            db.table("b2b_contacts").insert({
-                "id": f"CONT-{timestamp}",
-                "company_id": company_id,
-                "full_name": "Pendiente de Investigación",
-                "job_title": "Director / Compras",
-                "email": "por.definir@empresa.com",
-                "confidence": 0
-            }).execute()
+            # 3. Contacto y Enriquecimiento (Hunter.io / Clearbit)
+            contact_data = None
+            domain = find_company_domain(opp.get("company_name", ""))
+            if domain:
+                print(f"  Dominio encontrado: {domain}")
+                contact_data = find_decision_maker(domain)
+                
+            stage = "Lead Detectado"
+            
+            if contact_data:
+                print(f"  Contacto encontrado: {contact_data['email']} ({contact_data['full_name']})")
+                stage = "Contacto Identificado"
+                db.table("b2b_contacts").insert({
+                    "id": f"CONT-{timestamp}",
+                    "company_id": company_id,
+                    "full_name": contact_data["full_name"],
+                    "job_title": contact_data["job_title"],
+                    "email": contact_data["email"],
+                    "confidence": contact_data["confidence"]
+                }).execute()
+            else:
+                db.table("b2b_contacts").insert({
+                    "id": f"CONT-{timestamp}",
+                    "company_id": company_id,
+                    "full_name": "Pendiente de Investigación",
+                    "job_title": "Director / Compras",
+                    "email": "por.definir@empresa.com",
+                    "confidence": 0
+                }).execute()
             
             # 4. Insertar la Oportunidad
             db.table("b2b_opportunities").insert({
                 "id": opp_id,
                 "company_id": company_id,
                 "total_score": opp.get("score", 70),
-                "stage": "Lead Detectado"
+                "stage": stage
             }).execute()
             
             print(f"[OK] Lead de '{opp.get('company_name')}' insertado exitosamente en Supabase.")
