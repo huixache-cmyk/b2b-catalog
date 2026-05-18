@@ -175,7 +175,7 @@ export function useB2BAgent() {
     opportunities,
     scraperConfig,
     isLoaded,
-    fetchOpportunities,
+    refresh: fetchOpportunities,
     updateOpportunityStage,
     deleteOpportunity,
     updateScraperConfig
