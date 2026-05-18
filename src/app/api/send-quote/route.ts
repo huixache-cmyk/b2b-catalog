@@ -98,7 +98,7 @@ export async function POST(request: Request) {
         to: destinationPhone,
         type: "template",
         template: {
-          name: "confirmacion_cotizacion",
+          name: "respuesta_automatica",
           language: {
             code: "es_MX"
           },

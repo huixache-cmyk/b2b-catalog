@@ -4,7 +4,7 @@ import { supabase } from '@/lib/supabase';
 export const revalidate = 3600; // Revalidate every hour
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const baseUrl = 'https://geekystore.mx';
+  const baseUrl = 'https://www.geekystore.mx';
 
   try {
     const { data: products } = await supabase.from('products').select('id, created_at');
