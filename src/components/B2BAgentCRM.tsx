@@ -92,6 +92,7 @@ export function B2BAgentCRM() {
           phone: opp.contacts[0].phone,
           contact_name: opp.contacts[0].full_name,
           company_name: opp.company.name,
+          signal_desc: opp.signals?.[0]?.signal_type || opp.signals?.[0]?.description || 'sus recientes noticias',
           hook_text: opp.hook_text
         })
       });

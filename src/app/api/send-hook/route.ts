@@ -6,7 +6,7 @@ const resend = new Resend(process.env.RESEND_API_KEY);
 
 export async function POST(request: Request) {
   try {
-    const { opp_id, email, phone, contact_name, hook_text, company_name } = await request.json();
+    const { opp_id, email, phone, contact_name, hook_text, company_name, signal_desc } = await request.json();
 
     if (!opp_id || !email || !hook_text) {
       return NextResponse.json({ error: 'Faltan parámetros requeridos (opp_id, email, hook_text)' }, { status: 400 });
@@ -68,7 +68,8 @@ export async function POST(request: Request) {
                 type: "body",
                 parameters: [
                   { type: "text", text: contact_name || "Gerente" },
-                  { type: "text", text: company_name || "su empresa" }
+                  { type: "text", text: email || "tu correo" },
+                  { type: "text", text: signal_desc || "sus recientes noticias" }
                 ]
               }
             ]
