@@ -50,8 +50,11 @@ def main():
     print("Iniciando Agente B2B (Modo: Programación Diaria)...")
     print("El script despertará todos los días a las 09:00 AM para leer la configuración de la web.")
     
-    # Programar a las 09:00 AM todos los días
+    # Programar a las 09:00, 12:00, 15:00 y 20:00 todos los días
     schedule.every().day.at("09:00").do(fetch_config_and_run)
+    schedule.every().day.at("12:00").do(fetch_config_and_run)
+    schedule.every().day.at("15:00").do(fetch_config_and_run)
+    schedule.every().day.at("20:00").do(fetch_config_and_run)
     
     # Descomenta esta línea si deseas probarlo una vez en cuanto arranque:
     # fetch_config_and_run()

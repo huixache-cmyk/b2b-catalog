@@ -25,6 +25,7 @@ export function B2BAgentCRM() {
   const [triggerMessage, setTriggerMessage] = useState<{type: 'success' | 'error', text: string} | null>(null);
   const [loadingContactId, setLoadingContactId] = useState<string | null>(null);
   const [loadingHookId, setLoadingHookId] = useState<string | null>(null);
+  const [loadingSendId, setLoadingSendId] = useState<string | null>(null);
 
   const handleFindContact = async (opp: B2BOpportunity) => {
     if (!opp.company) return;
@@ -72,6 +73,40 @@ export function B2BAgentCRM() {
       alert(`Error generando hook: ${error.message}`);
     } finally {
       setLoadingHookId(null);
+    }
+  };
+
+  const handleSendHook = async (opp: B2BOpportunity) => {
+    if (!opp.company || !opp.hook_text || !opp.contacts?.[0]?.email) {
+      alert("Faltan datos de contacto o no se ha generado el texto aún.");
+      return;
+    }
+    setLoadingSendId(opp.id);
+    try {
+      const res = await fetch('/api/send-hook', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          opp_id: opp.id,
+          email: opp.contacts[0].email,
+          phone: opp.contacts[0].phone,
+          contact_name: opp.contacts[0].full_name,
+          company_name: opp.company.name,
+          hook_text: opp.hook_text
+        })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      
+      let msg = 'Correo enviado exitosamente.';
+      if (data.waSent) msg += ' También se disparó el WhatsApp.';
+      alert(msg);
+      
+      refresh(); // Reload data
+    } catch (error: any) {
+      alert(`Error al enviar: ${error.message}`);
+    } finally {
+      setLoadingSendId(null);
     }
   };
 
@@ -295,7 +330,13 @@ export function B2BAgentCRM() {
                              </button>
                           )}
                           {stage === 'Hook Generado' && (
-                             <button className="flex-1 bg-primary-600 border border-primary-600 text-xs font-bold text-white py-1.5 rounded hover:bg-primary-700 flex items-center justify-center gap-1"><Mail className="w-3 h-3"/> Enviar Hook</button>
+                             <button 
+                               onClick={() => handleSendHook(opp)}
+                               disabled={loadingSendId === opp.id}
+                               className="flex-1 bg-primary-600 border border-primary-600 text-xs font-bold text-white py-1.5 rounded hover:bg-primary-700 flex items-center justify-center gap-1 disabled:opacity-50"
+                             >
+                               {loadingSendId === opp.id ? 'Enviando...' : <><Mail className="w-3 h-3"/> Enviar Hook</>}
+                             </button>
                           )}
                         </div>
                       </div>

@@ -77,7 +77,7 @@ export function AgentIntegrationView() {
     const file = e.target.files?.[0];
     if (file) {
       try {
-        const base64 = await resizeImage(file, 800, 800);
+        const base64 = await resizeImage(file, 2000, 2000);
         setSourceImage(base64);
         
         // Auto-analyze
