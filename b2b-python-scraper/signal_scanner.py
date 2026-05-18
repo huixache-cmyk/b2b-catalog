@@ -61,7 +61,7 @@ def analyze_with_gemini(news_items):
         prompt += f"\n- {item['title']} ({item['published']})"
         
     try:
-        model = genai.GenerativeModel('gemini-1.5-flash')
+        model = genai.GenerativeModel('gemini-2.5-flash')
         # Pedir explícitamente JSON usando el parámetro de respuesta
         response = model.generate_content(
             prompt,
