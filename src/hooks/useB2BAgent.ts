@@ -33,6 +33,7 @@ export type B2BOpportunity = {
   stage: string;
   next_action?: string;
   estimated_budget?: number; // Calculado o agregado por el hook (opcional)
+  hook_text?: string;
   // Relaciones
   company?: B2BCompany;
   signals?: B2BSignal[];
@@ -117,6 +118,7 @@ export function useB2BAgent() {
           total_score: item.total_score,
           stage: item.stage,
           next_action: item.next_action,
+          hook_text: item.hook_text,
           // Extract company
           company: item.company ? {
             id: item.company.id,

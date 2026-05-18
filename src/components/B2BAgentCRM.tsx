@@ -24,6 +24,7 @@ export function B2BAgentCRM() {
   const [isTriggering, setIsTriggering] = useState(false);
   const [triggerMessage, setTriggerMessage] = useState<{type: 'success' | 'error', text: string} | null>(null);
   const [loadingContactId, setLoadingContactId] = useState<string | null>(null);
+  const [loadingHookId, setLoadingHookId] = useState<string | null>(null);
 
   const handleFindContact = async (opp: B2BOpportunity) => {
     if (!opp.company) return;
@@ -46,6 +47,31 @@ export function B2BAgentCRM() {
       alert(`Error: ${error.message}`);
     } finally {
       setLoadingContactId(null);
+    }
+  };
+
+  const handleGenerateHook = async (opp: B2BOpportunity) => {
+    if (!opp.company) return;
+    setLoadingHookId(opp.id);
+    try {
+      const res = await fetch('/api/generate-hook', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          opp_id: opp.id,
+          company_name: opp.company.name,
+          contact_name: opp.contacts?.[0]?.full_name,
+          contact_title: opp.contacts?.[0]?.job_title,
+          signal_desc: opp.signals?.[0]?.description
+        })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      refresh(); // Reload data
+    } catch (error: any) {
+      alert(`Error generando hook: ${error.message}`);
+    } finally {
+      setLoadingHookId(null);
     }
   };
 
@@ -227,6 +253,26 @@ export function B2BAgentCRM() {
                             <p className="text-xs font-black text-primary-700">${((opp.estimated_budget || 0)/1000).toFixed(0)}k</p>
                           </div>
                         </div>
+
+                        {opp.hook_text && (
+                          <div className="mt-3 bg-gray-50 rounded p-2 border border-gray-200">
+                            <p className="text-[10px] font-bold text-gray-500 uppercase mb-1 flex items-center justify-between">
+                              Borrador IA
+                              <button 
+                                onClick={() => {
+                                  navigator.clipboard.writeText(opp.hook_text || '');
+                                  alert('Copiado al portapapeles');
+                                }}
+                                className="text-primary-600 hover:text-primary-800 bg-primary-50 px-2 py-0.5 rounded"
+                              >
+                                Copiar
+                              </button>
+                            </p>
+                            <p className="text-xs text-gray-700 whitespace-pre-wrap max-h-32 overflow-y-auto custom-scrollbar">
+                              {opp.hook_text}
+                            </p>
+                          </div>
+                        )}
                         
                         {/* Hover Actions */}
                         <div className="mt-3 pt-3 border-t border-gray-100 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -240,7 +286,13 @@ export function B2BAgentCRM() {
                              </button>
                           )}
                           {stage === 'Contacto Identificado' && (
-                             <button className="flex-1 bg-primary-50 border border-primary-100 text-xs font-bold text-primary-700 py-1.5 rounded hover:bg-primary-100 flex items-center justify-center gap-1"><Wand2 className="w-3 h-3"/> Generar Hook</button>
+                             <button 
+                               onClick={() => handleGenerateHook(opp)}
+                               disabled={loadingHookId === opp.id}
+                               className="flex-1 bg-primary-50 border border-primary-100 text-xs font-bold text-primary-700 py-1.5 rounded hover:bg-primary-100 flex items-center justify-center gap-1 disabled:opacity-50"
+                             >
+                               {loadingHookId === opp.id ? 'Escribiendo...' : <><Wand2 className="w-3 h-3"/> Generar Hook</>}
+                             </button>
                           )}
                           {stage === 'Hook Generado' && (
                              <button className="flex-1 bg-primary-600 border border-primary-600 text-xs font-bold text-white py-1.5 rounded hover:bg-primary-700 flex items-center justify-center gap-1"><Mail className="w-3 h-3"/> Enviar Hook</button>

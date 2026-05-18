@@ -126,3 +126,6 @@ ALTER TABLE public.b2b_scraper_config ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Allow public all to b2b_scraper_config" ON public.b2b_scraper_config FOR ALL TO public USING (true) WITH CHECK (true);
 
 INSERT INTO public.b2b_scraper_config (id, is_active, search_keywords) VALUES (1, false, 'aperturas, crecimiento, nuevas oficinas') ON CONFLICT (id) DO NOTHING;
+
+-- Fase 6: Agregar campo para guardar correos generados por IA
+ALTER TABLE public.b2b_opportunities ADD COLUMN IF NOT EXISTS hook_text TEXT;
