@@ -81,41 +81,41 @@ export function B2BAgentCRM() {
             <div className="flex justify-between items-start">
               <div>
                 <p className="text-xs text-gray-500 font-bold uppercase tracking-wider mb-1">Leads Detectados</p>
-                <h3 className="text-2xl font-black text-gray-900">124</h3>
+                <h3 className="text-2xl font-black text-gray-900">{opportunities.length}</h3>
               </div>
               <div className="bg-blue-50 p-2 rounded-lg text-blue-600"><Target className="w-5 h-5" /></div>
             </div>
-            <p className="text-xs text-green-600 font-bold mt-2 flex items-center"><TrendingUp className="w-3 h-3 mr-1"/> +12% esta semana</p>
+            <p className="text-xs text-green-600 font-bold mt-2 flex items-center"><TrendingUp className="w-3 h-3 mr-1"/> Al día de hoy</p>
           </div>
           <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
             <div className="flex justify-between items-start">
               <div>
                 <p className="text-xs text-gray-500 font-bold uppercase tracking-wider mb-1">Hooks Generados</p>
-                <h3 className="text-2xl font-black text-gray-900">45</h3>
+                <h3 className="text-2xl font-black text-gray-900">{opportunities.filter(o => o.stage === 'Hook Generado').length}</h3>
               </div>
               <div className="bg-purple-50 p-2 rounded-lg text-purple-600"><Wand2 className="w-5 h-5" /></div>
             </div>
-            <p className="text-xs text-green-600 font-bold mt-2 flex items-center"><TrendingUp className="w-3 h-3 mr-1"/> Alta conversión</p>
+            <p className="text-xs text-gray-500 font-bold mt-2 flex items-center">Listos para enviar</p>
           </div>
           <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
             <div className="flex justify-between items-start">
               <div>
                 <p className="text-xs text-gray-500 font-bold uppercase tracking-wider mb-1">Tasa de Respuesta</p>
-                <h3 className="text-2xl font-black text-gray-900">18.5%</h3>
+                <h3 className="text-2xl font-black text-gray-900">0.0%</h3>
               </div>
               <div className="bg-orange-50 p-2 rounded-lg text-orange-600"><Mail className="w-5 h-5" /></div>
             </div>
-            <p className="text-xs text-gray-500 font-bold mt-2 flex items-center">Promedio industria: 3%</p>
+            <p className="text-xs text-gray-500 font-bold mt-2 flex items-center">Esperando envíos</p>
           </div>
           <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
             <div className="flex justify-between items-start">
               <div>
                 <p className="text-xs text-gray-500 font-bold uppercase tracking-wider mb-1">Pipeline Estimado</p>
-                <h3 className="text-2xl font-black text-primary-700">$550K</h3>
+                <h3 className="text-2xl font-black text-primary-700">${(opportunities.length * 45).toLocaleString()}K</h3>
               </div>
               <div className="bg-primary-50 p-2 rounded-lg text-primary-600"><BarChart3 className="w-5 h-5" /></div>
             </div>
-            <p className="text-xs text-gray-500 font-bold mt-2 flex items-center">En 12 oportunidades activas</p>
+            <p className="text-xs text-gray-500 font-bold mt-2 flex items-center">En {opportunities.length} oportunidades activas</p>
           </div>
         </div>
       </div>
