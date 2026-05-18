@@ -33,7 +33,7 @@ def find_decision_maker(domain):
         return None
         
     try:
-        url = f"https://api.hunter.io/v2/domain-search?domain={domain}&department=executive,sales,marketing&limit=5&api_key={hunter_key}"
+        url = f"https://api.hunter.io/v2/domain-search?domain={domain}&limit=5&api_key={hunter_key}"
         resp = requests.get(url, timeout=10)
         if resp.status_code == 200:
             data = resp.json()
