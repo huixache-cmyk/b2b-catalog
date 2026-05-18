@@ -156,8 +156,8 @@ def run_scan_cycle(keywords=""):
                 "stage": "Lead Detectado"
             }).execute()
             
-            print(f"✅ Lead de '{opp.get('company_name')}' insertado exitosamente en Supabase.")
+            print(f"[OK] Lead de '{opp.get('company_name')}' insertado exitosamente en Supabase.")
             
         except Exception as e:
-            print(f"❌ Error al insertar lead en Supabase: {e}")
+            print(f"[ERROR] Error al insertar lead en Supabase: {e}")
 
