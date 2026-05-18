@@ -21,6 +21,8 @@ export function B2BAgentCRM() {
   const { opportunities, updateOpportunityStage, isLoaded, scraperConfig, updateScraperConfig } = useB2BAgent();
   const [activeTab, setActiveTab] = useState<'pipeline' | 'signals' | 'analytics'>('pipeline');
   const [searchTerm, setSearchTerm] = useState("");
+  const [isTriggering, setIsTriggering] = useState(false);
+  const [triggerMessage, setTriggerMessage] = useState<{type: 'success' | 'error', text: string} | null>(null);
 
   const getScoreColor = (score: number) => {
     if (score >= 90) return "bg-red-100 text-red-800 border-red-200";
@@ -263,6 +265,42 @@ export function B2BAgentCRM() {
                   <p className="text-xs text-blue-600 mt-2">
                     Última ejecución: {scraperConfig.last_run_at ? new Date(scraperConfig.last_run_at).toLocaleString() : 'Nunca'}
                   </p>
+                </div>
+
+                {/* Manual Trigger */}
+                <div className="pt-4 border-t border-gray-100">
+                  <button
+                    onClick={async () => {
+                      setIsTriggering(true);
+                      setTriggerMessage(null);
+                      try {
+                        const res = await fetch('/api/run-scraper', { method: 'POST' });
+                        const data = await res.json();
+                        if (!res.ok) throw new Error(data.error || 'Error desconocido');
+                        setTriggerMessage({ type: 'success', text: '¡Motor iniciado! Revisa la pestaña Pipeline en un par de minutos.' });
+                      } catch (error: any) {
+                        setTriggerMessage({ type: 'error', text: error.message });
+                      } finally {
+                        setIsTriggering(false);
+                      }
+                    }}
+                    disabled={isTriggering || !scraperConfig.is_active}
+                    className="w-full flex items-center justify-center gap-2 bg-gray-900 text-white font-bold py-3 px-4 rounded-lg hover:bg-gray-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {isTriggering ? (
+                      <><span className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></span> Iniciando...</>
+                    ) : (
+                      <><Search className="w-4 h-4" /> Ejecutar Búsqueda Ahora</>
+                    )}
+                  </button>
+                  {!scraperConfig.is_active && (
+                    <p className="text-xs text-red-500 mt-2 text-center">Debes encender el motor primero para poder ejecutarlo.</p>
+                  )}
+                  {triggerMessage && (
+                    <div className={`mt-3 p-3 rounded-lg text-sm font-medium ${triggerMessage.type === 'success' ? 'bg-green-50 text-green-800 border border-green-200' : 'bg-red-50 text-red-800 border border-red-200'}`}>
+                      {triggerMessage.text}
+                    </div>
+                  )}
                 </div>
               </div>
             ) : (
