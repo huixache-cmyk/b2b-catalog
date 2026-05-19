@@ -103,12 +103,16 @@ Quedo en espera de confirmación de existencias.`;
       // 1. Guardar localmente y en Supabase DB
       await addQuote(newQuote);
 
-      // 2. Enviar Correo Automático en segundo plano
-      await fetch('/api/send-quote', {
+      const res = await fetch('/api/send-quote', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(newQuote)
       });
+      
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || 'Error al enviar cotización');
+      }
 
       // 3. Notificar al usuario y vaciar carrito
       setShowSuccess(true);
@@ -118,9 +122,9 @@ Quedo en espera de confirmación de existencias.`;
         clearCart();
       }, 5000);
       
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error enviando cotización:", error);
-      alert("Hubo un error al procesar la cotización. Intenta de nuevo.");
+      alert(`Hubo un error al procesar la cotización: ${error.message}`);
     } finally {
       setIsSending(false);
     }
