@@ -423,7 +423,7 @@ export function B2BAgentCRM() {
                 {/* Schedule Info */}
                 <div className="bg-blue-50/50 p-4 rounded-lg border border-blue-100">
                   <h3 className="font-bold text-blue-900 text-sm mb-2 flex items-center gap-2"><Clock className="w-4 h-4"/> Programación Diaria</h3>
-                  <p className="text-sm text-blue-800">El motor está configurado en el servidor para despertar <strong>todos los días a las 09:00 AM</strong>.</p>
+                  <p className="text-sm text-blue-800">El motor está configurado en el servidor para despertar <strong>4 veces al día (09:00, 12:00, 15:00 y 20:00 hrs CDMX)</strong>.</p>
                   <p className="text-xs text-blue-600 mt-2">
                     Última ejecución: {scraperConfig.last_run_at ? new Date(scraperConfig.last_run_at).toLocaleString() : 'Nunca'}
                   </p>
