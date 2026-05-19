@@ -67,14 +67,17 @@ export async function POST(request: Request) {
       </div>
     `;
 
-    // Only send if API key is present (skip in pure local testing if not set)
     if (process.env.RESEND_API_KEY) {
-      await resend.emails.send({
+      const { data, error } = await resend.emails.send({
         from: 'GeekyStore B2B <ventas@geekystore.mx>',
         to: ['ventas@geekystore.mx', quote.client.email],
         subject: `Cotización B2B - ${quote.client.company}`,
         html: htmlContent,
       });
+      if (error) {
+        console.error("Resend error:", error);
+        return NextResponse.json({ error: error.message }, { status: 500 });
+      }
     } else {
       console.warn("RESEND_API_KEY no encontrada. Simulando envío de correo...");
     }
@@ -118,11 +121,13 @@ export async function POST(request: Request) {
         const waData = await waResponse.json();
         if (!waResponse.ok) {
           console.error("Error from WhatsApp API:", waData);
+          return NextResponse.json({ error: `WhatsApp Error: ${JSON.stringify(waData)}` }, { status: 500 });
         } else {
           console.log("WhatsApp message sent successfully:", waData);
         }
-      } catch (err) {
+      } catch (err: any) {
         console.error("Error connecting to WhatsApp API:", err);
+        return NextResponse.json({ error: `Connection Error: ${err.message}` }, { status: 500 });
       }
     } else {
       console.warn("Faltan credenciales de WhatsApp o teléfono del cliente. Omitiendo mensaje de WhatsApp.");
@@ -130,8 +135,8 @@ export async function POST(request: Request) {
     // --- END WhatsApp ---
 
     return NextResponse.json({ success: true });
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error sending email:', error);
-    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+    return NextResponse.json({ error: error.message || 'Internal Server Error' }, { status: 500 });
   }
 }
