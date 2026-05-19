@@ -65,6 +65,17 @@ export async function POST(request: Request) {
             language: { code: "es_MX" },
             components: [
               {
+                type: "header",
+                parameters: [
+                  {
+                    type: "image",
+                    image: {
+                      link: "https://www.geekystore.mx/whatsapp-logo.png"
+                    }
+                  }
+                ]
+              },
+              {
                 type: "body",
                 parameters: [
                   { type: "text", text: contact_name || "Gerente" },
