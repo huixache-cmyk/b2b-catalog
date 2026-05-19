@@ -87,6 +87,47 @@ export async function POST(request: Request) {
             </div>
           `
         });
+
+        // Enviar alerta también por WhatsApp a ventas2
+        const waToken = process.env.WA_TOKEN;
+        const waPhoneId = process.env.WA_PHONE_NUMBER_ID;
+
+        if (waToken && waPhoneId) {
+          const waPayload = {
+            messaging_product: "whatsapp",
+            to: "524492601779", // Número de ventas2
+            type: "template",
+            template: {
+              name: "alerta_nuevo_mensaje",
+              language: { code: "es_MX" },
+              components: [
+                {
+                  type: "body",
+                  parameters: [
+                    { type: "text", text: senderName.substring(0, 50) },
+                    { type: "text", text: senderPhone },
+                    { type: "text", text: messageText.substring(0, 500) }, // Limitamos a 500 chars por seguridad de plantilla
+                    { type: "text", text: senderPhone } // El enlace para wa.me/
+                  ]
+                }
+              ]
+            }
+          };
+
+          try {
+            await fetch(`https://graph.facebook.com/v19.0/${waPhoneId}/messages`, {
+              method: 'POST',
+              headers: {
+                'Authorization': `Bearer ${waToken}`,
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify(waPayload)
+            });
+            console.log("Alerta de WhatsApp enviada a ventas2 exitosamente.");
+          } catch (waError) {
+            console.error("Error enviando alerta a ventas2:", waError);
+          }
+        }
       }
 
       // Siempre debemos responder con un 200 OK a Meta rápidamente
