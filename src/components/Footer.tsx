@@ -58,11 +58,11 @@ export function Footer() {
             <ul className="space-y-4 text-sm">
               <li className="flex items-start">
                 <MapPin className="w-5 h-5 mr-2 text-primary-500 flex-shrink-0" />
-                <span>VillaTeresa, Ags, México</span>
+                <span>Aguascalientes, México</span>
               </li>
               <li className="flex items-center">
                 <Phone className="w-5 h-5 mr-2 text-primary-500 flex-shrink-0" />
-                <span>(449) 1170951</span>
+                <span>(449) 260 1779</span>
               </li>
               <li className="flex items-center">
                 <Mail className="w-5 h-5 mr-2 text-primary-500 flex-shrink-0" />

@@ -53,7 +53,7 @@ export default function Home() {
                 {hero.ctaPrimary}
                 <ArrowRight className="ml-2 w-5 h-5" />
               </Link>
-              <a href="https://wa.me/524491170951?text=Hola,%20quisiera%20una%20asesor%C3%ADa" target="_blank" rel="noopener noreferrer" className="border border-white/30 hover:bg-white/10 px-8 py-4 rounded-lg font-bold transition-colors flex items-center justify-center">
+              <a href="https://wa.me/524492601779?text=Hola,%20quisiera%20una%20asesor%C3%ADa" target="_blank" rel="noopener noreferrer" className="border border-white/30 hover:bg-white/10 px-8 py-4 rounded-lg font-bold transition-colors flex items-center justify-center">
                 {hero.ctaSecondary}
               </a>
             </div>
@@ -162,7 +162,7 @@ export default function Home() {
           <p className="text-xl text-primary-100 mb-10">
             {homeSettings.cta?.description || "Nuestro equipo de asesores está listo para ayudarte a encontrar el promocional perfecto para tu campaña, ajustado a tu presupuesto."}
           </p>
-          <a href="https://wa.me/524491170951?text=Hola,%20quisiera%20una%20cotizaci%C3%B3n" target="_blank" rel="noopener noreferrer" className="inline-block bg-white text-primary-900 px-10 py-4 rounded-full font-bold text-lg hover:bg-gray-100 transition-colors shadow-xl hover:shadow-2xl hover:-translate-y-1 transform duration-200">
+          <a href="https://wa.me/524492601779?text=Hola,%20quisiera%20una%20cotizaci%C3%B3n" target="_blank" rel="noopener noreferrer" className="inline-block bg-white text-primary-900 px-10 py-4 rounded-full font-bold text-lg hover:bg-gray-100 transition-colors shadow-xl hover:shadow-2xl hover:-translate-y-1 transform duration-200">
             {homeSettings.cta?.buttonText || "Cotiza Ahora"}
           </a>
         </div>

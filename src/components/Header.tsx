@@ -49,8 +49,8 @@ export function Header() {
       <div className="bg-primary-900 text-white text-xs py-2 px-4 sm:px-6 lg:px-8 flex justify-between items-center">
         <p>Expertos en promocionales corporativos</p>
         <div className="flex space-x-4">
-          <a href="tel:+524491170951" className="flex items-center hover:text-primary-100 transition-colors">
-            <Phone className="w-3 h-3 mr-1" /> 449-117-0951
+          <a href="tel:+524492601779" className="flex items-center hover:text-primary-100 transition-colors">
+            <Phone className="w-3 h-3 mr-1" /> 449-260-1779
           </a>
           <a href="mailto:ventas@geekystore.mx" className="flex items-center hover:text-primary-100 transition-colors hidden sm:flex">
             <Mail className="w-3 h-3 mr-1" /> ventas@geekystore.mx
