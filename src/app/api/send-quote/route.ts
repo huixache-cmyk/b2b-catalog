@@ -104,20 +104,7 @@ export async function POST(request: Request) {
           name: "respuesta_automatica",
           language: {
             code: "es_MX"
-          },
-          components: [
-            {
-              type: "header",
-              parameters: [
-                {
-                  type: "image",
-                  image: {
-                    link: "https://images.unsplash.com/photo-1556761175-5973dc0f32d7?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80"
-                  }
-                }
-              ]
-            }
-          ]
+          }
         }
       };
 
