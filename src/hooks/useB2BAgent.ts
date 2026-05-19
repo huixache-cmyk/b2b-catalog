@@ -44,6 +44,8 @@ export type ScraperConfig = {
   id: number;
   is_active: boolean;
   search_keywords: string;
+  target_companies: string;
+  target_sectors: string;
   last_run_at: string | null;
   updated_at: string;
 };

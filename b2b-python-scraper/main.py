@@ -27,11 +27,17 @@ def fetch_config_and_run():
             return
             
         keywords = config.get('search_keywords', '')
-        print(f"Motor ENCENDIDO. Palabras clave: {keywords}")
+        target_companies = config.get('target_companies', '')
+        target_sectors = config.get('target_sectors', '')
+        
+        print(f"Motor ENCENDIDO.")
+        print(f"Palabras clave (Eventos): {keywords}")
+        print(f"Empresas Objetivo: {target_companies}")
+        print(f"Sectores: {target_sectors}")
         print("Iniciando escaneo...")
         
-        # Ejecutar el escáner pasando las palabras clave
-        run_scan_cycle(keywords)
+        # Ejecutar el escáner pasando las tres variables
+        run_scan_cycle(keywords, target_companies, target_sectors)
         
         # Actualizar last_run_at en Supabase
         db.table('b2b_scraper_config').update({

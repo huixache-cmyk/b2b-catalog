@@ -129,3 +129,6 @@ INSERT INTO public.b2b_scraper_config (id, is_active, search_keywords) VALUES (1
 
 -- Fase 6: Agregar campo para guardar correos generados por IA
 ALTER TABLE public.b2b_opportunities ADD COLUMN IF NOT EXISTS hook_text TEXT;
+-- Fase 7: Nuevos campos para búsqueda dirigida por empresa y sector
+ALTER TABLE public.b2b_scraper_config ADD COLUMN IF NOT EXISTS target_companies text DEFAULT '';
+ALTER TABLE public.b2b_scraper_config ADD COLUMN IF NOT EXISTS target_sectors text DEFAULT '';

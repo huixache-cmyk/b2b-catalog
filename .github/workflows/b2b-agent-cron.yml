@@ -2,8 +2,8 @@ name: Agente Inteligencia B2B (Cron)
 
 on:
   schedule:
-    # Corre todos los días a las 15:00 UTC (9:00 AM CDMX)
-    - cron: '0 15 * * *'
+    # Corre 4 veces al día (9:00 AM, 12:00 PM, 3:00 PM, 8:00 PM CDMX)
+    - cron: '0 15,18,21,2 * * *'
   workflow_dispatch: # Permite ejecutarlo manualmente desde GitHub
 
 jobs:

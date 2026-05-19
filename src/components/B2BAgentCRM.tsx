@@ -386,13 +386,37 @@ export function B2BAgentCRM() {
 
                 {/* Keywords */}
                 <div>
-                  <label className="block text-sm font-bold text-gray-700 mb-2">Palabras Clave (Triggers)</label>
-                  <p className="text-xs text-gray-500 mb-2">Separa los términos con comas. El agente buscará noticias con estas palabras.</p>
+                  <label className="block text-sm font-bold text-gray-700 mb-2">Palabras Clave (Búsqueda de Eventos)</label>
+                  <p className="text-xs text-gray-500 mb-2">Separa por comas. El agente buscará noticias de aperturas o expansiones con estos términos.</p>
                   <textarea 
-                    value={scraperConfig.search_keywords}
+                    value={scraperConfig.search_keywords || ''}
                     onChange={(e) => updateScraperConfig({ search_keywords: e.target.value })}
                     className="w-full border border-gray-300 rounded-lg p-3 text-sm focus:ring-primary-500 focus:border-primary-500"
-                    rows={3}
+                    rows={2}
+                  />
+                </div>
+
+                {/* Target Companies */}
+                <div>
+                  <label className="block text-sm font-bold text-gray-700 mb-2">Empresas Objetivo (Prospección Directa)</label>
+                  <p className="text-xs text-gray-500 mb-2">Separa por comas (Ej. Bimbo, Cemex). La IA buscará contactos clave directamente sin requerir noticias.</p>
+                  <textarea 
+                    value={scraperConfig.target_companies || ''}
+                    onChange={(e) => updateScraperConfig({ target_companies: e.target.value })}
+                    className="w-full border border-gray-300 rounded-lg p-3 text-sm focus:ring-primary-500 focus:border-primary-500"
+                    rows={2}
+                  />
+                </div>
+
+                {/* Target Sectors */}
+                <div>
+                  <label className="block text-sm font-bold text-gray-700 mb-2">Sectores de Interés (Descubrimiento)</label>
+                  <p className="text-xs text-gray-500 mb-2">Separa por comas (Ej. Automotriz, Logística). La IA sugerirá empresas top en México para este sector.</p>
+                  <textarea 
+                    value={scraperConfig.target_sectors || ''}
+                    onChange={(e) => updateScraperConfig({ target_sectors: e.target.value })}
+                    className="w-full border border-gray-300 rounded-lg p-3 text-sm focus:ring-primary-500 focus:border-primary-500"
+                    rows={2}
                   />
                 </div>
 

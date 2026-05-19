@@ -5,3 +5,4 @@ beautifulsoup4>=4.12.3
 python-dotenv>=1.0.1
 google-generativeai>=0.4.1
 feedparser>=6.0.11
+googlesearch-python>=1.2.3
