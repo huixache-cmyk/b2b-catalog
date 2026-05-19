@@ -66,7 +66,7 @@ export function Footer() {
               </li>
               <li className="flex items-center">
                 <Mail className="w-5 h-5 mr-2 text-primary-500 flex-shrink-0" />
-                <span>ventas@geekystore.mx</span>
+                <a href="mailto:ventas@geekystore.mx" className="hover:text-primary-400 transition-colors">ventas@geekystore.mx</a>
               </li>
             </ul>
           </div>
