@@ -1,10 +1,11 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { Upload, Image as ImageIcon, Search, CheckCircle, Trash2, Wand2, PenTool, Database, Download, Loader2 } from "lucide-react";
+import { Upload, Image as ImageIcon, Search, CheckCircle, Trash2, Wand2, PenTool, Database, Download, Loader2, Globe } from "lucide-react";
 import { removeBackground } from "@imgly/background-removal";
 import { Product } from "@/types";
 import { useProducts } from "@/hooks/useProducts";
+import { uploadImage } from "@/lib/supabase";
 
 type AnalysisResult = {
   productName: string;
@@ -14,12 +15,20 @@ type AnalysisResult = {
   keywordsEn: string;
   keywordsEs: string;
   searchQueries: string[];
+  alibabaQuery?: string;
+  amazonQuery?: string;
+  mercadolibreQuery?: string;
 };
 
 export function AgentIntegrationView() {
   const [sourceImage, setSourceImage] = useState<string | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysis, setAnalysis] = useState<AnalysisResult | null>(null);
+  const [sourceImagePublicUrl, setSourceImagePublicUrl] = useState<string | null>(null);
+  const [isUploadingSource, setIsUploadingSource] = useState(false);
+  const [editableAlibabaQuery, setEditableAlibabaQuery] = useState("");
+  const [editableAmazonQuery, setEditableAmazonQuery] = useState("");
+  const [editableMercadolibreQuery, setEditableMercadolibreQuery] = useState("");
 
   const [groupImage, setGroupImage] = useState<string | null>(null);
   const [individualImages, setIndividualImages] = useState<(string | null)[]>([null, null, null]);
@@ -80,8 +89,22 @@ export function AgentIntegrationView() {
         const base64 = await resizeImage(file, 2000, 2000);
         setSourceImage(base64);
         
-        // Auto-analyze
+        // Auto-upload and analyze
+        setIsUploadingSource(true);
         setIsAnalyzing(true);
+        setSourceImagePublicUrl(null); // Reset previous URL
+
+        try {
+          const publicUrl = await uploadImage(file);
+          if (publicUrl) {
+            setSourceImagePublicUrl(publicUrl);
+          }
+        } catch (uploadError) {
+          console.error("Error uploading source image to Supabase:", uploadError);
+        } finally {
+          setIsUploadingSource(false);
+        }
+
         try {
           const res = await fetch('/api/analyze-image', {
             method: 'POST',
@@ -100,6 +123,11 @@ export function AgentIntegrationView() {
           if (!res.ok) throw new Error(data.error || `Error del servidor (${res.status})`);
           
           setAnalysis(data.data);
+          
+          // Initialise editable search queries
+          setEditableAlibabaQuery(data.data.alibabaQuery || data.data.keywordsEn || "");
+          setEditableAmazonQuery(data.data.amazonQuery || data.data.keywordsEs || "");
+          setEditableMercadolibreQuery(data.data.mercadolibreQuery || data.data.keywordsEs || "");
         } catch (error: any) {
           console.error(error);
           alert(`Hubo un error al analizar la imagen: ${error.message}. Revisa la consola o asegúrate de tener la API Key correcta.`);
@@ -125,10 +153,30 @@ export function AgentIntegrationView() {
     }
   };
 
-  const openSearch = () => {
-    if (analysis) {
-      const query = encodeURIComponent(analysis.keywordsEn);
-      window.open(`https://www.alibaba.com/trade/search?SearchText=${query}`, '_blank');
+  const openAlibabaSearch = () => {
+    const query = editableAlibabaQuery || (analysis ? (analysis.alibabaQuery || analysis.keywordsEn) : "");
+    if (query) {
+      window.open(`https://www.alibaba.com/trade/search?SearchText=${encodeURIComponent(query)}`, '_blank');
+    }
+  };
+
+  const openAmazonSearch = () => {
+    const query = editableAmazonQuery || (analysis ? (analysis.amazonQuery || analysis.keywordsEs) : "");
+    if (query) {
+      window.open(`https://www.amazon.com.mx/s?k=${encodeURIComponent(query)}`, '_blank');
+    }
+  };
+
+  const openMercadoLibreSearch = () => {
+    const query = editableMercadolibreQuery || (analysis ? (analysis.mercadolibreQuery || analysis.keywordsEs) : "");
+    if (query) {
+      window.open(`https://listado.mercadolibre.com.mx/${encodeURIComponent(query)}`, '_blank');
+    }
+  };
+
+  const openGoogleLensSearch = () => {
+    if (sourceImagePublicUrl) {
+      window.open(`https://lens.google.com/uploadbyurl?url=${encodeURIComponent(sourceImagePublicUrl)}`, '_blank');
     }
   };
 
@@ -334,32 +382,147 @@ export function AgentIntegrationView() {
           <div className="bg-white p-6 rounded-xl border shadow-sm">
             <h3 className="font-semibold text-lg flex items-center gap-2 mb-4">
               <span className="bg-blue-100 text-blue-700 w-6 h-6 rounded-full flex items-center justify-center text-sm">2</span>
-              Inteligencia y Búsqueda
+              Inteligencia y Búsqueda IA
             </h3>
             
             {isAnalyzing ? (
               <div className="flex flex-col items-center justify-center py-8 text-blue-600">
                 <Loader2 className="h-8 w-8 animate-spin mb-2" />
                 <span className="text-sm font-medium">Analizando producto con Gemini...</span>
+                {isUploadingSource && (
+                  <span className="text-xs text-gray-500 mt-1">Subiendo imagen origen a Supabase...</span>
+                )}
               </div>
             ) : analysis ? (
-              <div className="space-y-4">
-                <div className="bg-gray-50 p-3 rounded-lg text-sm">
-                  <p><span className="font-medium">Producto:</span> {analysis.productName}</p>
-                  <p><span className="font-medium">Categoría:</span> {analysis.category}</p>
-                  <p><span className="font-medium">Material:</span> {analysis.material}</p>
+              <div className="space-y-5">
+                {/* Detalles de la IA */}
+                <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 text-sm space-y-2">
+                  <div className="flex items-center justify-between border-b border-slate-200/60 pb-1.5">
+                    <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">Especificaciones Detectadas</span>
+                    <span className="bg-emerald-100 text-emerald-800 text-[10px] font-bold px-2 py-0.5 rounded-full">Gemini Flash</span>
+                  </div>
+                  <p><span className="font-medium text-slate-600">Producto:</span> <span className="text-slate-900 font-semibold">{analysis.productName}</span></p>
+                  <p><span className="font-medium text-slate-600">Categoría:</span> <span className="text-slate-900">{analysis.category}</span></p>
+                  <p><span className="font-medium text-slate-600">Material:</span> <span className="text-slate-900">{analysis.material}</span></p>
+                  {analysis.specifications && analysis.specifications.length > 0 && (
+                    <div className="mt-2">
+                      <span className="font-medium text-slate-600">Detalles visuales:</span>
+                      <div className="flex flex-wrap gap-1 mt-1">
+                        {analysis.specifications.map((spec, i) => (
+                          <span key={i} className="bg-white border border-slate-200 text-slate-700 text-xs px-2 py-0.5 rounded-md">
+                            {spec}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
-                <div className="bg-green-50 text-green-800 p-3 rounded-lg text-sm">
-                  <p className="font-medium mb-1">Keywords B2B:</p>
-                  <p className="italic">{analysis.keywordsEn}</p>
+
+                {/* Búsqueda Visual - Google Lens */}
+                <div className="space-y-2">
+                  <span className="text-xs font-semibold uppercase tracking-wider text-slate-400 block">Búsqueda Visual Inteligente</span>
+                  {sourceImagePublicUrl ? (
+                    <button 
+                      onClick={openGoogleLensSearch}
+                      className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-blue-500 via-red-500 via-yellow-500 to-green-500 hover:opacity-90 text-white font-medium px-4 py-2.5 rounded-lg transition-all shadow-sm hover:scale-[1.01] active:scale-[0.99]"
+                    >
+                      <Globe className="w-4 h-4" />
+                      Buscar Imagen con Google Lens
+                    </button>
+                  ) : (
+                    <div className="border border-amber-200 bg-amber-50/50 rounded-lg p-2.5 text-xs text-amber-800">
+                      {isUploadingSource ? (
+                        <div className="flex items-center gap-2">
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          <span>Obteniendo enlace público de la imagen...</span>
+                        </div>
+                      ) : (
+                        <span>No se generó enlace público. Sube la imagen de nuevo para usar Google Lens.</span>
+                      )}
+                    </div>
+                  )}
                 </div>
-                <button 
-                  onClick={openSearch}
-                  className="w-full flex items-center justify-center gap-2 bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded-lg font-medium transition-colors"
-                >
-                  <Search className="w-4 h-4" />
-                  Buscar en Alibaba
-                </button>
+
+                {/* Plataformas Individuales */}
+                <div className="space-y-4 pt-2 border-t border-slate-100">
+                  <span className="text-xs font-semibold uppercase tracking-wider text-slate-400 block">Búsqueda de Coincidencia Exacta</span>
+                  
+                  {/* Alibaba */}
+                  <div className="space-y-1">
+                    <div className="flex justify-between items-center text-xs">
+                      <span className="font-semibold text-orange-600 flex items-center gap-1">
+                        <span className="w-1.5 h-1.5 rounded-full bg-orange-500" /> Alibaba (Inglés)
+                      </span>
+                    </div>
+                    <div className="flex gap-2">
+                      <input 
+                        type="text"
+                        value={editableAlibabaQuery}
+                        onChange={(e) => setEditableAlibabaQuery(e.target.value)}
+                        className="flex-1 text-xs border border-slate-200 rounded-lg px-2.5 py-1.5 bg-slate-50/50 focus:bg-white focus:outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500/20 transition-all text-slate-850"
+                        placeholder="Términos para Alibaba"
+                      />
+                      <button 
+                        onClick={openAlibabaSearch}
+                        className="bg-orange-500 hover:bg-orange-600 text-white p-2 rounded-lg transition-colors flex items-center justify-center shrink-0 animate-fade-in"
+                        title="Buscar en Alibaba"
+                      >
+                        <Search className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Amazon México */}
+                  <div className="space-y-1">
+                    <div className="flex justify-between items-center text-xs">
+                      <span className="font-semibold text-slate-700 flex items-center gap-1">
+                        <span className="w-1.5 h-1.5 rounded-full bg-yellow-500" /> Amazon México
+                      </span>
+                    </div>
+                    <div className="flex gap-2">
+                      <input 
+                        type="text"
+                        value={editableAmazonQuery}
+                        onChange={(e) => setEditableAmazonQuery(e.target.value)}
+                        className="flex-1 text-xs border border-slate-200 rounded-lg px-2.5 py-1.5 bg-slate-50/50 focus:bg-white focus:outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500/20 transition-all text-slate-850"
+                        placeholder="Términos para Amazon MX"
+                      />
+                      <button 
+                        onClick={openAmazonSearch}
+                        className="bg-slate-800 hover:bg-slate-900 text-white p-2 rounded-lg transition-colors flex items-center justify-center shrink-0"
+                        title="Buscar en Amazon México"
+                      >
+                        <Search className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Mercado Libre México */}
+                  <div className="space-y-1">
+                    <div className="flex justify-between items-center text-xs">
+                      <span className="font-semibold text-blue-700 flex items-center gap-1">
+                        <span className="w-1.5 h-1.5 rounded-full bg-blue-500" /> Mercado Libre México
+                      </span>
+                    </div>
+                    <div className="flex gap-2">
+                      <input 
+                        type="text"
+                        value={editableMercadolibreQuery}
+                        onChange={(e) => setEditableMercadolibreQuery(e.target.value)}
+                        className="flex-1 text-xs border border-slate-200 rounded-lg px-2.5 py-1.5 bg-slate-50/50 focus:bg-white focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20 transition-all text-slate-850"
+                        placeholder="Términos para Mercado Libre"
+                      />
+                      <button 
+                        onClick={openMercadoLibreSearch}
+                        className="bg-yellow-400 hover:bg-yellow-500 text-slate-800 p-2 rounded-lg transition-colors flex items-center justify-center shrink-0"
+                        title="Buscar en Mercado Libre México"
+                      >
+                        <Search className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+
+                </div>
               </div>
             ) : (
               <div className="text-center text-gray-500 py-8 text-sm">

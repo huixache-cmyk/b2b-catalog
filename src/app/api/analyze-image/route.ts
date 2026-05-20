@@ -16,7 +16,8 @@ export async function POST(req: Request) {
 
     // Prepare prompt according to JSON requirements
     const prompt = `Analiza esta imagen y detecta el tipo de producto, categoría, material, uso, características clave o especificaciones. 
-También genera keywords optimizadas en inglés y español para búsqueda web en proveedores B2B.`;
+También genera consultas de búsqueda (keywords) optimizadas e individualizadas para Alibaba, Amazon México y Mercado Libre México.
+Concéntrate en detalles específicos del diseño visual (ej. formas, tapas, hendiduras, texturas, capacidades estimadas, colores) que permitan localizar el producto EXACTO y no solo variantes genéricas.`;
 
     const { object } = await generateObject({
       model: google('gemini-flash-latest'),
@@ -27,7 +28,10 @@ También genera keywords optimizadas en inglés y español para búsqueda web en
         specifications: z.array(z.string()).describe('Lista de características (ej. tapa con asa, translúcida, deportiva)'),
         keywordsEn: z.string().describe('Keywords en inglés para búsqueda en Alibaba/Made-in-China (ej. "plastic water bottle with handle BPA free 700ml")'),
         keywordsEs: z.string().describe('Keywords en español para búsqueda (ej. "botella deportiva plástico con asa translúcida")'),
-        searchQueries: z.array(z.string()).describe('3 consultas sugeridas exactas para buscar en Alibaba o Google Images')
+        searchQueries: z.array(z.string()).describe('3 consultas sugeridas exactas para buscar en Alibaba o Google Images'),
+        alibabaQuery: z.string().describe('Consulta de búsqueda ultra específica y precisa en inglés para encontrar exactamente este producto en Alibaba, usando marca, modelo, material y especificaciones visuales detalladas (ej. "700ml frosted plastic water bottle with silicon handle loop leakproof")'),
+        amazonQuery: z.string().describe('Consulta de búsqueda ultra específica en español para encontrar este producto exacto en Amazon México (ej. "termo acero inoxidable doble pared 500ml tapa de madera")'),
+        mercadolibreQuery: z.string().describe('Consulta de búsqueda ultra específica en español para encontrar este producto exacto en Mercado Libre México (ej. "cilindro de plastico deportivo con popote 800ml")')
       }),
       messages: [
         {
