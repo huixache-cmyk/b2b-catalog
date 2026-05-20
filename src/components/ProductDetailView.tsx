@@ -280,7 +280,7 @@ export function ProductDetailView({ product, relatedProducts }: { product: Produ
               <img 
                 src={product.images[selectedImage]} 
                 alt={product.name} 
-                className="w-full h-full object-cover"
+                className="w-full h-full object-contain p-4"
               />
               {product.isNew && (
                 <div className="absolute top-4 left-4 bg-green-500 text-white text-sm font-bold px-3 py-1 rounded shadow-sm z-10">
@@ -305,7 +305,7 @@ export function ProductDetailView({ product, relatedProducts }: { product: Produ
                   onClick={() => setSelectedImage(idx)}
                   className={`aspect-square rounded-lg overflow-hidden border-2 transition-all ${selectedImage === idx ? 'border-primary-500 ring-2 ring-primary-200' : 'border-transparent hover:border-gray-200'}`}
                 >
-                  <img src={img} alt="" className="w-full h-full object-cover" />
+                  <img src={img} alt="" className="w-full h-full object-contain p-1" />
                 </button>
               ))}
             </div>
@@ -719,7 +719,7 @@ export function ProductDetailView({ product, relatedProducts }: { product: Produ
                           <img 
                             src={idx === getTechImageIndex() ? img : (paddedOriginalImage || product.images[getIndividualImageIndex()])} 
                             alt="" 
-                            className="w-full h-full object-cover" 
+                            className="w-full h-full object-contain p-1" 
                           />
                         </button>
                       );

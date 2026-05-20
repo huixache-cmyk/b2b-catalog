@@ -146,12 +146,12 @@ Quedo en espera de confirmación de existencias.`;
             
             <div className="flex gap-2 shrink-0">
               <div className="w-24 h-24 bg-gray-50 rounded-lg overflow-hidden border border-gray-100 relative group">
-                <img src={item.mockupImage || item.image} alt={item.productName} className="w-full h-full object-cover" />
+                <img src={item.mockupImage || item.image} alt={item.productName} className="w-full h-full object-contain p-1" />
                 <div className="absolute inset-x-0 bottom-0 bg-black/60 text-[10px] text-white font-bold text-center py-0.5">Vista</div>
               </div>
               {item.blueprintImage && (
                 <div className="w-24 h-24 bg-gray-50 rounded-lg overflow-hidden border border-gray-100 hidden sm:block relative group">
-                  <img src={item.blueprintImage} alt="Plano Mecánico" className="w-full h-full object-cover" />
+                  <img src={item.blueprintImage} alt="Plano Mecánico" className="w-full h-full object-contain p-1" />
                   <div className="absolute inset-x-0 bottom-0 bg-black/60 text-[10px] text-white font-bold text-center py-0.5">Plano</div>
                 </div>
               )}
