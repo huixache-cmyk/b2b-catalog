@@ -5,7 +5,7 @@ import { useProducts } from "@/hooks/useProducts";
 import { useSettings } from "@/hooks/useSettings";
 import { useQuotes } from "@/hooks/useQuotes";
 import { Product, MATERIALS, QuoteRequest } from "@/types";
-import { Edit, Trash2, Plus, Search, X, Image as ImageIcon, Eye, Clock, CheckCircle, FileText, Download, User } from "lucide-react";
+import { Edit, Trash2, Plus, Search, X, Image as ImageIcon, Eye, Clock, CheckCircle, FileText, Download, User, ChevronUp, ChevronDown } from "lucide-react";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import dynamic from "next/dynamic";
@@ -51,10 +51,32 @@ export function AdminView() {
   const { quotes, isLoaded: quotesLoaded, updateQuoteStatus, deleteQuote } = useQuotes();
   const [searchTerm, setSearchTerm] = useState("");
   const [activeTab, setActiveTab] = useState<'products' | 'settings' | 'home' | 'quotes' | 'agent' | 'b2b-agent'>('products');
-  const { categories, seasons, isLoaded: settingsLoaded, addCategory, removeCategory, addSeason, removeSeason, featuredSeason, updateFeaturedSeason, homeSettings, updateHomeSettings } = useSettings();
+  const { categories, seasons, isLoaded: settingsLoaded, addCategory, removeCategory, addSeason, removeSeason, featuredSeason, updateFeaturedSeason, homeSettings, updateHomeSettings, updateCategories, updateSeasons } = useSettings();
   
   const [newCategory, setNewCategory] = useState("");
   const [newSeason, setNewSeason] = useState("");
+
+  const moveCategory = (index: number, direction: 'up' | 'down') => {
+    const newCategories = [...categories];
+    const targetIndex = direction === 'up' ? index - 1 : index + 1;
+    if (targetIndex >= 0 && targetIndex < newCategories.length) {
+      const temp = newCategories[index];
+      newCategories[index] = newCategories[targetIndex];
+      newCategories[targetIndex] = temp;
+      updateCategories(newCategories);
+    }
+  };
+
+  const moveSeason = (index: number, direction: 'up' | 'down') => {
+    const newSeasons = [...seasons];
+    const targetIndex = direction === 'up' ? index - 1 : index + 1;
+    if (targetIndex >= 0 && targetIndex < newSeasons.length) {
+      const temp = newSeasons[index];
+      newSeasons[index] = newSeasons[targetIndex];
+      newSeasons[targetIndex] = temp;
+      updateSeasons(newSeasons);
+    }
+  };
   
   // Auth state
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -529,12 +551,33 @@ export function AdminView() {
               </button>
             </div>
             <ul className="space-y-2">
-              {categories.map(cat => (
-                <li key={cat} className="flex items-center justify-between bg-gray-50 p-3 rounded-lg border border-gray-100">
+              {categories.map((cat, idx) => (
+                <li key={cat} className="flex items-center justify-between bg-gray-50 p-3 rounded-lg border border-gray-100 hover:bg-gray-100/50 transition-colors duration-200 group">
                   <span className="font-medium text-gray-700">{cat}</span>
-                  <button onClick={() => removeCategory(cat)} className="text-gray-400 hover:text-red-600 transition-colors p-1" title="Eliminar">
-                    <Trash2 className="w-4 h-4" />
-                  </button>
+                  <div className="flex items-center gap-1">
+                    <button 
+                      type="button"
+                      disabled={idx === 0}
+                      onClick={() => moveCategory(idx, 'up')}
+                      className="text-gray-400 hover:text-primary-600 disabled:opacity-30 disabled:hover:text-gray-400 transition-colors p-1" 
+                      title="Mover arriba"
+                    >
+                      <ChevronUp className="w-4 h-4" />
+                    </button>
+                    <button 
+                      type="button"
+                      disabled={idx === categories.length - 1}
+                      onClick={() => moveCategory(idx, 'down')}
+                      className="text-gray-400 hover:text-primary-600 disabled:opacity-30 disabled:hover:text-gray-400 transition-colors p-1" 
+                      title="Mover abajo"
+                    >
+                      <ChevronDown className="w-4 h-4" />
+                    </button>
+                    <div className="h-4 w-[1px] bg-gray-250 mx-1"></div>
+                    <button onClick={() => removeCategory(cat)} className="text-gray-400 hover:text-red-600 transition-colors p-1" title="Eliminar">
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
                 </li>
               ))}
               {categories.length === 0 && <li className="text-gray-500 text-sm italic">No hay categorías.</li>}
@@ -571,12 +614,33 @@ export function AdminView() {
               </button>
             </div>
             <ul className="space-y-2">
-              {seasons.map(sea => (
-                <li key={sea} className="flex items-center justify-between bg-gray-50 p-3 rounded-lg border border-gray-100">
+              {seasons.map((sea, idx) => (
+                <li key={sea} className="flex items-center justify-between bg-gray-50 p-3 rounded-lg border border-gray-100 hover:bg-gray-100/50 transition-colors duration-200 group">
                   <span className="font-medium text-gray-700">{sea}</span>
-                  <button onClick={() => removeSeason(sea)} className="text-gray-400 hover:text-red-600 transition-colors p-1" title="Eliminar">
-                    <Trash2 className="w-4 h-4" />
-                  </button>
+                  <div className="flex items-center gap-1">
+                    <button 
+                      type="button"
+                      disabled={idx === 0}
+                      onClick={() => moveSeason(idx, 'up')}
+                      className="text-gray-400 hover:text-primary-600 disabled:opacity-30 disabled:hover:text-gray-400 transition-colors p-1" 
+                      title="Mover arriba"
+                    >
+                      <ChevronUp className="w-4 h-4" />
+                    </button>
+                    <button 
+                      type="button"
+                      disabled={idx === seasons.length - 1}
+                      onClick={() => moveSeason(idx, 'down')}
+                      className="text-gray-400 hover:text-primary-600 disabled:opacity-30 disabled:hover:text-gray-400 transition-colors p-1" 
+                      title="Mover abajo"
+                    >
+                      <ChevronDown className="w-4 h-4" />
+                    </button>
+                    <div className="h-4 w-[1px] bg-gray-250 mx-1"></div>
+                    <button onClick={() => removeSeason(sea)} className="text-gray-400 hover:text-red-600 transition-colors p-1" title="Eliminar">
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
                 </li>
               ))}
               {seasons.length === 0 && <li className="text-gray-500 text-sm italic">No hay temporadas.</li>}
