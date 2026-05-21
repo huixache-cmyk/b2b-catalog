@@ -33,6 +33,7 @@ export function AgentIntegrationView() {
   const [groupImage, setGroupImage] = useState<string | null>(null);
   const [individualImages, setIndividualImages] = useState<(string | null)[]>([null, null, null]);
   const [techImage, setTechImage] = useState<string | null>(null);
+  const [hoveredZone, setHoveredZone] = useState<string | null>(null);
 
   const [isRemovingBg, setIsRemovingBg] = useState(false);
   const [bgProgress, setBgProgress] = useState("");
@@ -82,64 +83,130 @@ export function AgentIntegrationView() {
     });
   };
 
+  const processSourceImage = async (file: File, base64: string) => {
+    setSourceImage(base64);
+    
+    // Auto-upload and analyze
+    setIsUploadingSource(true);
+    setIsAnalyzing(true);
+    setSourceImagePublicUrl(null); // Reset previous URL
+
+    try {
+      const publicUrl = await uploadImage(file);
+      if (publicUrl) {
+        setSourceImagePublicUrl(publicUrl);
+      }
+    } catch (uploadError) {
+      console.error("Error uploading source image to Supabase:", uploadError);
+    } finally {
+      setIsUploadingSource(false);
+    }
+
+    try {
+      const res = await fetch('/api/analyze-image', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ imageBase64: base64 })
+      });
+      
+      const textResponse = await res.text();
+      let data;
+      try {
+        data = JSON.parse(textResponse);
+      } catch(e) {
+        throw new Error(res.status === 413 ? 'La imagen es demasiado pesada para el servidor (Payload Too Large).' : 'El servidor devolvió una respuesta no válida.');
+      }
+
+      if (!res.ok) throw new Error(data.error || `Error del servidor (${res.status})`);
+      
+      setAnalysis(data.data);
+      
+      // Initialise editable search queries
+      setEditableAlibabaQuery(data.data.alibabaQuery || data.data.keywordsEn || "");
+      setEditableAmazonQuery(data.data.amazonQuery || data.data.keywordsEs || "");
+      setEditableMercadolibreQuery(data.data.mercadolibreQuery || data.data.keywordsEs || "");
+    } catch (error: any) {
+      console.error(error);
+      alert(`Hubo un error al analizar la imagen: ${error.message}. Revisa la consola o asegúrate de tener la API Key correcta.`);
+    } finally {
+      setIsAnalyzing(false);
+    }
+  };
+
   const handleSourceUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
       try {
         const base64 = await resizeImage(file, 2000, 2000);
-        setSourceImage(base64);
-        
-        // Auto-upload and analyze
-        setIsUploadingSource(true);
-        setIsAnalyzing(true);
-        setSourceImagePublicUrl(null); // Reset previous URL
-
-        try {
-          const publicUrl = await uploadImage(file);
-          if (publicUrl) {
-            setSourceImagePublicUrl(publicUrl);
-          }
-        } catch (uploadError) {
-          console.error("Error uploading source image to Supabase:", uploadError);
-        } finally {
-          setIsUploadingSource(false);
-        }
-
-        try {
-          const res = await fetch('/api/analyze-image', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ imageBase64: base64 })
-          });
-          
-          const textResponse = await res.text();
-          let data;
-          try {
-            data = JSON.parse(textResponse);
-          } catch(e) {
-            throw new Error(res.status === 413 ? 'La imagen es demasiado pesada para el servidor (Payload Too Large).' : 'El servidor devolvió una respuesta no válida.');
-          }
-
-          if (!res.ok) throw new Error(data.error || `Error del servidor (${res.status})`);
-          
-          setAnalysis(data.data);
-          
-          // Initialise editable search queries
-          setEditableAlibabaQuery(data.data.alibabaQuery || data.data.keywordsEn || "");
-          setEditableAmazonQuery(data.data.amazonQuery || data.data.keywordsEs || "");
-          setEditableMercadolibreQuery(data.data.mercadolibreQuery || data.data.keywordsEs || "");
-        } catch (error: any) {
-          console.error(error);
-          alert(`Hubo un error al analizar la imagen: ${error.message}. Revisa la consola o asegúrate de tener la API Key correcta.`);
-        } finally {
-          setIsAnalyzing(false);
-        }
+        await processSourceImage(file, base64);
       } catch (err) {
         console.error("Error resizing image:", err);
         alert("No se pudo procesar la imagen seleccionada.");
       }
     }
   };
+
+  useEffect(() => {
+    const handlePaste = async (e: ClipboardEvent) => {
+      const items = e.clipboardData?.items;
+      if (!items) return;
+      
+      let imageFile: File | null = null;
+      for (let i = 0; i < items.length; i++) {
+        if (items[i].type.indexOf("image") !== -1) {
+          imageFile = items[i].getAsFile();
+          break;
+        }
+      }
+      
+      if (!imageFile) return;
+      
+      e.preventDefault();
+      
+      try {
+        const base64 = await resizeImage(imageFile, 2000, 2000);
+        
+        if (hoveredZone === "source") {
+          await processSourceImage(imageFile, base64);
+        } else if (hoveredZone === "group") {
+          setGroupImage(base64);
+        } else if (hoveredZone && hoveredZone.startsWith("ind-")) {
+          const idx = parseInt(hoveredZone.split("-")[1]);
+          setIndividualImages(prev => {
+            const newArr = [...prev];
+            newArr[idx] = base64;
+            return newArr;
+          });
+        } else {
+          // Global fallback paste
+          if (!sourceImage) {
+            await processSourceImage(imageFile, base64);
+          } else {
+            const emptyIdx = individualImages.findIndex(img => img === null);
+            if (emptyIdx !== -1) {
+              setIndividualImages(prev => {
+                const newArr = [...prev];
+                newArr[emptyIdx] = base64;
+                return newArr;
+              });
+            } else if (!groupImage) {
+              setGroupImage(base64);
+            } else {
+              await processSourceImage(imageFile, base64);
+            }
+          }
+        }
+      } catch (err) {
+        console.error("Error processing pasted image:", err);
+        alert("No se pudo procesar la imagen pegada.");
+      }
+    };
+
+    window.addEventListener("paste", handlePaste);
+    return () => {
+      window.removeEventListener("paste", handlePaste);
+    };
+  }, [hoveredZone, sourceImage, individualImages, groupImage]);
 
   const handleManualUpload = async (e: React.ChangeEvent<HTMLInputElement>, setter: (val: string | null) => void) => {
     const file = e.target.files?.[0];
@@ -410,21 +477,29 @@ export function AgentIntegrationView() {
         
         {/* COL 1: Fuente e IA */}
         <div className="space-y-6">
-          <div className="bg-white p-6 rounded-xl border shadow-sm">
+          <div 
+            onMouseEnter={() => setHoveredZone("source")}
+            onMouseLeave={() => setHoveredZone(null)}
+            className={`bg-white p-6 rounded-xl border shadow-sm transition-all duration-300 ${hoveredZone === "source" ? "ring-2 ring-blue-500/20 border-blue-500/50 bg-blue-50/5" : ""}`}
+          >
             <h3 className="font-semibold text-lg flex items-center gap-2 mb-4">
               <span className="bg-blue-100 text-blue-700 w-6 h-6 rounded-full flex items-center justify-center text-sm">1</span>
               Imagen Origen (WhatsApp)
             </h3>
             {!sourceImage ? (
-              <label className="border-2 border-dashed border-gray-300 rounded-xl p-8 flex flex-col items-center justify-center cursor-pointer hover:bg-gray-50 transition-colors">
-                <Upload className="h-10 w-10 text-gray-400 mb-2" />
-                <span className="text-sm text-gray-600">Sube la foto del cliente/proveedor</span>
+              <label className="border-2 border-dashed border-gray-300 hover:border-blue-400 rounded-xl p-8 flex flex-col items-center justify-center cursor-pointer hover:bg-gray-50 transition-colors group">
+                <Upload className="h-10 w-10 text-gray-400 mb-2 group-hover:text-blue-500 group-hover:scale-110 transition-all duration-300" />
+                <span className="text-sm text-gray-600 font-medium group-hover:text-blue-600">Sube la foto del cliente/proveedor</span>
+                <span className="text-xs text-gray-400 mt-1.5 bg-gray-100 px-2 py-0.5 rounded border border-gray-200 shadow-sm group-hover:bg-blue-50 group-hover:border-blue-200 transition-colors">o presiona Ctrl+V para pegar</span>
                 <input type="file" className="hidden" accept="image/*" onChange={handleSourceUpload} />
               </label>
             ) : (
               <div className="relative rounded-xl overflow-hidden group">
                 <img src={sourceImage} alt="Source" className="w-full object-cover" />
-                <button onClick={() => setSourceImage(null)} className="absolute top-2 right-2 p-2 bg-black/50 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity">
+                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                  <span className="text-xs text-white bg-black/60 px-3 py-1.5 rounded-lg border border-white/20">Presiona Ctrl+V para reemplazar</span>
+                </div>
+                <button onClick={() => setSourceImage(null)} className="absolute top-2 right-2 p-2 bg-black/50 hover:bg-red-600 text-white rounded-full opacity-0 group-hover:opacity-100 transition-all">
                   <Trash2 className="w-4 h-4" />
                 </button>
               </div>
@@ -605,8 +680,14 @@ export function AgentIntegrationView() {
                     return newArr;
                   });
                 };
+                const isHovered = hoveredZone === `ind-${idx}`;
                 return (
-                  <div key={`ind-${idx}`} className="flex-1 min-w-[200px] border rounded-lg p-3 bg-gray-50 flex flex-col h-full">
+                  <div 
+                    key={`ind-${idx}`} 
+                    onMouseEnter={() => setHoveredZone(`ind-${idx}`)}
+                    onMouseLeave={() => setHoveredZone(null)}
+                    className={`flex-1 min-w-[200px] border rounded-lg p-3 bg-gray-50 flex flex-col h-full transition-all duration-300 ${isHovered ? "ring-2 ring-indigo-500/20 border-indigo-500/50 bg-indigo-50/5" : ""}`}
+                  >
                     <div className="flex justify-between items-center mb-2">
                       <h4 className="font-medium text-sm text-gray-700 flex items-center gap-1"><ImageIcon className="w-4 h-4"/> Individual {idx + 1}</h4>
                       {img && (
@@ -616,13 +697,17 @@ export function AgentIntegrationView() {
                       )}
                     </div>
                     {!img ? (
-                      <label className="border-2 border-dashed border-gray-300 rounded-lg flex-1 flex items-center justify-center cursor-pointer hover:bg-white transition-colors min-h-[120px]">
-                        <span className="text-xs text-gray-500">Subir foto B2B</span>
+                      <label className="border-2 border-dashed border-gray-300 hover:border-indigo-400 rounded-lg flex-1 flex flex-col items-center justify-center cursor-pointer hover:bg-white transition-colors min-h-[120px] p-2 group">
+                        <span className="text-xs text-gray-500 group-hover:text-indigo-600 font-medium">Subir foto B2B</span>
+                        <span className="text-[10px] text-gray-400 mt-1 bg-white px-1.5 py-0.5 rounded border border-gray-200 group-hover:bg-indigo-50 group-hover:border-indigo-150 transition-colors">o presiona Ctrl+V</span>
                         <input type="file" className="hidden" accept="image/*" onChange={(e) => handleManualUpload(e, setImg)} />
                       </label>
                     ) : (
-                      <div className="space-y-2 flex-1 flex flex-col">
+                      <div className="space-y-2 flex-1 flex flex-col relative group">
                         <img src={img} alt={`Individual ${idx + 1}`} className="w-full h-32 object-contain bg-white rounded border flex-1" />
+                        <div className="absolute inset-0 bottom-10 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center pointer-events-none rounded">
+                          <span className="text-[9px] text-white bg-black/60 px-2 py-1 rounded border border-white/10">Ctrl+V para reemplazar</span>
+                        </div>
                         <button 
                           onClick={() => handleRemoveBackground(img, setImg, setIsRemovingBg)}
                           disabled={isRemovingBg}
@@ -638,7 +723,11 @@ export function AgentIntegrationView() {
               })}
 
               {/* Group Image */}
-              <div className="flex-1 min-w-[200px] border rounded-lg p-3 bg-gray-50 flex flex-col h-full">
+              <div 
+                onMouseEnter={() => setHoveredZone("group")}
+                onMouseLeave={() => setHoveredZone(null)}
+                className={`flex-1 min-w-[200px] border rounded-lg p-3 bg-gray-50 flex flex-col h-full transition-all duration-300 ${hoveredZone === "group" ? "ring-2 ring-indigo-500/20 border-indigo-500/50 bg-indigo-50/5" : ""}`}
+              >
                 <div className="flex justify-between items-center mb-2">
                   <h4 className="font-medium text-sm text-gray-700 flex items-center gap-1"><ImageIcon className="w-4 h-4"/> Imagen Grupal</h4>
                   {groupImage && (
@@ -648,13 +737,17 @@ export function AgentIntegrationView() {
                   )}
                 </div>
                 {!groupImage ? (
-                  <label className="border-2 border-dashed border-gray-300 rounded-lg flex-1 flex items-center justify-center cursor-pointer hover:bg-white transition-colors min-h-[120px]">
-                    <span className="text-xs text-gray-500">Subir (Opcional)</span>
+                  <label className="border-2 border-dashed border-gray-300 hover:border-indigo-400 rounded-lg flex-1 flex flex-col items-center justify-center cursor-pointer hover:bg-white transition-colors min-h-[120px] p-2 group">
+                    <span className="text-xs text-gray-500 group-hover:text-indigo-600 font-medium">Subir (Opcional)</span>
+                    <span className="text-[10px] text-gray-400 mt-1 bg-white px-1.5 py-0.5 rounded border border-gray-200 group-hover:bg-indigo-50 group-hover:border-indigo-150 transition-colors">o presiona Ctrl+V</span>
                     <input type="file" className="hidden" accept="image/*" onChange={(e) => handleManualUpload(e, setGroupImage)} />
                   </label>
                 ) : (
-                  <div className="space-y-2 flex-1 flex flex-col">
+                  <div className="space-y-2 flex-1 flex flex-col relative group">
                     <img src={groupImage} alt="Group" className="w-full h-32 object-contain bg-white rounded border flex-1" />
+                    <div className="absolute inset-0 bottom-10 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center pointer-events-none rounded">
+                      <span className="text-[9px] text-white bg-black/60 px-2 py-1 rounded border border-white/10">Ctrl+V para reemplazar</span>
+                    </div>
                     <button 
                       onClick={() => handleRemoveBackground(groupImage, setGroupImage, setIsRemovingGroupBg)}
                       disabled={isRemovingGroupBg}

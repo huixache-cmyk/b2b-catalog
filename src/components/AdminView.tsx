@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useProducts } from "@/hooks/useProducts";
 import { useSettings } from "@/hooks/useSettings";
 import { useQuotes } from "@/hooks/useQuotes";
@@ -66,7 +66,65 @@ export function AdminView() {
   const [editingProduct, setEditingProduct] = useState<Partial<Product>>({});
   const [isEditing, setIsEditing] = useState(false);
   const [uploadingImage, setUploadingImage] = useState<number | string | null>(null);
-  
+  const [hoveredImageKey, setHoveredImageKey] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (!isModalOpen) return;
+
+    const handlePaste = async (e: ClipboardEvent) => {
+      const items = e.clipboardData?.items;
+      if (!items) return;
+
+      let imageFile: File | null = null;
+      for (let i = 0; i < items.length; i++) {
+        if (items[i].type.indexOf("image") !== -1) {
+          imageFile = items[i].getAsFile();
+          break;
+        }
+      }
+
+      if (!imageFile) return;
+
+      e.preventDefault();
+
+      let targetKey = hoveredImageKey;
+      if (targetKey === null) {
+        const currentImages = editingProduct.images || [];
+        let firstEmpty = -1;
+        for (let idx = 0; idx < 6; idx++) {
+          if (!currentImages[idx]) {
+            firstEmpty = idx;
+            break;
+          }
+        }
+        targetKey = firstEmpty !== -1 ? firstEmpty : 0;
+      }
+
+      try {
+        setUploadingImage(targetKey);
+        const publicUrl = await uploadImage(imageFile);
+        if (publicUrl) {
+          const newImages = [...(editingProduct.images || [])];
+          while (newImages.length <= targetKey) newImages.push("");
+          newImages[targetKey] = publicUrl;
+          setEditingProduct(prev => ({...prev, images: newImages}));
+        } else {
+          alert("Error subiendo la imagen pegada.");
+        }
+      } catch (err) {
+        console.error("Error uploading pasted image:", err);
+        alert("No se pudo procesar la imagen pegada.");
+      } finally {
+        setUploadingImage(null);
+      }
+    };
+
+    window.addEventListener("paste", handlePaste);
+    return () => {
+      window.removeEventListener("paste", handlePaste);
+    };
+  }, [isModalOpen, hoveredImageKey, editingProduct.images]);
+
   const [viewingQuote, setViewingQuote] = useState<QuoteRequest | null>(null);
 
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
@@ -899,44 +957,68 @@ export function AdminView() {
                       { label: "Foto Individual 2", key: 3 },
                       { label: "Foto Individual 3", key: 4 },
                       { label: "Foto Individual 4", key: 5 }
-                    ].map(imgField => (
-                      <div key={imgField.key}>
-                        <label className="block text-xs font-bold text-gray-500 uppercase mb-1">{imgField.label}</label>
-                        <div className="relative">
-                          <input 
-                            type="file"
-                            accept="image/*"
-                            onChange={async (e) => {
-                              const file = e.target.files?.[0];
-                              if (!file) return;
-                              setUploadingImage(imgField.key);
-                              const publicUrl = await uploadImage(file);
-                              if (publicUrl) {
-                                const newImages = [...(editingProduct.images || [])];
-                                while (newImages.length <= imgField.key) newImages.push("");
-                                newImages[imgField.key] = publicUrl;
-                                setEditingProduct({...editingProduct, images: newImages});
-                              } else {
-                                alert("Error subiendo la imagen.");
-                              }
-                              setUploadingImage(null);
-                            }}
-                            className="w-full border border-gray-300 rounded-lg p-2 focus:ring-primary-500 focus:border-primary-500 text-sm file:mr-4 file:py-1 file:px-3 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-primary-50 file:text-primary-700 hover:file:bg-primary-100" 
-                          />
-                        </div>
-                        {uploadingImage === imgField.key && <p className="text-xs text-blue-500 mt-1 font-bold animate-pulse">Subiendo imagen...</p>}
-                        {editingProduct.images?.[imgField.key] && (
-                          <div className="mt-2 flex items-center gap-2">
-                            <img src={editingProduct.images[imgField.key]} className="h-12 w-12 object-cover rounded shadow-sm" alt="Preview" />
-                            <button type="button" onClick={() => {
-                               const newImages = [...(editingProduct.images || [])];
-                               newImages[imgField.key] = "";
-                               setEditingProduct({...editingProduct, images: newImages});
-                            }} className="text-xs text-red-500 hover:text-red-700 font-bold">Quitar</button>
-                          </div>
-                        )}
-                      </div>
-                    ))}
+                    ].map(imgField => {
+                       const isHovered = hoveredImageKey === imgField.key;
+                       return (
+                         <div 
+                           key={imgField.key}
+                           onMouseEnter={() => setHoveredImageKey(imgField.key)}
+                           onMouseLeave={() => setHoveredImageKey(null)}
+                           className={`p-3.5 rounded-xl border-2 transition-all duration-300 ${
+                             isHovered 
+                               ? "border-primary-500 bg-white shadow-sm ring-4 ring-primary-500/5" 
+                               : "border-transparent bg-transparent"
+                           }`}
+                         >
+                           <div className="flex justify-between items-center mb-1.5">
+                             <label className="block text-xs font-bold text-gray-500 uppercase">{imgField.label}</label>
+                             <span className={`text-[10px] px-1.5 py-0.5 rounded border font-mono transition-colors duration-300 ${
+                               isHovered 
+                                 ? "bg-primary-50 border-primary-200 text-primary-700 font-semibold" 
+                                 : "bg-gray-100 border-gray-200 text-gray-400"
+                             }`}>
+                               Ctrl + V
+                             </span>
+                           </div>
+                           <div className="relative">
+                             <input 
+                               type="file"
+                               accept="image/*"
+                               onChange={async (e) => {
+                                 const file = e.target.files?.[0];
+                                 if (!file) return;
+                                 setUploadingImage(imgField.key);
+                                 const publicUrl = await uploadImage(file);
+                                 if (publicUrl) {
+                                   const newImages = [...(editingProduct.images || [])];
+                                   while (newImages.length <= imgField.key) newImages.push("");
+                                   newImages[imgField.key] = publicUrl;
+                                   setEditingProduct({...editingProduct, images: newImages});
+                                 } else {
+                                   alert("Error subiendo la imagen.");
+                                 }
+                                 setUploadingImage(null);
+                               }}
+                               className="w-full border border-gray-300 rounded-lg p-2 focus:ring-primary-500 focus:border-primary-500 text-sm file:mr-4 file:py-1 file:px-3 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-primary-50 file:text-primary-700 hover:file:bg-primary-100" 
+                             />
+                           </div>
+                           {uploadingImage === imgField.key && <p className="text-xs text-blue-500 mt-1 font-bold animate-pulse">Subiendo imagen...</p>}
+                           {editingProduct.images?.[imgField.key] && (
+                             <div className="mt-2.5 flex items-center gap-3">
+                               <img src={editingProduct.images[imgField.key]} className="h-12 w-12 object-cover rounded-lg shadow-sm border border-gray-200" alt="Preview" />
+                               <div className="flex flex-col gap-0.5">
+                                 <button type="button" onClick={() => {
+                                    const newImages = [...(editingProduct.images || [])];
+                                    newImages[imgField.key] = "";
+                                    setEditingProduct({...editingProduct, images: newImages});
+                                 }} className="text-xs text-red-500 hover:text-red-700 font-bold self-start">Quitar</button>
+                                 <span className="text-[10px] text-gray-400">Ctrl+V para reemplazar</span>
+                                </div>
+                             </div>
+                           )}
+                         </div>
+                       );
+                     })}
                   </div>
                 </div>
 
