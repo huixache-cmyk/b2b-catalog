@@ -208,15 +208,21 @@ export function ProductDetailView({ product, relatedProducts }: { product: Produ
         onclone: (clonedDoc: Document) => {
           const el = clonedDoc.getElementById('mockup-preview-capture');
           if (el && mockupPreviewRef.current) {
-            const rect = mockupPreviewRef.current.getBoundingClientRect();
-            el.style.width = `${rect.width}px`;
-            el.style.height = `${rect.height}px`;
+            // Medimos la imagen base original en pantalla para capturar sus dimensiones reales renderizadas
+            const originalImg = mockupPreviewRef.current.querySelector('img');
+            const imgRect = originalImg ? originalImg.getBoundingClientRect() : mockupPreviewRef.current.getBoundingClientRect();
+            
+            // Forzamos al contenedor del clon a medir exactamente lo mismo que la imagen base real
+            el.style.width = `${imgRect.width}px`;
+            el.style.height = `${imgRect.height}px`;
             el.style.maxWidth = 'none';
             el.style.maxHeight = 'none';
+            el.style.display = 'inline-block'; // Eliminar comportamientos flex extraños en la captura
+            
             const img = el.querySelector('img');
             if (img) {
-              img.style.width = `${rect.width}px`;
-              img.style.height = `${rect.height}px`;
+              img.style.width = `${imgRect.width}px`;
+              img.style.height = `${imgRect.height}px`;
               img.style.maxWidth = 'none';
               img.style.maxHeight = 'none';
             }
@@ -657,7 +663,7 @@ export function ProductDetailView({ product, relatedProducts }: { product: Produ
                       src={mockupBgIndex === getTechImageIndex() ? product.images[getTechImageIndex()] : (paddedOriginalImage || product.images[getIndividualImageIndex()])} 
                       alt="Mockup Base" 
                       crossOrigin="anonymous"
-                      className="max-w-full max-h-[45vh] md:max-h-[60vh] pointer-events-none" 
+                      className="max-w-full max-h-full md:max-h-[60vh] pointer-events-none object-contain" 
                     />
 
                     {/* Selected Color Indicator Dot */}
