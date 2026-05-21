@@ -28,7 +28,7 @@ export function ProductDetailView({ product, relatedProducts }: { product: Produ
   const [logoOpacity, setLogoOpacity] = useState(1);
   
   // Helper to find the correct images regardless of whether group image exists
-  const getIndividualImageIndex = () => product.images.length === 3 ? 1 : 0;
+  const getIndividualImageIndex = () => product.images.length >= 3 ? 1 : 0;
   const getTechImageIndex = () => product.images.length - 1;
 
   const [mockupBgIndex, setMockupBgIndex] = useState(getTechImageIndex());
@@ -658,12 +658,12 @@ export function ProductDetailView({ product, relatedProducts }: { product: Produ
                      onTouchMove={handleMouseMove}
                      style={{ touchAction: 'none' }} // Prevent scrolling while dragging
                 >
-                  <div id="mockup-preview-capture" ref={mockupPreviewRef} className="relative inline-flex items-center justify-center max-w-full max-h-full">
+                  <div id="mockup-preview-capture" ref={mockupPreviewRef} className="relative inline-flex items-center justify-center max-w-full max-h-[35vh] md:max-h-[60vh]">
                     <img 
                       src={mockupBgIndex === getTechImageIndex() ? product.images[getTechImageIndex()] : (paddedOriginalImage || product.images[getIndividualImageIndex()])} 
                       alt="Mockup Base" 
                       crossOrigin="anonymous"
-                      className="max-w-full max-h-full md:max-h-[60vh] pointer-events-none object-contain" 
+                      className="max-w-full max-h-[35vh] md:max-h-[60vh] pointer-events-none object-contain" 
                     />
 
                     {/* Selected Color Indicator Dot */}
