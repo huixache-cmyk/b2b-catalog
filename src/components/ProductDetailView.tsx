@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { Product } from "@/types";
 import { ProductCard } from "./ProductCard";
 import { Check, Info, ShieldCheck, Truck, ChevronRight, Upload, Download, X, AlertCircle, ShoppingCart } from "lucide-react";
@@ -62,6 +63,17 @@ export function ProductDetailView({ product, relatedProducts }: { product: Produ
     };
     img.src = originalImgUrl;
   }, [product.images]);
+
+  useEffect(() => {
+    if (showMockup) {
+      document.body.style.overflow = "hidden";
+    } else {
+      document.body.style.overflow = "";
+    }
+    return () => {
+      document.body.style.overflow = "";
+    };
+  }, [showMockup]);
 
   const [savedMockups, setSavedMockups] = useState<{ bgIndex: number; imgData: string }[]>([]);
   
@@ -560,9 +572,9 @@ export function ProductDetailView({ product, relatedProducts }: { product: Produ
       </div>
 
       {/* Interactive Mockup Modal */}
-      {showMockup && (
-        <div className="fixed inset-0 bg-gray-900/90 z-50 flex items-center justify-center p-0 sm:p-4">
-          <div className="bg-[#e5e7eb] sm:rounded-2xl w-full h-full sm:h-[90vh] max-w-6xl flex flex-col overflow-hidden shadow-2xl relative">
+      {showMockup && typeof window !== 'undefined' && createPortal(
+        <div className="fixed inset-0 bg-[#e5e7eb] sm:bg-gray-900/90 z-50 flex items-center justify-center p-0 sm:p-4 h-[100dvh] w-full">
+          <div className="bg-[#e5e7eb] sm:rounded-2xl w-full h-[100dvh] sm:h-[90vh] max-w-6xl flex flex-col overflow-hidden shadow-2xl relative">
             <div className="p-4 flex justify-between items-center bg-[#e5e7eb]">
               <h3 className="font-bold text-lg text-gray-800">Editor de Mockups</h3>
               <button onClick={() => setShowMockup(false)} className="p-2 hover:bg-gray-300 rounded-full transition-colors">
@@ -737,7 +749,8 @@ export function ProductDetailView({ product, relatedProducts }: { product: Produ
 
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Related Products */}
