@@ -247,58 +247,12 @@ export function AgentIntegrationView() {
     }
   };
 
-  const toBase64 = async (url: string): Promise<string> => {
-    if (url.startsWith('data:')) return url;
-    const res = await fetch(url);
-    const blob = await res.blob();
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onloadend = () => resolve(reader.result as string);
-      reader.onerror = reject;
-      reader.readAsDataURL(blob);
-    });
-  };
-
-  // 1. Remove Background using hybrid approach (cloud remove.bg -> client fallback)
+  // 1. Remove Background using local client-side AI (GPU accelerated + progress bar)
   const handleRemoveBackground = async (imageSrc: string | null, setImg: (val: string | null) => void, setLoading: React.Dispatch<React.SetStateAction<boolean>>) => {
     if (!imageSrc) return;
     setLoading(true);
-    setBgProgress("Conectando con la nube para quitar fondo...");
+    setBgProgress("Inicializando motor local de IA (0%)...");
     try {
-      // 1. Intentar remoción en el servidor (nube remove.bg si la API key existe)
-      let imageBase64 = "";
-      try {
-        imageBase64 = await toBase64(imageSrc);
-      } catch (err) {
-        console.error("Error al convertir imagen a base64 para envío:", err);
-      }
-
-      if (imageBase64) {
-        const response = await fetch('/api/remove-bg', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ imageBase64 })
-        });
-        
-        if (response.ok) {
-          const result = await response.json();
-          if (result.success && result.data) {
-            console.log("Fondo removido mediante la nube (remove.bg).");
-            setImg(result.data);
-            setLoading(false);
-            setBgProgress("");
-            return; // Éxito en la nube
-          } else {
-            console.log("Servidor no tiene API key o remove.bg falló. Iniciando fallback local: ", result.error);
-          }
-        } else {
-          console.log("Error en petición a la API. Iniciando fallback local.");
-        }
-      }
-
-      // 2. Fallback: Procesamiento local en el cliente (GPU acelerado + barra de progreso)
-      setBgProgress("Inicializando motor local de IA (0%)...");
-      
       const blob = await removeBackground(imageSrc, {
         device: 'gpu',
         progress: (key, current, total) => {
@@ -316,7 +270,7 @@ export function AgentIntegrationView() {
       };
       reader.readAsDataURL(blob);
     } catch (error: any) {
-      console.error("Error en remoción de fondo híbrida:", error);
+      console.error("Error en remoción de fondo local:", error);
       alert(`Error al quitar el fondo: ${error?.message || error}. Asegúrate de que la imagen sea nítida y tenga buen contraste.`);
       setLoading(false);
       setBgProgress("");
