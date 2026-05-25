@@ -46,6 +46,10 @@ const GRADIENT_OPTIONS = [
   { label: "Oscuro", value: "from-gray-900/90 to-gray-800/50" }
 ];
 
+const roundToHalf = (num: number): number => {
+  return Math.round(num * 2) / 2;
+};
+
 export function AdminView() {
   const { products, isLoaded, addProduct, updateProduct, deleteProduct } = useProducts();
   const { quotes, isLoaded: quotesLoaded, updateQuoteStatus, deleteQuote } = useQuotes();
@@ -952,7 +956,7 @@ export function AdminView() {
                             value={editingProduct.cost || 0} 
                             onChange={e => {
                               const costVal = parseFloat(e.target.value) || 0;
-                              const calculatedPrice = parseFloat((costVal * 1.7).toFixed(2));
+                              const calculatedPrice = roundToHalf(costVal * 1.7);
                               setEditingProduct(prev => ({
                                 ...prev,
                                 cost: costVal,
@@ -983,7 +987,7 @@ export function AdminView() {
                           <span className="text-sm font-bold text-gray-500">% Desc.</span>
                         </div>
                         <div className="text-sm font-bold text-primary-700">
-                          = ${((editingProduct.price || 0) * (1 - (editingProduct.discount100 || 0) / 100)).toFixed(2)} c/u
+                          = ${roundToHalf((editingProduct.price || 0) * (1 - (editingProduct.discount100 || 0) / 100)).toFixed(2)} c/u
                         </div>
                       </div>
 
@@ -995,7 +999,7 @@ export function AdminView() {
                           <span className="text-sm font-bold text-gray-500">% Desc.</span>
                         </div>
                         <div className="text-sm font-bold text-primary-700">
-                          = ${((editingProduct.price || 0) * (1 - (editingProduct.discount150 || 0) / 100)).toFixed(2)} c/u
+                          = ${roundToHalf((editingProduct.price || 0) * (1 - (editingProduct.discount150 || 0) / 100)).toFixed(2)} c/u
                         </div>
                       </div>
                     </div>

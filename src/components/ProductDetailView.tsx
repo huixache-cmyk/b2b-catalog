@@ -115,9 +115,10 @@ export function ProductDetailView({ product, relatedProducts }: { product: Produ
 
   const totalQuantity = typeof quantity === 'number' ? quantity : 0;
 
+  const roundToHalf = (num: number) => Math.round(num * 2) / 2;
   const basePrice = product.price || 0;
-  const tier2Price = basePrice * (1 - (product.discount100 || 0) / 100);
-  const tier3Price = basePrice * (1 - (product.discount150 || 0) / 100);
+  const tier2Price = roundToHalf(basePrice * (1 - (product.discount100 || 0) / 100));
+  const tier3Price = roundToHalf(basePrice * (1 - (product.discount150 || 0) / 100));
 
   let unitProductPrice = basePrice;
   if (totalQuantity > 150) {
