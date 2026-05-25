@@ -317,7 +317,16 @@ export function AdminView() {
   }
 
   if (!isLoaded || !settingsLoaded) {
-    return <div className="p-12 text-center text-gray-500">Cargando administrador...</div>;
+    return (
+      <div className="p-12 text-center text-gray-500 flex flex-col items-center justify-center gap-3">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-700"></div>
+        <p className="font-medium text-gray-700">Cargando administrador...</p>
+        <p className="text-xs text-gray-400">
+          Productos: {isLoaded ? "✅ Listos" : "⏳ Cargando..."} | 
+          Ajustes: {settingsLoaded ? "✅ Listos" : "⏳ Cargando..."}
+        </p>
+      </div>
+    );
   }
 
   const filtered = products.filter(p => 
