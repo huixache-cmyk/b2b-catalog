@@ -485,7 +485,7 @@ export function AdminView() {
                   </span>
                 </td>
                 <td className="px-6 py-4 text-right">
-                  {product.cost !== undefined ? `$${product.cost.toFixed(2)}` : "-"}
+                  {typeof product.cost === 'number' ? `$${product.cost.toFixed(2)}` : "-"}
                 </td>
                 <td className="px-6 py-4 text-right font-medium text-gray-900">
                   ${product.price.toFixed(2)}
