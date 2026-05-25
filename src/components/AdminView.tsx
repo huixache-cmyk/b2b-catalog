@@ -341,6 +341,7 @@ export function AdminView() {
       name: "",
       sku: "",
       category: categories[0] || "",
+      cost: 0,
       price: 0,
       stock: 0,
       material: MATERIALS[0],
@@ -459,6 +460,7 @@ export function AdminView() {
               <th scope="col" className="px-6 py-4">Producto</th>
               <th scope="col" className="px-6 py-4">SKU</th>
               <th scope="col" className="px-6 py-4">Categoría</th>
+              <th scope="col" className="px-6 py-4 text-right">Costo</th>
               <th scope="col" className="px-6 py-4 text-right">Precio Base</th>
               <th scope="col" className="px-6 py-4 text-right">Stock Total</th>
               <th scope="col" className="px-6 py-4 text-center">Acciones</th>
@@ -482,6 +484,9 @@ export function AdminView() {
                     {product.category}
                   </span>
                 </td>
+                <td className="px-6 py-4 text-right">
+                  {product.cost !== undefined ? `$${product.cost.toFixed(2)}` : "-"}
+                </td>
                 <td className="px-6 py-4 text-right font-medium text-gray-900">
                   ${product.price.toFixed(2)}
                 </td>
@@ -504,7 +509,7 @@ export function AdminView() {
             ))}
             {filtered.length === 0 && (
               <tr>
-                <td colSpan={6} className="px-6 py-8 text-center text-gray-500">
+                <td colSpan={7} className="px-6 py-8 text-center text-gray-500">
                   No se encontraron productos con ese término de búsqueda.
                 </td>
               </tr>
@@ -925,7 +930,33 @@ export function AdminView() {
                 <div className="col-span-2">
                   <h4 className="block text-sm font-bold text-gray-700 mb-2">Precios y Descuentos por Volumen</h4>
                   <div className="bg-gray-50 border border-gray-200 rounded-xl p-4">
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+                      {/* Costo */}
+                      <div className="bg-white p-3 rounded-lg border border-gray-200">
+                        <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Costo del Producto</label>
+                        <div className="flex items-center gap-2">
+                          <span className="text-gray-500 font-bold">$</span>
+                          <input 
+                            type="number" 
+                            step="0.01" 
+                            min="0" 
+                            value={editingProduct.cost || 0} 
+                            onChange={e => {
+                              const costVal = parseFloat(e.target.value) || 0;
+                              const calculatedPrice = parseFloat((costVal * 1.7).toFixed(2));
+                              setEditingProduct(prev => ({
+                                ...prev,
+                                cost: costVal,
+                                price: calculatedPrice,
+                                discount100: prev.discount100 === undefined || prev.discount100 === 0 ? 10 : prev.discount100,
+                                discount150: prev.discount150 === undefined || prev.discount150 === 0 ? 15 : prev.discount150
+                              }));
+                            }} 
+                            className="w-full border border-gray-300 rounded-lg p-2 focus:ring-primary-500 focus:border-primary-500 text-sm font-bold" 
+                          />
+                        </div>
+                      </div>
+
                       {/* Tier 1 */}
                       <div className="bg-white p-3 rounded-lg border border-gray-200">
                         <label className="block text-xs font-bold text-gray-500 uppercase mb-2">50 a 99 piezas (Base)</label>

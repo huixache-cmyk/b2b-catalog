@@ -132,3 +132,6 @@ ALTER TABLE public.b2b_opportunities ADD COLUMN IF NOT EXISTS hook_text TEXT;
 -- Fase 7: Nuevos campos para búsqueda dirigida por empresa y sector
 ALTER TABLE public.b2b_scraper_config ADD COLUMN IF NOT EXISTS target_companies text DEFAULT '';
 ALTER TABLE public.b2b_scraper_config ADD COLUMN IF NOT EXISTS target_sectors text DEFAULT '';
+
+-- Agregar columna cost a la tabla products si no existe
+ALTER TABLE public.products ADD COLUMN IF NOT EXISTS cost numeric DEFAULT 0;
