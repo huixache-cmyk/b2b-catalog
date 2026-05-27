@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { Resend } from 'resend';
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+const resend = new Resend(process.env.RESEND_API_KEY || 're_dummy');
 
 // Token de verificación para Meta (lo configuraremos en el portal de desarrolladores)
 const VERIFY_TOKEN = "GeekyWeb2026";
@@ -39,6 +39,16 @@ export async function POST(request: Request) {
       const value = changes?.value;
       const messages = value?.messages;
       const contacts = value?.contacts;
+      const statuses = value?.statuses;
+
+      // Log general de eventos de estado recibidos para diagnóstico
+      if (statuses && statuses.length > 0) {
+        const statusObj = statuses[0];
+        console.log(`[Webhook WA Status] Msg ID: ${statusObj.id}, Status: ${statusObj.status}, To: ${statusObj.recipient_id}`);
+        if (statusObj.errors) {
+          console.error(`[Webhook WA Error] Errors:`, JSON.stringify(statusObj.errors));
+        }
+      }
 
       // Si hay un mensaje entrante
       if (messages && messages.length > 0) {
