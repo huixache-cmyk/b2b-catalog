@@ -373,7 +373,7 @@ export function AgentIntegrationView() {
       
       ctx.restore();
 
-      setTechImage(canvas.toDataURL('image/png'));
+      setTechImage(canvas.toDataURL('image/jpeg', 0.7));
       setIsGeneratingBlueprint(false);
     };
     img.src = mainIndividualImage;

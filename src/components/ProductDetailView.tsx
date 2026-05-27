@@ -235,8 +235,8 @@ export function ProductDetailView({ product, relatedProducts }: { product: Produ
       const captureOptions = { 
         useCORS: true, 
         allowTaint: true, 
-        backgroundColor: null, 
-        scale: 2, 
+        backgroundColor: '#ffffff', 
+        scale: 1.2, 
         scrollX: 0, 
         scrollY: 0,
         onclone: (clonedDoc: Document) => {
@@ -268,13 +268,13 @@ export function ProductDetailView({ product, relatedProducts }: { product: Produ
       setMockupBgIndex(getTechImageIndex());
       await new Promise(r => setTimeout(r, 400)); // Esperar render y carga
       const techCanvas = await html2canvas(mockupPreviewRef.current, captureOptions);
-      const techData = techCanvas.toDataURL("image/png");
+      const techData = techCanvas.toDataURL("image/jpeg", 0.7);
 
       // 2. Capture Real Image
       setMockupBgIndex(getIndividualImageIndex());
       await new Promise(r => setTimeout(r, 400)); // Esperar render y carga
       const realCanvas = await html2canvas(mockupPreviewRef.current, captureOptions);
-      const realData = realCanvas.toDataURL("image/png");
+      const realData = realCanvas.toDataURL("image/jpeg", 0.7);
 
       // Save both
       setSavedMockups([
