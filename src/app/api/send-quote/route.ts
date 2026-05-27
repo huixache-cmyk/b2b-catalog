@@ -101,7 +101,7 @@ export async function POST(request: Request) {
         to: destinationPhone,
         type: "template",
         template: {
-          name: "respuesta_automatica",
+          name: "respuestas_automaticas",
           language: {
             code: "es_MX"
           },
