@@ -8,6 +8,7 @@ import { Trash2, ShoppingCart, FileText, Send, AlertCircle } from "lucide-react"
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import mexicoData from "@/utils/mexicoStates.json";
+import { getColorName } from "@/types";
 
 const MEXICO_STATES = Object.keys(mexicoData);
 
@@ -165,11 +166,14 @@ Quedo en espera de confirmación de existencias.`;
                   <span className="flex items-center gap-1.5">
                     Color: 
                     {item.color.startsWith('#') ? (
-                      <span 
-                        className="w-4 h-4 rounded-full border border-gray-300 inline-block shadow-sm" 
-                        style={{ backgroundColor: item.color }}
-                        title={item.color}
-                      />
+                      <>
+                        <span 
+                          className="w-4 h-4 rounded-full border border-gray-300 inline-block shadow-sm" 
+                          style={{ backgroundColor: item.color }}
+                          title={getColorName(item.color)}
+                        />
+                        <span>{getColorName(item.color)}</span>
+                      </>
                     ) : (
                       item.color
                     )}

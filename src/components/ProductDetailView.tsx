@@ -399,7 +399,7 @@ export function ProductDetailView({ product, relatedProducts }: { product: Produ
               {/* Color Selection */}
               {product.colors && product.colors.length > 0 && (
                 <div className="mb-8">
-                  <h4 className="font-semibold text-gray-900 mb-3 text-sm uppercase tracking-wider">Color</h4>
+                  <h4 className="font-semibold text-gray-900 mb-3 text-sm uppercase tracking-wider">Colores sujetos a disponibilidad</h4>
                   <div className="flex flex-wrap gap-3">
                     {product.colors.map(color => {
                       const isHex = color.startsWith('#');

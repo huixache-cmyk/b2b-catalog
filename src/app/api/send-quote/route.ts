@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { Resend } from 'resend';
-import { QuoteRequest } from '@/types';
+import { QuoteRequest, getColorName } from '@/types';
 
 // The RESEND_API_KEY must be configured in Vercel / .env.local
 const resend = new Resend(process.env.RESEND_API_KEY || 're_dummy');
@@ -14,16 +14,36 @@ export async function POST(request: Request) {
     }
 
     // Prepare HTML content for the email
-    const itemsHtml = quote.items.map(item => `
-      <tr>
-        <td style="padding: 10px; border-bottom: 1px solid #ddd;">${item.sku}</td>
-        <td style="padding: 10px; border-bottom: 1px solid #ddd;">${item.productName}</td>
-        <td style="padding: 10px; border-bottom: 1px solid #ddd;">${item.color}</td>
-        <td style="padding: 10px; border-bottom: 1px solid #ddd;">${item.quantity}</td>
-        <td style="padding: 10px; border-bottom: 1px solid #ddd;">$${item.unitPrice.toFixed(2)}</td>
-        <td style="padding: 10px; border-bottom: 1px solid #ddd; font-weight: bold;">$${item.totalPrice.toFixed(2)}</td>
-      </tr>
-    `).join('');
+    const printPrices: Record<string, number> = {
+      "Sin Impresión": 0,
+      "Grabado Chico": 15,
+      "Grabado Grande": 25,
+      "Impresión 1 tinta": 10,
+      "Impresión 2 tintas": 18,
+      "Impresión 3 tintas": 25,
+      "Impresión 4 tintas": 30
+    };
+
+    // Prepare HTML content for the email
+    const itemsHtml = quote.items.map(item => {
+      const printPrice = printPrices[item.printOption] || 0;
+      const productPrice = item.unitPrice - printPrice;
+      const colorName = getColorName(item.color);
+      return `
+        <tr>
+          <td style="padding: 10px; border-bottom: 1px solid #ddd;">${item.sku}</td>
+          <td style="padding: 10px; border-bottom: 1px solid #ddd;">
+            ${item.productName}
+            ${item.printOption && item.printOption !== 'Sin Impresión' ? `<br/><span style="font-size: 11px; color: #666;">(${item.printOption})</span>` : ''}
+          </td>
+          <td style="padding: 10px; border-bottom: 1px solid #ddd;">${colorName}</td>
+          <td style="padding: 10px; border-bottom: 1px solid #ddd;">${item.quantity}</td>
+          <td style="padding: 10px; border-bottom: 1px solid #ddd;">$${productPrice.toFixed(2)}</td>
+          <td style="padding: 10px; border-bottom: 1px solid #ddd;">$${printPrice.toFixed(2)}</td>
+          <td style="padding: 10px; border-bottom: 1px solid #ddd; font-weight: bold;">$${item.totalPrice.toFixed(2)}</td>
+        </tr>
+      `;
+    }).join('');
 
     const htmlContent = `
       <div style="font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; color: #333;">
@@ -47,7 +67,8 @@ export async function POST(request: Request) {
               <th style="padding: 10px;">Producto</th>
               <th style="padding: 10px;">Color</th>
               <th style="padding: 10px;">Cant.</th>
-              <th style="padding: 10px;">P. Unit</th>
+              <th style="padding: 10px;">Precio Prod.</th>
+              <th style="padding: 10px;">Impresión</th>
               <th style="padding: 10px;">Subtotal</th>
             </tr>
           </thead>
@@ -62,7 +83,9 @@ export async function POST(request: Request) {
 
         <p style="font-size: 12px; color: #777; margin-top: 40px; border-top: 1px solid #ddd; padding-top: 10px;">
           * Los precios no incluyen IVA y están sujetos a existencias físicas.<br>
-          * El costo de envío se calculará en base al volumen y peso del pedido al momento de formalizar la compra.
+          * El costo de envío se calculará en base al volumen y peso del pedido al momento de formalizar la compra.<br>
+          * Colores sujetos a disponibilidad al momento de confirmar el pedido.<br>
+          * El costo de impresión podrá variar dependiendo del tamaño real del logotipo y de la técnica de impresión seleccionada.
         </p>
       </div>
     `;

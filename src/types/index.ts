@@ -81,3 +81,24 @@ export const DEFAULT_SEASONS = [
   "Día del Padre",
   "Verano"
 ];
+
+export const COLOR_PALETTE = [
+  { name: "Rojo", hex: "#FF0000" },
+  { name: "Verde", hex: "#00FF00" },
+  { name: "Azul", hex: "#0000FF" },
+  { name: "Negro", hex: "#000000" },
+  { name: "Blanco", hex: "#FFFFFF" },
+  { name: "Gris", hex: "#808080" },
+  { name: "Amarillo", hex: "#FFFF00" },
+  { name: "Naranja", hex: "#FFA500" },
+  { name: "Morado", hex: "#800080" },
+  { name: "Marrón", hex: "#8B4513" },
+  { name: "Cian", hex: "#00FFFF" },
+  { name: "Rosa", hex: "#FFC0CB" }
+];
+
+export const getColorName = (hex: string) => {
+  if (!hex || !hex.startsWith('#')) return hex || '';
+  const color = COLOR_PALETTE.find(c => c.hex.toLowerCase() === hex.toLowerCase());
+  return color ? color.name : hex;
+};
