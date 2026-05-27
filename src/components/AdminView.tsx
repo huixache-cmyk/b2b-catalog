@@ -9,7 +9,7 @@ import { Edit, Trash2, Plus, Search, X, Image as ImageIcon, Eye, Clock, CheckCir
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import dynamic from "next/dynamic";
-import { uploadImage } from "@/lib/supabase";
+import { uploadImage, supabase } from "@/lib/supabase";
 
 const AgentIntegrationView = dynamic(() => import('./AgentIntegrationView').then(mod => mod.AgentIntegrationView), { ssr: false });
 const B2BAgentCRM = dynamic(() => import('./B2BAgentCRM').then(mod => mod.B2BAgentCRM), { ssr: false });
@@ -84,8 +84,24 @@ export function AdminView() {
   
   // Auth state
   const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [pinInput, setPinInput] = useState("");
-  const [pinError, setPinError] = useState("");
+  const [emailInput, setEmailInput] = useState("");
+  const [passwordInput, setPasswordInput] = useState("");
+  const [loginError, setLoginError] = useState("");
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
+
+  useEffect(() => {
+    // Check initial session
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setIsAuthenticated(!!session);
+    });
+
+    // Listen to changes in auth state
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setIsAuthenticated(!!session);
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
   
   // Modal state
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -274,14 +290,26 @@ export function AdminView() {
     }
   };
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    const correctPin = process.env.NEXT_PUBLIC_ADMIN_PIN || "1234";
-    if (pinInput === correctPin) {
-      setIsAuthenticated(true);
-      setPinError("");
-    } else {
-      setPinError("PIN incorrecto");
+    if (!emailInput || !passwordInput) {
+      setLoginError("Ingresa tu correo y contraseña.");
+      return;
+    }
+    setIsLoggingIn(true);
+    setLoginError("");
+    try {
+      const { error } = await supabase.auth.signInWithPassword({
+        email: emailInput,
+        password: passwordInput,
+      });
+      if (error) {
+        setLoginError(error.message === "Invalid login credentials" ? "Credenciales de acceso inválidas." : error.message);
+      }
+    } catch (err: any) {
+      setLoginError("Error al iniciar sesión: " + err.message);
+    } finally {
+      setIsLoggingIn(false);
     }
   };
 
@@ -294,25 +322,39 @@ export function AdminView() {
               <User className="w-8 h-8 text-primary-700" />
             </div>
             <h2 className="text-2xl font-bold text-gray-900">Acceso Restringido</h2>
-            <p className="text-sm text-gray-500 mt-2">Ingresa el PIN de administrador para continuar.</p>
+            <p className="text-sm text-gray-500 mt-2">Inicia sesión como administrador para continuar.</p>
           </div>
           <form onSubmit={handleLogin} className="space-y-4">
             <div>
+              <label className="block text-xs font-bold text-gray-700 uppercase mb-1">Correo Electrónico</label>
               <input
-                type="password"
-                value={pinInput}
-                onChange={(e) => setPinInput(e.target.value)}
-                placeholder="Ingresa tu PIN"
-                className="w-full text-center tracking-widest text-lg border border-gray-300 rounded-lg p-3 focus:ring-primary-500 focus:border-primary-500"
+                type="email"
+                value={emailInput}
+                onChange={(e) => setEmailInput(e.target.value)}
+                placeholder="admin@geekystore.mx"
+                className="w-full border border-gray-300 rounded-lg p-2.5 text-sm focus:ring-primary-500 focus:border-primary-500"
+                required
                 autoFocus
               />
-              {pinError && <p className="text-red-500 text-sm text-center mt-2">{pinError}</p>}
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-gray-700 uppercase mb-1">Contraseña</label>
+              <input
+                type="password"
+                value={passwordInput}
+                onChange={(e) => setPasswordInput(e.target.value)}
+                placeholder="••••••••"
+                className="w-full border border-gray-300 rounded-lg p-2.5 text-sm focus:ring-primary-500 focus:border-primary-500"
+                required
+              />
+              {loginError && <p className="text-red-500 text-xs text-center mt-2 font-medium">{loginError}</p>}
             </div>
             <button
               type="submit"
-              className="w-full bg-primary-700 text-white rounded-lg py-3 font-bold hover:bg-primary-800 transition-colors"
+              disabled={isLoggingIn}
+              className="w-full bg-primary-700 hover:bg-primary-800 text-white rounded-lg py-2.5 font-bold transition-colors disabled:opacity-50 flex items-center justify-center"
             >
-              Acceder
+              {isLoggingIn ? "Iniciando sesión..." : "Acceder"}
             </button>
           </form>
         </div>
@@ -403,42 +445,52 @@ export function AdminView() {
   return (
     <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden relative">
       {/* Tabs */}
-            <div className="flex border-b border-gray-200 bg-gray-50 px-6 pt-4">
-        <button 
-          onClick={() => setActiveTab('products')}
-          className={`px-6 py-3 font-bold text-sm border-b-2 transition-colors ${activeTab === 'products' ? 'border-primary-600 text-primary-700' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}`}
+      <div className="flex border-b border-gray-200 bg-gray-50 px-6 pt-4 flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <div className="flex flex-wrap">
+          <button 
+            onClick={() => setActiveTab('products')}
+            className={`px-6 py-3 font-bold text-sm border-b-2 transition-colors ${activeTab === 'products' ? 'border-primary-600 text-primary-700' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}`}
+          >
+            Productos
+          </button>
+          <button 
+            onClick={() => setActiveTab('settings')}
+            className={`px-6 py-3 font-bold text-sm border-b-2 transition-colors ${activeTab === 'settings' ? 'border-primary-600 text-primary-700' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}`}
+          >
+            Ajustes / Catálogos
+          </button>
+          <button 
+            onClick={() => setActiveTab('home')}
+            className={`px-6 py-3 font-bold text-sm border-b-2 transition-colors ${activeTab === 'home' ? 'border-primary-600 text-primary-700' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}`}
+          >
+            Página de Inicio
+          </button>
+          <button 
+            onClick={() => setActiveTab('quotes')}
+            className={`px-6 py-3 font-bold text-sm border-b-2 transition-colors ${activeTab === 'quotes' ? 'border-primary-600 text-primary-700' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}`}
+          >
+            Cotizaciones
+          </button>
+          <button 
+            onClick={() => setActiveTab('agent')}
+            className={`px-6 py-3 font-bold text-sm border-b-2 transition-colors ${activeTab === 'agent' ? 'border-primary-600 text-primary-700' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}`}
+          >
+            Inteligencia IA
+          </button>
+          <button 
+            onClick={() => setActiveTab('b2b-agent')}
+            className={`px-6 py-3 font-bold text-sm border-b-2 transition-colors ${activeTab === 'b2b-agent' ? 'border-primary-600 text-primary-700' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}`}
+          >
+            Agente B2B
+          </button>
+        </div>
+        <button
+          onClick={async () => {
+            await supabase.auth.signOut();
+          }}
+          className="text-xs bg-red-50 hover:bg-red-100 text-red-700 font-bold px-3 py-1.5 rounded-lg border border-red-200/60 transition-colors flex items-center gap-1.5 mb-2 self-end sm:self-auto"
         >
-          Productos
-        </button>
-        <button 
-          onClick={() => setActiveTab('settings')}
-          className={`px-6 py-3 font-bold text-sm border-b-2 transition-colors ${activeTab === 'settings' ? 'border-primary-600 text-primary-700' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}`}
-        >
-          Ajustes / Catálogos
-        </button>
-        <button 
-          onClick={() => setActiveTab('home')}
-          className={`px-6 py-3 font-bold text-sm border-b-2 transition-colors ${activeTab === 'home' ? 'border-primary-600 text-primary-700' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}`}
-        >
-          Página de Inicio
-        </button>
-        <button 
-          onClick={() => setActiveTab('quotes')}
-          className={`px-6 py-3 font-bold text-sm border-b-2 transition-colors ${activeTab === 'quotes' ? 'border-primary-600 text-primary-700' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}`}
-        >
-          Cotizaciones
-        </button>
-        <button 
-          onClick={() => setActiveTab('agent')}
-          className={`px-6 py-3 font-bold text-sm border-b-2 transition-colors ${activeTab === 'agent' ? 'border-primary-600 text-primary-700' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}`}
-        >
-          Inteligencia IA
-        </button>
-        <button 
-          onClick={() => setActiveTab('b2b-agent')}
-          className={`px-6 py-3 font-bold text-sm border-b-2 transition-colors ${activeTab === 'b2b-agent' ? 'border-primary-600 text-primary-700' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}`}
-        >
-          Agente B2B
+          Cerrar Sesión
         </button>
       </div>
 
