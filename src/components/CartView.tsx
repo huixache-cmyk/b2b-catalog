@@ -33,7 +33,9 @@ export function CartView() {
     phone: "",
     state: "",
     city: "",
-    comments: ""
+    comments: "",
+    address: "",
+    zip: ""
   });
   const [isSending, setIsSending] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
@@ -261,6 +263,11 @@ Quedo en espera de confirmación de existencias.`;
                   <option value="" disabled>Ciudad / Municipio *</option>
                   {formData.state && (mexicoData as Record<string, string[]>)[formData.state]?.map(c => <option key={c} value={c}>{c}</option>)}
                 </select>
+              </div>
+
+              <div className="grid grid-cols-3 gap-4">
+                <input required type="text" placeholder="Código Postal *" value={formData.zip} onChange={e => setFormData({...formData, zip: e.target.value})} className="col-span-1 border-gray-300 rounded-lg p-3 text-sm focus:ring-primary-500 focus:border-primary-500" />
+                <input required type="text" placeholder="Dirección *" value={formData.address} onChange={e => setFormData({...formData, address: e.target.value})} className="col-span-2 border-gray-300 rounded-lg p-3 text-sm focus:ring-primary-500 focus:border-primary-500" />
               </div>
 
               <textarea rows={2} placeholder="Comentarios (Opcional)" value={formData.comments} onChange={e => setFormData({...formData, comments: e.target.value})} className="w-full border-gray-300 rounded-lg p-3 text-sm focus:ring-primary-500 focus:border-primary-500"></textarea>

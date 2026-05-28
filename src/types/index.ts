@@ -44,6 +44,11 @@ export interface QuoteRequest {
     state?: string;
     city?: string;
     comments: string;
+    address?: string;
+    zip?: string;
+    finalPrintPrice?: number | null;
+    finalShippingPrice?: number | null;
+    deliveryTime?: string;
   };
   items: CartItem[];
   total: number;

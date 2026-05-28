@@ -35,6 +35,15 @@ const getColorName = (hex: string) => {
   return color ? color.name : hex;
 };
 
+const printPrices: Record<string, number> = {
+  "Sin Impresión": 0,
+  "Grabado Chico": 15,
+  "Grabado Grande": 25,
+  "Impresión 1 tinta": 10,
+  "Impresión 2 tintas": 18,
+  "Impresión 3 tintas": 25,
+  "Impresión 4 tintas": 30
+};
 
 const GRADIENT_OPTIONS = [
   { label: "Verde", value: "from-green-900/80 to-green-600/40" },
@@ -52,7 +61,7 @@ const roundToHalf = (num: number): number => {
 
 export function AdminView() {
   const { products, isLoaded, addProduct, updateProduct, deleteProduct } = useProducts();
-  const { quotes, isLoaded: quotesLoaded, updateQuoteStatus, deleteQuote } = useQuotes();
+  const { quotes, isLoaded: quotesLoaded, updateQuoteStatus, deleteQuote, updateQuote } = useQuotes();
   const [searchTerm, setSearchTerm] = useState("");
   const [activeTab, setActiveTab] = useState<'products' | 'settings' | 'home' | 'quotes' | 'agent' | 'b2b-agent'>('products');
   const { categories, seasons, isLoaded: settingsLoaded, addCategory, removeCategory, addSeason, removeSeason, featuredSeason, updateFeaturedSeason, homeSettings, updateHomeSettings, updateCategories, updateSeasons } = useSettings();
@@ -169,6 +178,76 @@ export function AdminView() {
 
   const [viewingQuote, setViewingQuote] = useState<QuoteRequest | null>(null);
 
+  // States for quote editing
+  const [finalPrintPrice, setFinalPrintPrice] = useState<string>("");
+  const [finalShippingPrice, setFinalShippingPrice] = useState<string>("");
+  const [deliveryTime, setDeliveryTime] = useState<string>("");
+  const [address, setAddress] = useState<string>("");
+  const [zip, setZip] = useState<string>("");
+  const [isSavingQuote, setIsSavingQuote] = useState(false);
+
+  useEffect(() => {
+    if (viewingQuote) {
+      setFinalPrintPrice(viewingQuote.client.finalPrintPrice !== undefined && viewingQuote.client.finalPrintPrice !== null ? viewingQuote.client.finalPrintPrice.toString() : "");
+      setFinalShippingPrice(viewingQuote.client.finalShippingPrice !== undefined && viewingQuote.client.finalShippingPrice !== null ? viewingQuote.client.finalShippingPrice.toString() : "");
+      setDeliveryTime(viewingQuote.client.deliveryTime || "");
+      setAddress(viewingQuote.client.address || "");
+      setZip(viewingQuote.client.zip || "");
+    }
+  }, [viewingQuote]);
+
+  const handleSaveQuoteDetails = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!viewingQuote) return;
+    setIsSavingQuote(true);
+    try {
+      const parsedPrintPrice = finalPrintPrice === "" ? null : parseFloat(finalPrintPrice);
+      const parsedShippingPrice = finalShippingPrice === "" ? null : parseFloat(finalShippingPrice);
+
+      const baseProductSubtotal = viewingQuote.items.reduce((sum, item) => {
+        const estPrintPrice = item.isPersonalized ? (printPrices[item.printOption] || 0) : 0;
+        const baseProdPrice = item.unitPrice - estPrintPrice;
+        return sum + (baseProdPrice * item.quantity);
+      }, 0);
+
+      let printSubtotal = 0;
+      if (parsedPrintPrice !== null && !isNaN(parsedPrintPrice)) {
+        printSubtotal = parsedPrintPrice;
+      } else {
+        printSubtotal = viewingQuote.items.reduce((sum, item) => {
+          const estPrintPrice = item.isPersonalized ? (printPrices[item.printOption] || 0) : 0;
+          return sum + (estPrintPrice * item.quantity);
+        }, 0);
+      }
+
+      const shippingSubtotal = (parsedShippingPrice !== null && !isNaN(parsedShippingPrice)) ? parsedShippingPrice : 0;
+      const subtotal = baseProductSubtotal + printSubtotal + shippingSubtotal;
+      const totalWithIva = subtotal * 1.16;
+
+      const updatedQuote: QuoteRequest = {
+        ...viewingQuote,
+        client: {
+          ...viewingQuote.client,
+          address,
+          zip,
+          finalPrintPrice: parsedPrintPrice !== null && !isNaN(parsedPrintPrice) ? parsedPrintPrice : undefined,
+          finalShippingPrice: parsedShippingPrice !== null && !isNaN(parsedShippingPrice) ? parsedShippingPrice : undefined,
+          deliveryTime: deliveryTime || undefined
+        },
+        total: totalWithIva
+      };
+
+      await updateQuote(updatedQuote);
+      setViewingQuote(updatedQuote);
+      alert("Cotización actualizada con éxito.");
+    } catch (err) {
+      console.error(err);
+      alert("Error al actualizar la cotización.");
+    } finally {
+      setIsSavingQuote(false);
+    }
+  };
+
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
 
   const getImageElement = (src: string): Promise<HTMLImageElement> => {
@@ -183,54 +262,194 @@ export function AdminView() {
 
   const handleDownloadQuotePdf = async (quote: QuoteRequest) => {
     try {
-      const doc = new jsPDF();
-      const primaryColor: [number, number, number] = [11, 80, 77];
+      // 1. Helper to load image
+      const getImageElement = (src: string): Promise<HTMLImageElement | null> => {
+        return new Promise((resolve) => {
+          if (!src) return resolve(null);
+          const img = new Image();
+          img.crossOrigin = "Anonymous";
+          img.onload = () => resolve(img);
+          img.onerror = () => resolve(null);
+          img.src = src;
+        });
+      };
 
-      doc.setFillColor(...primaryColor);
-      doc.rect(0, 0, 210, 30, "F");
-      
-      doc.setTextColor(255, 255, 255);
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(20);
-      doc.text("COTIZACIÓN B2B - GEEKYSTORE", 14, 20);
-
-      const tableData = quote.items.map(item => [
-        item.sku,
-        item.productName,
-        getColorName(item.color),
-        item.printOption,
-        item.quantity.toString(),
-        `$${item.unitPrice.toFixed(2)}`,
-        `$${item.totalPrice.toFixed(2)}`
-      ]);
-
-      doc.setFont("helvetica", "normal");
-      doc.setFontSize(10);
-      doc.setTextColor(0, 0, 0);
-      doc.text(`Cliente: ${quote.client.name} - ${quote.client.company}`, 14, 30);
-      if (quote.client.state || quote.client.city) {
-        doc.text(`Destino: ${quote.client.city || ''}, ${quote.client.state || ''}`, 14, 35);
+      // 2. Preload all product images for the table
+      const imgElements: Record<string, HTMLImageElement> = {};
+      for (const item of quote.items) {
+        const imgSrc = item.mockupImage || item.image;
+        if (imgSrc) {
+          const el = await getImageElement(imgSrc);
+          if (el) imgElements[item.id] = el;
+        }
       }
 
-      autoTable(doc, {
-        startY: 40,
-        head: [['SKU', 'Producto', 'Color', 'Impresión', 'Cantidad', 'P. Unitario', 'Subtotal']],
-        body: tableData,
-        headStyles: { fillColor: primaryColor },
-        alternateRowStyles: { fillColor: [240, 248, 247] },
-        styles: { fontSize: 9 }
+      // 3. Initialize jsPDF
+      const doc = new jsPDF();
+      const primaryColor: [number, number, number] = [11, 80, 77]; // #0b504d
+
+      // 4. Header Rect
+      doc.setFillColor(...primaryColor);
+      doc.rect(0, 0, 210, 25, "F");
+
+      doc.setTextColor(255, 255, 255);
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(18);
+      doc.text("COTIZACIÓN B2B - GEEKYSTORE", 14, 17);
+
+      // 5. Client & Destination details below header
+      doc.setTextColor(50, 50, 50);
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(10);
+      doc.text("DATOS DEL CLIENTE", 14, 35);
+
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(9);
+      doc.text(`Cliente: ${quote.client.name}`, 14, 41);
+      doc.text(`Empresa: ${quote.client.company}`, 14, 46);
+      doc.text(`Email: ${quote.client.email}`, 14, 51);
+      doc.text(`Teléfono: ${quote.client.phone}`, 14, 56);
+
+      // Column 2
+      doc.text(`Destino: ${quote.client.city || ''}, ${quote.client.state || ''}`, 110, 41);
+      doc.text(`Dirección: ${quote.client.address || 'No especificada'}`, 110, 46);
+      doc.text(`Código Postal: ${quote.client.zip || 'No especificado'}`, 110, 51);
+      if (quote.client.deliveryTime) {
+        doc.text(`Tiempo de Entrega: ${quote.client.deliveryTime}`, 110, 56);
+      }
+
+      // 6. Calculate Totals
+      const totalQuantity = quote.items.reduce((sum, i) => sum + i.quantity, 0);
+      const finalPrintPriceVal = quote.client.finalPrintPrice !== undefined && quote.client.finalPrintPrice !== null ? quote.client.finalPrintPrice : null;
+      const finalShippingPriceVal = quote.client.finalShippingPrice !== undefined && quote.client.finalShippingPrice !== null ? quote.client.finalShippingPrice : null;
+
+      const baseProductSubtotal = quote.items.reduce((sum, item) => {
+        const estPrintPrice = item.isPersonalized ? (printPrices[item.printOption] || 0) : 0;
+        const baseProdPrice = item.unitPrice - estPrintPrice;
+        return sum + (baseProdPrice * item.quantity);
+      }, 0);
+
+      const printSubtotal = finalPrintPriceVal !== null ? finalPrintPriceVal : quote.items.reduce((sum, item) => {
+        const estPrintPrice = item.isPersonalized ? (printPrices[item.printOption] || 0) : 0;
+        return sum + (estPrintPrice * item.quantity);
+      }, 0);
+
+      const shippingSubtotal = finalShippingPriceVal !== null ? finalShippingPriceVal : 0;
+      const subtotal = baseProductSubtotal + printSubtotal + shippingSubtotal;
+      const iva = subtotal * 0.16;
+      const total = subtotal + iva;
+
+      // 7. Prepare Table Data
+      const tableData = quote.items.map(item => {
+        const estPrintPrice = item.isPersonalized ? (printPrices[item.printOption] || 0) : 0;
+        const baseProdPrice = item.unitPrice - estPrintPrice;
+        const unitPrintPrice = finalPrintPriceVal !== null ? (finalPrintPriceVal / totalQuantity) : estPrintPrice;
+        const unitShippingPrice = finalShippingPriceVal !== null ? (finalShippingPriceVal / totalQuantity) : 0;
+        const itemSubtotal = (baseProdPrice + unitPrintPrice + unitShippingPrice) * item.quantity;
+
+        const colorName = getColorName(item.color);
+        const productoDesc = `${item.productName}\nColor: ${colorName}\nImpresión: ${item.printOption}`;
+
+        return [
+          "", // Col 0: Image
+          item.sku,
+          productoDesc,
+          item.quantity.toString(),
+          `$${baseProdPrice.toFixed(2)}`,
+          `$${unitPrintPrice.toFixed(2)}`,
+          `$${unitShippingPrice.toFixed(2)}`,
+          `$${itemSubtotal.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+        ];
       });
 
-      const finalY = (doc as any).lastAutoTable.finalY || 40;
-      doc.setFont("helvetica", "bold");
-      doc.setTextColor(0, 0, 0);
-      doc.text(`Total Estimado: $${quote.total.toLocaleString('es-MX', { minimumFractionDigits: 2 })} MXN`, 14, finalY + 10);
-      doc.setFontSize(8);
-      doc.setFont("helvetica", "normal");
-      doc.text("* Precios no incluyen IVA y están sujetos a existencias físicas.", 14, finalY + 16);
-      doc.text("* El costo de envío se calculará en base al volumen y peso del pedido al momento de formalizar la compra.", 14, finalY + 20);
+      // 8. Draw Table
+      autoTable(doc, {
+        startY: 63,
+        head: [['', 'SKU', 'Producto', 'Cant.', 'Precio', 'Impresión', 'Envío', 'Subtotal']],
+        body: tableData,
+        headStyles: { fillColor: primaryColor, textColor: 255, fontStyle: 'bold' },
+        alternateRowStyles: { fillColor: [240, 248, 247] },
+        styles: { font: 'helvetica', fontSize: 9, minCellHeight: 18, valign: 'middle' },
+        columnStyles: {
+          0: { cellWidth: 18 },
+          1: { cellWidth: 20 },
+          2: { cellWidth: 50 },
+          3: { cellWidth: 14, halign: 'center' },
+          4: { cellWidth: 20, halign: 'right' },
+          5: { cellWidth: 20, halign: 'right' },
+          6: { cellWidth: 18, halign: 'right' },
+          7: { cellWidth: 22, halign: 'right' }
+        },
+        didDrawCell: (data) => {
+          if (data.section === 'body' && data.column.index === 0) {
+            const item = quote.items[data.row.index];
+            if (item) {
+              const imgEl = imgElements[item.id];
+              if (imgEl) {
+                const dim = 13;
+                try {
+                  const posX = data.cell.x + (data.cell.width - dim) / 2;
+                  const posY = data.cell.y + (data.cell.height - dim) / 2;
+                  doc.addImage(imgEl, 'PNG', posX, posY, dim, dim);
+                } catch (e) {
+                  console.warn("Could not add image to PDF", e);
+                }
+              }
+            }
+          }
+        }
+      });
 
-      // Añadir páginas de anexos con mockups
+      // 9. Accounts summary below table
+      const finalY = (doc as any).lastAutoTable.finalY || 65;
+      const rightAlignX = 196; // 210 - 14 (margin)
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(10);
+      doc.setTextColor(50, 50, 50);
+      
+      let textY = finalY + 12;
+      doc.text("Subtotal:", 140, textY);
+      doc.text(`$${subtotal.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} MXN`, rightAlignX, textY, { align: "right" });
+      
+      textY += 6;
+      doc.text("IVA (16%):", 140, textY);
+      doc.text(`$${iva.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} MXN`, rightAlignX, textY, { align: "right" });
+      
+      textY += 7;
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(11);
+      doc.setTextColor(11, 80, 77); // primaryColor
+      doc.text("Total:", 140, textY);
+      doc.text(`$${total.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} MXN`, rightAlignX, textY, { align: "right" });
+
+      // 10. Disclaimer notes
+      let notesStartY = textY + 15;
+      if (notesStartY > 240) {
+        doc.addPage();
+        notesStartY = 20;
+      }
+      
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(10);
+      doc.setTextColor(0, 0, 0);
+      doc.text("Condiciones y Notas Aclaratorias:", 14, notesStartY);
+      
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(8.5);
+      doc.setTextColor(80, 80, 80);
+      
+      const disclaimerLines = [
+        "Colores sujetos a disponibilidad al momento de confirmar el pedido.",
+        "Condiciones de pago: 50% de anticipo para iniciar producción y 50% restante contra entrega.",
+        "Los tiempos de entrega acordados comenzarán a correr una vez recibido el anticipo correspondiente.",
+        "La presente cotización tiene una vigencia de 15 días naturales a partir de la fecha de emisión."
+      ];
+      
+      disclaimerLines.forEach((line, index) => {
+        doc.text(`• ${line}`, 14, notesStartY + 7 + (index * 5));
+      });
+
+      // 11. Custom mockup attachments (resized proportionally to avoid distortion)
       const itemsWithMockups = quote.items.filter(item => item.mockupImage || item.blueprintImage);
       if (itemsWithMockups.length > 0) {
         for (const item of itemsWithMockups) {
@@ -251,7 +470,20 @@ export function AdminView() {
             doc.text("Vista Previa con Logo:", 14, currentY);
             try {
               const imgEl = await getImageElement(item.mockupImage);
-              doc.addImage(imgEl, "PNG", 14, currentY + 5, 80, 80);
+              if (imgEl) {
+                // Calculate proportional width/height
+                let w = 80;
+                let h = 80;
+                if (imgEl.width && imgEl.height) {
+                  const ratio = imgEl.width / imgEl.height;
+                  if (ratio > 1) {
+                    h = 80 / ratio;
+                  } else {
+                    w = 80 * ratio;
+                  }
+                }
+                doc.addImage(imgEl, "PNG", 14, currentY + 5, w, h);
+              }
             } catch(e) { console.error(e) }
           }
           
@@ -260,12 +492,26 @@ export function AdminView() {
             doc.text("Plano Mecánico:", bpX, currentY);
             try {
               const bpEl = await getImageElement(item.blueprintImage);
-              doc.addImage(bpEl, "PNG", bpX, currentY + 5, 80, 80);
+              if (bpEl) {
+                // Calculate proportional width/height
+                let w = 80;
+                let h = 80;
+                if (bpEl.width && bpEl.height) {
+                  const ratio = bpEl.width / bpEl.height;
+                  if (ratio > 1) {
+                    h = 80 / ratio;
+                  } else {
+                    w = 80 * ratio;
+                  }
+                }
+                doc.addImage(bpEl, "PNG", bpX, currentY + 5, w, h);
+              }
             } catch(e) { console.error(e) }
           }
         }
       }
 
+      // 12. Save PDF
       const pdfBlob = doc.output('blob');
       if ('showSaveFilePicker' in window) {
         const handle = await (window as any).showSaveFilePicker({
@@ -1266,27 +1512,103 @@ export function AdminView() {
                 
                 {/* Client Data */}
                 <div className="md:col-span-1 space-y-4">
-                  <div className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm">
+                  <div className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm animate-in fade-in duration-300">
                     <h3 className="font-bold text-gray-900 mb-4 border-b pb-2">Datos del Cliente</h3>
                     <div className="space-y-3 text-sm">
-                      <div><span className="text-gray-500 block text-xs uppercase">Empresa</span> <span className="font-medium text-gray-900">{viewingQuote.client.company}</span></div>
-                      <div><span className="text-gray-500 block text-xs uppercase">Contacto</span> <span className="font-medium text-gray-900">{viewingQuote.client.name}</span></div>
-                      <div><span className="text-gray-500 block text-xs uppercase">Email</span> <span className="font-medium text-gray-900">{viewingQuote.client.email}</span></div>
-                      <div><span className="text-gray-500 block text-xs uppercase">Teléfono</span> <span className="font-medium text-gray-900">{viewingQuote.client.phone}</span></div>
+                      <div><span className="text-gray-500 block text-xs uppercase font-semibold">Empresa</span> <span className="font-medium text-gray-900">{viewingQuote.client.company}</span></div>
+                      <div><span className="text-gray-500 block text-xs uppercase font-semibold">Contacto</span> <span className="font-medium text-gray-900">{viewingQuote.client.name}</span></div>
+                      <div><span className="text-gray-500 block text-xs uppercase font-semibold">Email</span> <span className="font-medium text-gray-900">{viewingQuote.client.email}</span></div>
+                      <div><span className="text-gray-500 block text-xs uppercase font-semibold">Teléfono</span> <span className="font-medium text-gray-900">{viewingQuote.client.phone}</span></div>
+                      <div><span className="text-gray-500 block text-xs uppercase font-semibold">Destino</span> <span className="font-medium text-gray-900">{viewingQuote.client.city}, {viewingQuote.client.state}</span></div>
+                      {viewingQuote.client.address && (
+                        <div><span className="text-gray-500 block text-xs uppercase font-semibold">Dirección</span> <span className="font-medium text-gray-900">{viewingQuote.client.address}</span></div>
+                      )}
+                      {viewingQuote.client.zip && (
+                        <div><span className="text-gray-500 block text-xs uppercase font-semibold">Código Postal</span> <span className="font-medium text-gray-900">{viewingQuote.client.zip}</span></div>
+                      )}
                       {viewingQuote.client.comments && (
-                        <div><span className="text-gray-500 block text-xs uppercase">Comentarios</span> <span className="text-gray-700 italic">{viewingQuote.client.comments}</span></div>
+                        <div><span className="text-gray-500 block text-xs uppercase font-semibold">Comentarios</span> <span className="text-gray-700 italic">{viewingQuote.client.comments}</span></div>
                       )}
                     </div>
                   </div>
                   
-                  <div className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm">
+                  <div className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm animate-in fade-in duration-300">
                     <h3 className="font-bold text-gray-900 mb-4 border-b pb-2">Resumen</h3>
                     <div className="space-y-2 text-sm">
                       <div className="flex justify-between"><span className="text-gray-500">Fecha</span> <span>{new Date(viewingQuote.date).toLocaleString('es-MX', { dateStyle: 'short', timeStyle: 'short', hour12: false })}</span></div>
-                      <div className="flex justify-between items-start gap-4"><span className="text-gray-500">Destino</span> <span className="text-right">{viewingQuote.client.city}, {viewingQuote.client.state}</span></div>
                       <div className="flex justify-between"><span className="text-gray-500">Artículos</span> <span>{viewingQuote.items.length}</span></div>
-                      <div className="flex justify-between font-bold text-lg mt-4 pt-4 border-t border-gray-100"><span className="text-gray-900">Total Estimado</span> <span className="text-primary-700">${viewingQuote.total.toLocaleString('es-MX', { minimumFractionDigits: 2 })}</span></div>
+                      {viewingQuote.client.deliveryTime && (
+                        <div className="flex justify-between"><span className="text-gray-500">Tiempo de Entrega</span> <span className="font-medium text-gray-900">{viewingQuote.client.deliveryTime}</span></div>
+                      )}
+                      <div className="flex justify-between font-bold text-lg mt-4 pt-4 border-t border-gray-100"><span className="text-gray-900">Total</span> <span className="text-primary-700">${viewingQuote.total.toLocaleString('es-MX', { minimumFractionDigits: 2 })}</span></div>
                     </div>
+                  </div>
+
+                  <div className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm animate-in fade-in duration-300">
+                    <h3 className="font-bold text-gray-900 mb-4 border-b pb-2">Ajustes de Cotización</h3>
+                    <form onSubmit={handleSaveQuoteDetails} className="space-y-4 text-sm">
+                      <div>
+                        <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Precio Final Impresión</label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          placeholder="Reemplaza estimado"
+                          value={finalPrintPrice}
+                          onChange={(e) => setFinalPrintPrice(e.target.value)}
+                          className="w-full border border-gray-300 rounded-lg p-2 text-sm focus:ring-primary-500 focus:border-primary-500"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Precio Final Envío</label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          placeholder="Costo de envío"
+                          value={finalShippingPrice}
+                          onChange={(e) => setFinalShippingPrice(e.target.value)}
+                          className="w-full border border-gray-300 rounded-lg p-2 text-sm focus:ring-primary-500 focus:border-primary-500"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Tiempo de Entrega</label>
+                        <input
+                          type="text"
+                          placeholder="Ej. 5-7 días hábiles"
+                          value={deliveryTime}
+                          onChange={(e) => setDeliveryTime(e.target.value)}
+                          className="w-full border border-gray-300 rounded-lg p-2 text-sm focus:ring-primary-500 focus:border-primary-500"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Dirección</label>
+                        <input
+                          type="text"
+                          placeholder="Dirección del cliente"
+                          value={address}
+                          onChange={(e) => setAddress(e.target.value)}
+                          className="w-full border border-gray-300 rounded-lg p-2 text-sm focus:ring-primary-500 focus:border-primary-500"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Código Postal</label>
+                        <input
+                          type="text"
+                          placeholder="CP"
+                          value={zip}
+                          onChange={(e) => setZip(e.target.value)}
+                          className="w-full border border-gray-300 rounded-lg p-2 text-sm focus:ring-primary-500 focus:border-primary-500"
+                        />
+                      </div>
+                      <button
+                        type="submit"
+                        disabled={isSavingQuote}
+                        className="w-full bg-primary-600 hover:bg-primary-700 text-white font-bold py-2.5 px-4 rounded-lg shadow-sm transition-colors text-center disabled:opacity-50"
+                      >
+                        {isSavingQuote ? "Guardando..." : "Guardar Cambios"}
+                      </button>
+                    </form>
                   </div>
                 </div>
 

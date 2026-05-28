@@ -86,11 +86,34 @@ export function useQuotes() {
     }
   };
 
+  const updateQuote = async (updatedQuote: QuoteRequest) => {
+    // Actualización optimista
+    const newQuotes = quotes.map(q => q.id === updatedQuote.id ? updatedQuote : q);
+    setQuotes(newQuotes);
+    saveToLocalBackup(newQuotes);
+
+    try {
+      const { error } = await supabase
+        .from('quotes')
+        .update({
+          client: updatedQuote.client,
+          total: updatedQuote.total,
+          items: updatedQuote.items,
+          status: updatedQuote.status
+        })
+        .eq('id', updatedQuote.id);
+      if (error) console.error("Error updating quote in Supabase:", error);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
   return {
     quotes,
     isLoaded,
     addQuote,
     deleteQuote,
-    updateQuoteStatus
+    updateQuoteStatus,
+    updateQuote
   };
 }

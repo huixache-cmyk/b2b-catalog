@@ -56,6 +56,8 @@ export async function POST(request: Request) {
           <p><strong>Email:</strong> ${quote.client.email}</p>
           <p><strong>Teléfono:</strong> ${quote.client.phone}</p>
           <p><strong>Destino:</strong> ${quote.client.city || ''}, ${quote.client.state || ''}</p>
+          <p><strong>Dirección:</strong> ${quote.client.address || 'No especificada'}</p>
+          <p><strong>Código Postal:</strong> ${quote.client.zip || 'No especificado'}</p>
           <p><strong>Comentarios:</strong> ${quote.client.comments || 'Ninguno'}</p>
         </div>
 
@@ -82,10 +84,10 @@ export async function POST(request: Request) {
         </div>
 
         <p style="font-size: 12px; color: #777; margin-top: 40px; border-top: 1px solid #ddd; padding-top: 10px;">
-          * Los precios no incluyen IVA y están sujetos a existencias físicas.<br>
-          * El costo de envío se calculará en base al volumen y peso del pedido al momento de formalizar la compra.<br>
           * Colores sujetos a disponibilidad al momento de confirmar el pedido.<br>
-          * El costo de impresión podrá variar dependiendo del tamaño real del logotipo y de la técnica de impresión seleccionada.
+          * Condiciones de pago: 50% de anticipo para iniciar producción y 50% restante contra entrega.<br>
+          * Los tiempos de entrega acordados comenzarán a correr una vez recibido el anticipo correspondiente.<br>
+          * La presente cotización tiene una vigencia de 15 días naturales a partir de la fecha de emisión.
         </p>
       </div>
     `;
