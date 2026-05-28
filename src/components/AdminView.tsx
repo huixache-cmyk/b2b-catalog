@@ -188,8 +188,22 @@ export function AdminView() {
 
   useEffect(() => {
     if (viewingQuote) {
-      setFinalPrintPrice(viewingQuote.client.finalPrintPrice !== undefined && viewingQuote.client.finalPrintPrice !== null ? viewingQuote.client.finalPrintPrice.toString() : "");
-      setFinalShippingPrice(viewingQuote.client.finalShippingPrice !== undefined && viewingQuote.client.finalShippingPrice !== null ? viewingQuote.client.finalShippingPrice.toString() : "");
+      // Calculate estimated print total of quote
+      const estimatedPrintTotal = viewingQuote.items.reduce((sum, item) => {
+        const estPrintPrice = item.isPersonalized ? (printPrices[item.printOption] || 0) : 0;
+        return sum + (estPrintPrice * item.quantity);
+      }, 0);
+
+      const savedPrintPrice = viewingQuote.client.finalPrintPrice !== undefined && viewingQuote.client.finalPrintPrice !== null
+        ? viewingQuote.client.finalPrintPrice.toString()
+        : estimatedPrintTotal.toString();
+
+      const savedShippingPrice = viewingQuote.client.finalShippingPrice !== undefined && viewingQuote.client.finalShippingPrice !== null
+        ? viewingQuote.client.finalShippingPrice.toString()
+        : "0";
+
+      setFinalPrintPrice(savedPrintPrice);
+      setFinalShippingPrice(savedShippingPrice);
       setDeliveryTime(viewingQuote.client.deliveryTime || "");
       setAddress(viewingQuote.client.address || "");
       setZip(viewingQuote.client.zip || "");
