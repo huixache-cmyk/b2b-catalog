@@ -59,6 +59,42 @@ const roundToHalf = (num: number): number => {
   return Math.round(num * 2) / 2;
 };
 
+const getQuoteTotals = (quote: QuoteRequest) => {
+  let baseProductSubtotal = 0;
+  let printSubtotal = 0;
+  let shippingSubtotal = 0;
+
+  quote.items.forEach(item => {
+    const estPrintPrice = item.isPersonalized ? (printPrices[item.printOption] || 0) : 0;
+    const baseProdPrice = item.unitPrice - estPrintPrice;
+    
+    const finalPrint = item.finalPrintPrice !== undefined && item.finalPrintPrice !== null
+      ? item.finalPrintPrice
+      : estPrintPrice;
+      
+    const finalShipping = item.finalShippingPrice !== undefined && item.finalShippingPrice !== null
+      ? item.finalShippingPrice
+      : 0;
+
+    baseProductSubtotal += baseProdPrice * item.quantity;
+    printSubtotal += (item.isPersonalized ? finalPrint : 0) * item.quantity;
+    shippingSubtotal += finalShipping;
+  });
+
+  const subtotal = baseProductSubtotal + printSubtotal + shippingSubtotal;
+  const iva = subtotal * 0.16;
+  const total = subtotal + iva;
+
+  return {
+    baseProductSubtotal,
+    printSubtotal,
+    shippingSubtotal,
+    subtotal,
+    iva,
+    total
+  };
+};
+
 export function AdminView() {
   const { products, isLoaded, addProduct, updateProduct, deleteProduct } = useProducts();
   const { quotes, isLoaded: quotesLoaded, updateQuoteStatus, deleteQuote, updateQuote } = useQuotes();
@@ -179,8 +215,8 @@ export function AdminView() {
   const [viewingQuote, setViewingQuote] = useState<QuoteRequest | null>(null);
 
   // States for quote editing
-  const [finalPrintPrice, setFinalPrintPrice] = useState<string>("");
-  const [finalShippingPrice, setFinalShippingPrice] = useState<string>("");
+  const [selectedItemId, setSelectedItemId] = useState<string>("");
+  const [itemAdjustments, setItemAdjustments] = useState<Record<string, { finalPrintPrice: string; finalShippingPrice: string }>>({});
   const [deliveryTime, setDeliveryTime] = useState<string>("");
   const [address, setAddress] = useState<string>("");
   const [zip, setZip] = useState<string>("");
@@ -188,23 +224,35 @@ export function AdminView() {
 
   useEffect(() => {
     if (viewingQuote) {
-      // Calculate estimated unit print price of quote (first personalized item)
-      const firstPersonalizedItem = viewingQuote.items.find(item => item.isPersonalized);
-      const estimatedUnitPrintPrice = firstPersonalizedItem ? (printPrices[firstPersonalizedItem.printOption] || 0) : 0;
-
-      const savedPrintPrice = viewingQuote.client.finalPrintPrice !== undefined && viewingQuote.client.finalPrintPrice !== null
-        ? viewingQuote.client.finalPrintPrice.toString()
-        : estimatedUnitPrintPrice.toString();
-
-      const savedShippingPrice = viewingQuote.client.finalShippingPrice !== undefined && viewingQuote.client.finalShippingPrice !== null
-        ? viewingQuote.client.finalShippingPrice.toString()
-        : "0";
-
-      setFinalPrintPrice(savedPrintPrice);
-      setFinalShippingPrice(savedShippingPrice);
+      const initialAdjustments: Record<string, { finalPrintPrice: string; finalShippingPrice: string }> = {};
+      
+      viewingQuote.items.forEach(item => {
+        const estPrintPrice = item.isPersonalized ? (printPrices[item.printOption] || 0) : 0;
+        
+        // default finalPrintPrice: if item.finalPrintPrice is set, use it. Else, estimated print price per unit (not total!)
+        const savedPrintPrice = item.finalPrintPrice !== undefined && item.finalPrintPrice !== null
+          ? item.finalPrintPrice.toString()
+          : estPrintPrice.toString();
+          
+        const savedShippingPrice = item.finalShippingPrice !== undefined && item.finalShippingPrice !== null
+          ? item.finalShippingPrice.toString()
+          : "0";
+        
+        initialAdjustments[item.id] = {
+          finalPrintPrice: savedPrintPrice,
+          finalShippingPrice: savedShippingPrice
+        };
+      });
+      
+      setItemAdjustments(initialAdjustments);
       setDeliveryTime(viewingQuote.client.deliveryTime || "");
       setAddress(viewingQuote.client.address || "");
       setZip(viewingQuote.client.zip || "");
+      
+      // Auto-select the first item
+      if (viewingQuote.items.length > 0) {
+        setSelectedItemId(viewingQuote.items[0].id);
+      }
     }
   }, [viewingQuote]);
 
@@ -213,42 +261,36 @@ export function AdminView() {
     if (!viewingQuote) return;
     setIsSavingQuote(true);
     try {
-      const parsedPrintPrice = finalPrintPrice === "" ? null : parseFloat(finalPrintPrice);
-      const parsedShippingPrice = finalShippingPrice === "" ? null : parseFloat(finalShippingPrice);
+      const updatedItems = viewingQuote.items.map(item => {
+        const adj = itemAdjustments[item.id];
+        const parsedPrintPrice = adj?.finalPrintPrice === "" ? null : parseFloat(adj?.finalPrintPrice || "");
+        const parsedShippingPrice = adj?.finalShippingPrice === "" ? null : parseFloat(adj?.finalShippingPrice || "");
 
-      const baseProductSubtotal = viewingQuote.items.reduce((sum, item) => {
-        const estPrintPrice = item.isPersonalized ? (printPrices[item.printOption] || 0) : 0;
-        const baseProdPrice = item.unitPrice - estPrintPrice;
-        return sum + (baseProdPrice * item.quantity);
-      }, 0);
+        return {
+          ...item,
+          finalPrintPrice: parsedPrintPrice !== null && !isNaN(parsedPrintPrice) ? parsedPrintPrice : null,
+          finalShippingPrice: parsedShippingPrice !== null && !isNaN(parsedShippingPrice) ? parsedShippingPrice : null,
+          deliveryTime: null
+        };
+      });
 
-      const personalizedQuantity = viewingQuote.items.reduce((sum, item) => sum + (item.isPersonalized ? item.quantity : 0), 0);
-
-      let printSubtotal = 0;
-      if (parsedPrintPrice !== null && !isNaN(parsedPrintPrice)) {
-        printSubtotal = parsedPrintPrice * personalizedQuantity;
-      } else {
-        printSubtotal = viewingQuote.items.reduce((sum, item) => {
-          const estPrintPrice = item.isPersonalized ? (printPrices[item.printOption] || 0) : 0;
-          return sum + (estPrintPrice * item.quantity);
-        }, 0);
-      }
-
-      const shippingSubtotal = (parsedShippingPrice !== null && !isNaN(parsedShippingPrice)) ? parsedShippingPrice : 0;
-      const subtotal = baseProductSubtotal + printSubtotal + shippingSubtotal;
-      const totalWithIva = subtotal * 1.16;
-
-      const updatedQuote: QuoteRequest = {
+      // Calculate totals using getQuoteTotals helper
+      const tempQuote: QuoteRequest = {
         ...viewingQuote,
+        items: updatedItems,
         client: {
           ...viewingQuote.client,
           address,
           zip,
-          finalPrintPrice: parsedPrintPrice !== null && !isNaN(parsedPrintPrice) ? parsedPrintPrice : undefined,
-          finalShippingPrice: parsedShippingPrice !== null && !isNaN(parsedShippingPrice) ? parsedShippingPrice : undefined,
           deliveryTime: deliveryTime || undefined
-        },
-        total: totalWithIva
+        }
+      };
+
+      const { total } = getQuoteTotals(tempQuote);
+
+      const updatedQuote: QuoteRequest = {
+        ...tempQuote,
+        total
       };
 
       await updateQuote(updatedQuote);
@@ -328,41 +370,27 @@ export function AdminView() {
       doc.text(`Destino: ${quote.client.city || ''}, ${quote.client.state || ''}`, 110, 41);
       doc.text(`Dirección: ${quote.client.address || 'No especificada'}`, 110, 46);
       doc.text(`Código Postal: ${quote.client.zip || 'No especificado'}`, 110, 51);
+      
       if (quote.client.deliveryTime) {
         doc.text(`Tiempo de Entrega: ${quote.client.deliveryTime}`, 110, 56);
       }
 
-      // 6. Calculate Totals
-      const totalQuantity = quote.items.reduce((sum, i) => sum + i.quantity, 0);
-      const personalizedQuantity = quote.items.reduce((sum, i) => sum + (i.isPersonalized ? i.quantity : 0), 0);
-      const finalPrintPriceVal = quote.client.finalPrintPrice !== undefined && quote.client.finalPrintPrice !== null ? quote.client.finalPrintPrice : null;
-      const finalShippingPriceVal = quote.client.finalShippingPrice !== undefined && quote.client.finalShippingPrice !== null ? quote.client.finalShippingPrice : null;
-
-      const baseProductSubtotal = quote.items.reduce((sum, item) => {
-        const estPrintPrice = item.isPersonalized ? (printPrices[item.printOption] || 0) : 0;
-        const baseProdPrice = item.unitPrice - estPrintPrice;
-        return sum + (baseProdPrice * item.quantity);
-      }, 0);
-
-      const printSubtotal = finalPrintPriceVal !== null ? (finalPrintPriceVal * personalizedQuantity) : quote.items.reduce((sum, item) => {
-        const estPrintPrice = item.isPersonalized ? (printPrices[item.printOption] || 0) : 0;
-        return sum + (estPrintPrice * item.quantity);
-      }, 0);
-
-      const shippingSubtotal = finalShippingPriceVal !== null ? finalShippingPriceVal : 0;
-      const subtotal = baseProductSubtotal + printSubtotal + shippingSubtotal;
-      const iva = subtotal * 0.16;
-      const total = subtotal + iva;
+      // 6. Calculate Totals using getQuoteTotals helper
+      const { baseProductSubtotal, printSubtotal, shippingSubtotal, subtotal, iva, total } = getQuoteTotals(quote);
 
       // 7. Prepare Table Data
       const tableData = quote.items.map(item => {
         const estPrintPrice = item.isPersonalized ? (printPrices[item.printOption] || 0) : 0;
         const baseProdPrice = item.unitPrice - estPrintPrice;
+        
         const unitPrintPrice = item.isPersonalized
-          ? (finalPrintPriceVal !== null ? finalPrintPriceVal : estPrintPrice)
+          ? (item.finalPrintPrice !== undefined && item.finalPrintPrice !== null ? item.finalPrintPrice : estPrintPrice)
           : 0;
-        const unitShippingPrice = finalShippingPriceVal !== null ? (finalShippingPriceVal / totalQuantity) : 0;
-        const itemSubtotal = (baseProdPrice + unitPrintPrice + unitShippingPrice) * item.quantity;
+          
+        const itemShippingTotal = item.finalShippingPrice !== undefined && item.finalShippingPrice !== null ? item.finalShippingPrice : 0;
+        const unitShippingPrice = item.quantity > 0 ? (itemShippingTotal / item.quantity) : 0;
+        
+        const itemSubtotal = (baseProdPrice + unitPrintPrice) * item.quantity + itemShippingTotal;
 
         const colorName = getColorName(item.color);
         const productoDesc = `${item.productName}\nColor: ${colorName}\nImpresión: ${item.printOption}`;
@@ -382,18 +410,18 @@ export function AdminView() {
       // 8. Draw Table
       autoTable(doc, {
         startY: 63,
-        head: [['', 'SKU', 'Producto', 'Cant.', 'Precio', 'Impresión', 'Envío', 'Subtotal']],
+        head: [['', 'SKU', 'Producto', 'Cant.', 'Precio Producto', 'Impresión', 'Envío', 'Subtotal']],
         body: tableData,
         headStyles: { fillColor: primaryColor, textColor: 255, fontStyle: 'bold' },
         alternateRowStyles: { fillColor: [240, 248, 247] },
         styles: { font: 'helvetica', fontSize: 9, minCellHeight: 18, valign: 'middle' },
         columnStyles: {
-          0: { cellWidth: 18 },
+          0: { cellWidth: 16 },
           1: { cellWidth: 20 },
-          2: { cellWidth: 50 },
+          2: { cellWidth: 48 },
           3: { cellWidth: 14, halign: 'center' },
-          4: { cellWidth: 20, halign: 'right' },
-          5: { cellWidth: 20, halign: 'right' },
+          4: { cellWidth: 22, halign: 'right' },
+          5: { cellWidth: 22, halign: 'right' },
           6: { cellWidth: 18, halign: 'right' },
           7: { cellWidth: 22, halign: 'right' }
         },
@@ -405,9 +433,21 @@ export function AdminView() {
               if (imgEl) {
                 const dim = 13;
                 try {
-                  const posX = data.cell.x + (data.cell.width - dim) / 2;
-                  const posY = data.cell.y + (data.cell.height - dim) / 2;
-                  doc.addImage(imgEl, 'PNG', posX, posY, dim, dim);
+                  let w = dim;
+                  let h = dim;
+                  const imgWidth = imgEl.naturalWidth || imgEl.width;
+                  const imgHeight = imgEl.naturalHeight || imgEl.height;
+                  if (imgWidth && imgHeight) {
+                    const ratio = imgWidth / imgHeight;
+                    if (ratio > 1) {
+                      h = dim / ratio;
+                    } else {
+                      w = dim * ratio;
+                    }
+                  }
+                  const posX = data.cell.x + (data.cell.width - w) / 2;
+                  const posY = data.cell.y + (data.cell.height - h) / 2;
+                  doc.addImage(imgEl, 'PNG', posX, posY, w, h);
                 } catch (e) {
                   console.warn("Could not add image to PDF", e);
                 }
@@ -1549,75 +1589,128 @@ export function AdminView() {
                     </div>
                   </div>
                   
-                  <div className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm animate-in fade-in duration-300">
-                    <h3 className="font-bold text-gray-900 mb-4 border-b pb-2">Resumen</h3>
-                    <div className="space-y-2 text-sm">
-                      <div className="flex justify-between"><span className="text-gray-500">Fecha</span> <span>{new Date(viewingQuote.date).toLocaleString('es-MX', { dateStyle: 'short', timeStyle: 'short', hour12: false })}</span></div>
-                      <div className="flex justify-between"><span className="text-gray-500">Artículos</span> <span>{viewingQuote.items.length}</span></div>
-                      {viewingQuote.client.deliveryTime && (
-                        <div className="flex justify-between"><span className="text-gray-500">Tiempo de Entrega</span> <span className="font-medium text-gray-900">{viewingQuote.client.deliveryTime}</span></div>
-                      )}
-                      <div className="flex justify-between font-bold text-lg mt-4 pt-4 border-t border-gray-100"><span className="text-gray-900">Total</span> <span className="text-primary-700">${viewingQuote.total.toLocaleString('es-MX', { minimumFractionDigits: 2 })}</span></div>
-                    </div>
-                  </div>
+                  {(() => {
+                    const { subtotal, iva, total } = getQuoteTotals(viewingQuote);
+                    const headerDeliveryTime = deliveryTime || viewingQuote.client.deliveryTime;
+                    
+                    return (
+                      <div className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm animate-in fade-in duration-300">
+                        <h3 className="font-bold text-gray-900 mb-4 border-b pb-2">Resumen</h3>
+                        <div className="space-y-2 text-sm">
+                          <div className="flex justify-between"><span className="text-gray-500">Fecha</span> <span>{new Date(viewingQuote.date).toLocaleString('es-MX', { dateStyle: 'short', timeStyle: 'short', hour12: false })}</span></div>
+                          <div className="flex justify-between"><span className="text-gray-500">Artículos</span> <span>{viewingQuote.items.length}</span></div>
+                          {headerDeliveryTime && (
+                            <div className="flex justify-between"><span className="text-gray-500">Tiempo de Entrega</span> <span className="font-medium text-gray-900">{headerDeliveryTime}</span></div>
+                          )}
+                          <div className="flex justify-between mt-2 pt-2 border-t border-gray-100"><span className="text-gray-500">Subtotal</span> <span className="font-medium text-gray-900">${subtotal.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></div>
+                          <div className="flex justify-between"><span className="text-gray-500">IVA (16%)</span> <span className="font-medium text-gray-900">${iva.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></div>
+                          <div className="flex justify-between font-bold text-lg mt-2 pt-2 border-t border-gray-150"><span className="text-gray-900">Total</span> <span className="text-primary-700">${total.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></div>
+                        </div>
+                      </div>
+                    );
+                  })()}
 
                   <div className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm animate-in fade-in duration-300">
                     <h3 className="font-bold text-gray-900 mb-4 border-b pb-2">Ajustes de Cotización</h3>
                     <form onSubmit={handleSaveQuoteDetails} className="space-y-4 text-sm">
-                      <div>
-                        <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Precio Final Impresión</label>
-                        <input
-                          type="number"
-                          step="0.01"
-                          min="0"
-                          placeholder="Reemplaza estimado"
-                          value={finalPrintPrice}
-                          onChange={(e) => setFinalPrintPrice(e.target.value)}
-                          className="w-full border border-gray-300 rounded-lg p-2 text-sm focus:ring-primary-500 focus:border-primary-500"
-                        />
+                      {/* Item Selector Dropdown */}
+                      {viewingQuote.items.length > 0 && (
+                        <div>
+                          <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Artículo a Ajustar</label>
+                          <select
+                            value={selectedItemId}
+                            onChange={(e) => setSelectedItemId(e.target.value)}
+                            className="w-full border border-gray-300 rounded-lg p-2 text-sm focus:ring-primary-500 focus:border-primary-500 bg-white font-medium text-gray-700"
+                          >
+                            {viewingQuote.items.map(item => (
+                              <option key={item.id} value={item.id}>
+                                {item.productName.substring(0, 35)}... ({getColorName(item.color)})
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      )}
+
+                      {/* Item Specific Fields */}
+                      <div className="space-y-4 pt-2 border-t border-gray-100">
+                        <div>
+                          <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Precio Final Impresión (Por Unidad)</label>
+                          <input
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            placeholder="Reemplaza estimado"
+                            value={itemAdjustments[selectedItemId]?.finalPrintPrice || ""}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              setItemAdjustments(prev => ({
+                                ...prev,
+                                [selectedItemId]: {
+                                  ...prev[selectedItemId],
+                                  finalPrintPrice: val
+                                }
+                              }));
+                            }}
+                            className="w-full border border-gray-300 rounded-lg p-2 text-sm focus:ring-primary-500 focus:border-primary-500 font-medium"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Precio Final Envío (Total por Artículo)</label>
+                          <input
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            placeholder="Costo de envío"
+                            value={itemAdjustments[selectedItemId]?.finalShippingPrice || ""}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              setItemAdjustments(prev => ({
+                                ...prev,
+                                [selectedItemId]: {
+                                  ...prev[selectedItemId],
+                                  finalShippingPrice: val
+                                }
+                              }));
+                            }}
+                            className="w-full border border-gray-300 rounded-lg p-2 text-sm focus:ring-primary-500 focus:border-primary-500 font-medium"
+                          />
+                        </div>
                       </div>
-                      <div>
-                        <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Precio Final Envío</label>
-                        <input
-                          type="number"
-                          step="0.01"
-                          min="0"
-                          placeholder="Costo de envío"
-                          value={finalShippingPrice}
-                          onChange={(e) => setFinalShippingPrice(e.target.value)}
-                          className="w-full border border-gray-300 rounded-lg p-2 text-sm focus:ring-primary-500 focus:border-primary-500"
-                        />
+
+                      {/* Global Address, CP & Tiempo de Entrega Fields */}
+                      <div className="space-y-4 pt-4 border-t border-gray-100">
+                        <div>
+                          <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Tiempo de Entrega (Global)</label>
+                          <input
+                            type="text"
+                            placeholder="Ej. 5-7 días hábiles"
+                            value={deliveryTime}
+                            onChange={(e) => setDeliveryTime(e.target.value)}
+                            className="w-full border border-gray-300 rounded-lg p-2 text-sm focus:ring-primary-500 focus:border-primary-500"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Dirección (Global)</label>
+                          <input
+                            type="text"
+                            placeholder="Dirección del cliente"
+                            value={address}
+                            onChange={(e) => setAddress(e.target.value)}
+                            className="w-full border border-gray-300 rounded-lg p-2 text-sm focus:ring-primary-500 focus:border-primary-500"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Código Postal (Global)</label>
+                          <input
+                            type="text"
+                            placeholder="CP"
+                            value={zip}
+                            onChange={(e) => setZip(e.target.value)}
+                            className="w-full border border-gray-300 rounded-lg p-2 text-sm focus:ring-primary-500 focus:border-primary-500"
+                          />
+                        </div>
                       </div>
-                      <div>
-                        <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Tiempo de Entrega</label>
-                        <input
-                          type="text"
-                          placeholder="Ej. 5-7 días hábiles"
-                          value={deliveryTime}
-                          onChange={(e) => setDeliveryTime(e.target.value)}
-                          className="w-full border border-gray-300 rounded-lg p-2 text-sm focus:ring-primary-500 focus:border-primary-500"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Dirección</label>
-                        <input
-                          type="text"
-                          placeholder="Dirección del cliente"
-                          value={address}
-                          onChange={(e) => setAddress(e.target.value)}
-                          className="w-full border border-gray-300 rounded-lg p-2 text-sm focus:ring-primary-500 focus:border-primary-500"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Código Postal</label>
-                        <input
-                          type="text"
-                          placeholder="CP"
-                          value={zip}
-                          onChange={(e) => setZip(e.target.value)}
-                          className="w-full border border-gray-300 rounded-lg p-2 text-sm focus:ring-primary-500 focus:border-primary-500"
-                        />
-                      </div>
+
                       <button
                         type="submit"
                         disabled={isSavingQuote}
@@ -1631,35 +1724,83 @@ export function AdminView() {
 
                 <div className="md:col-span-2 space-y-4">
                   <h3 className="font-bold text-gray-900 text-lg">Artículos Solicitados</h3>
-                  {viewingQuote.items.map(item => (
-                    <div key={item.id} className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
-                      <div className="flex items-start gap-4 mb-4 border-b border-gray-100 pb-4">
-                        <div className="w-16 h-16 bg-gray-100 rounded-lg overflow-hidden shrink-0 border border-gray-200">
-                          <img src={item.mockupImage || item.image} alt="" className="w-full h-full object-cover" />
-                        </div>
-                        <div className="flex-1">
-                          <h4 className="font-bold text-gray-900">{item.productName}</h4>
-                          <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-gray-500 mt-1 items-center">
-                            <span>SKU: {item.sku}</span>
-                            <span className="flex items-center gap-1">
-                              Color: 
-                              {item.color.startsWith('#') ? (
-                                <>
-                                  <span className="w-3 h-3 rounded-full border border-gray-300 inline-block" style={{ backgroundColor: item.color }} />
-                                  {getColorName(item.color)}
-                                </>
-                              ) : (
-                                getColorName(item.color)
-                              )}
-                            </span>
-                            <span>Impresión: {item.printOption}</span>
+                  {viewingQuote.items.map(item => {
+                    const estPrintPrice = item.isPersonalized ? (printPrices[item.printOption] || 0) : 0;
+                    const baseProdPrice = item.unitPrice - estPrintPrice;
+                    const finalPrintPriceVal = item.finalPrintPrice !== undefined && item.finalPrintPrice !== null ? item.finalPrintPrice : estPrintPrice;
+                    const finalShippingPriceVal = item.finalShippingPrice !== undefined && item.finalShippingPrice !== null ? item.finalShippingPrice : 0;
+                    const itemSubtotal = (baseProdPrice + (item.isPersonalized ? finalPrintPriceVal : 0)) * item.quantity + finalShippingPriceVal;
+
+                    return (
+                      <div key={item.id} className={`bg-white p-4 rounded-xl border transition-all shadow-sm ${selectedItemId === item.id ? 'border-primary-500 ring-2 ring-primary-50' : 'border-gray-200'}`}>
+                        <div className="flex items-start gap-4 mb-4 border-b border-gray-100 pb-4">
+                          <div className="w-16 h-16 bg-gray-100 rounded-lg overflow-hidden shrink-0 border border-gray-200">
+                            <img src={item.mockupImage || item.image} alt="" className="w-full h-full object-cover" />
+                          </div>
+                          <div className="flex-1">
+                            <h4 className="font-bold text-gray-900">{item.productName}</h4>
+                            <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-gray-500 mt-1 items-center">
+                              <span>SKU: {item.sku}</span>
+                              <span className="flex items-center gap-1.5">
+                                Color: 
+                                {item.color.startsWith('#') ? (
+                                  <>
+                                    <span className="w-3 h-3 rounded-full border border-gray-300 inline-block" style={{ backgroundColor: item.color }} />
+                                    {getColorName(item.color)}
+                                  </>
+                                ) : (
+                                  getColorName(item.color)
+                                )}
+                              </span>
+                              <span>Impresión: {item.printOption}</span>
+                            </div>
+                            
+                            <button
+                              type="button"
+                              onClick={() => setSelectedItemId(item.id)}
+                              className={`mt-3 text-xs font-bold px-3 py-1.5 rounded-lg border transition-colors flex items-center gap-1 ${
+                                selectedItemId === item.id
+                                  ? 'bg-primary-600 border-primary-600 text-white shadow-sm'
+                                  : 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50'
+                              }`}
+                            >
+                              {selectedItemId === item.id ? "Ajustando este artículo" : "Ajustar este artículo"}
+                            </button>
+                          </div>
+                          <div className="text-right">
+                            <div className="font-bold text-gray-900">{item.quantity} pz</div>
+                            <div className="text-xs text-primary-700 font-bold mt-1">
+                              Subtotal: ${itemSubtotal.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </div>
                           </div>
                         </div>
-                        <div className="text-right">
-                          <div className="font-bold text-gray-900">{item.quantity} pz</div>
-                          <div className="text-xs text-gray-500 text-primary-600 font-bold">${item.totalPrice.toLocaleString('es-MX', { minimumFractionDigits: 2 })}</div>
+
+                        {/* Adjustments Summary for this Item */}
+                        <div className="bg-gray-50 rounded-lg p-3 text-xs grid grid-cols-2 sm:grid-cols-4 gap-3">
+                          <div>
+                            <span className="text-gray-400 block font-semibold text-[10px] uppercase">Precio Base</span>
+                            <span className="font-bold text-gray-700">${baseProdPrice.toFixed(2)} c/u</span>
+                          </div>
+                          <div>
+                            <span className="text-gray-400 block font-semibold text-[10px] uppercase">Impresión Final</span>
+                            <span className="font-bold text-gray-700">
+                              {item.isPersonalized 
+                                ? `$${finalPrintPriceVal.toFixed(2)} c/u` 
+                                : "Sin Impresión"
+                              }
+                            </span>
+                          </div>
+                          <div>
+                            <span className="text-gray-400 block font-semibold text-[10px] uppercase">Envío Final</span>
+                            <span className="font-bold text-gray-700">${finalShippingPriceVal.toFixed(2)} (Total)</span>
+                          </div>
+                          <div>
+                            <span className="text-gray-400 block font-semibold text-[10px] uppercase">Precio Total Unitario</span>
+                            <span className="font-extrabold text-primary-700">
+                              ${((baseProdPrice + (item.isPersonalized ? finalPrintPriceVal : 0)) + (finalShippingPriceVal / item.quantity)).toFixed(2)} c/u
+                            </span>
+                          </div>
                         </div>
-                      </div>
                       
                       {/* Attached Mockups */}
                       {(item.mockupImage || item.blueprintImage) && (
@@ -1692,7 +1833,8 @@ export function AdminView() {
                         </div>
                       )}
                     </div>
-                  ))}
+                  );
+                })}
                 </div>
                 
               </div>

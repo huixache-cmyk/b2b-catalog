@@ -88,7 +88,21 @@ export const generatePdfCatalog = async (products: Product[]) => {
           if (imgEl) {
             const dim = 16;
             try {
-              doc.addImage(imgEl, 'PNG', data.cell.x + 2, data.cell.y + 2, dim, dim);
+              let w = dim;
+              let h = dim;
+              const imgWidth = imgEl.naturalWidth || imgEl.width;
+              const imgHeight = imgEl.naturalHeight || imgEl.height;
+              if (imgWidth && imgHeight) {
+                const ratio = imgWidth / imgHeight;
+                if (ratio > 1) {
+                  h = dim / ratio;
+                } else {
+                  w = dim * ratio;
+                }
+              }
+              const posX = data.cell.x + (data.cell.width - w) / 2;
+              const posY = data.cell.y + (data.cell.height - h) / 2;
+              doc.addImage(imgEl, 'PNG', posX, posY, w, h);
             } catch (e) {
               console.warn("Could not add image to PDF", e);
             }

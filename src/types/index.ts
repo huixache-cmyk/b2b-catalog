@@ -31,6 +31,9 @@ export interface CartItem {
   totalPrice: number;
   blueprintImage?: string;
   mockupImage?: string;
+  finalPrintPrice?: number | null;
+  finalShippingPrice?: number | null;
+  deliveryTime?: string | null;
 }
 
 export interface QuoteRequest {
