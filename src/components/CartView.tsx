@@ -40,6 +40,15 @@ export function CartView() {
   const [isSending, setIsSending] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
 
+  const isFormInvalid = !formData.name.trim() || 
+                        !formData.company.trim() || 
+                        !formData.email.trim() || 
+                        !formData.phone.trim() || 
+                        !formData.state || 
+                        !formData.city || 
+                        !formData.zip.trim() || 
+                        !formData.address.trim();
+
   if (!isLoaded) {
     return <div className="text-center py-20 text-gray-500">Cargando carrito...</div>;
   }
@@ -292,8 +301,8 @@ Quedo en espera de confirmación de existencias.`;
 
               <button 
                 type="submit" 
-                disabled={isSending || showSuccess}
-                className="w-full bg-primary-600 text-white font-bold py-4 px-4 rounded-xl shadow-md hover:bg-primary-700 hover:-translate-y-0.5 transition-all flex items-center justify-center disabled:opacity-70 disabled:hover:translate-y-0"
+                disabled={isSending || showSuccess || isFormInvalid}
+                className="w-full bg-primary-600 text-white font-bold py-4 px-4 rounded-xl shadow-md hover:bg-primary-700 hover:-translate-y-0.5 transition-all flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-y-0"
               >
                 <Send className="w-5 h-5 mr-2" />
                 {isSending ? "Procesando..." : "Enviar Solicitud"}
