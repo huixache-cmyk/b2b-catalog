@@ -70,7 +70,7 @@ export async function POST(request: Request) {
               <th style="padding: 10px;">Color</th>
               <th style="padding: 10px;">Cant.</th>
               <th style="padding: 10px;">Precio Prod.</th>
-              <th style="padding: 10px;">Impresión</th>
+              <th style="padding: 10px;">Impresión Estimada</th>
               <th style="padding: 10px;">Subtotal</th>
             </tr>
           </thead>
@@ -79,15 +79,19 @@ export async function POST(request: Request) {
           </tbody>
         </table>
 
-        <div style="text-align: right; font-size: 20px; color: #0b504d;">
+        <div style="text-align: right; font-size: 20px; color: #0b504d; margin-bottom: 20px;">
           <strong>Total Estimado: $${quote.total.toLocaleString('es-MX', { minimumFractionDigits: 2 })} MXN</strong>
         </div>
 
+        <div style="background-color: #e0f2f1; padding: 15px; border-radius: 8px; border-left: 4px solid #0b504d; margin: 20px 0; text-align: left;">
+          <p style="margin: 0 0 6px 0; font-size: 15px; font-weight: bold; color: #0b504d;">¡Gracias por su solicitud!</p>
+          <p style="margin: 0; font-size: 13px; color: #333;">Nuestro equipo se pondrá en contacto con Usted para entregarle una cotización final de acuerdo a sus necesidades.</p>
+        </div>
+
         <p style="font-size: 12px; color: #777; margin-top: 40px; border-top: 1px solid #ddd; padding-top: 10px;">
+          * Precios más IVA.<br>
           * Colores sujetos a disponibilidad al momento de confirmar el pedido.<br>
-          * Condiciones de pago: 50% de anticipo para iniciar producción y 50% restante contra entrega.<br>
-          * Los tiempos de entrega acordados comenzarán a correr una vez recibido el anticipo correspondiente.<br>
-          * La presente cotización tiene una vigencia de 15 días naturales a partir de la fecha de emisión.
+          * Condiciones de pago: 50% de anticipo para iniciar producción y 50% restante contra entrega.
         </p>
       </div>
     `;
