@@ -188,15 +188,13 @@ export function AdminView() {
 
   useEffect(() => {
     if (viewingQuote) {
-      // Calculate estimated print total of quote
-      const estimatedPrintTotal = viewingQuote.items.reduce((sum, item) => {
-        const estPrintPrice = item.isPersonalized ? (printPrices[item.printOption] || 0) : 0;
-        return sum + (estPrintPrice * item.quantity);
-      }, 0);
+      // Calculate estimated unit print price of quote (first personalized item)
+      const firstPersonalizedItem = viewingQuote.items.find(item => item.isPersonalized);
+      const estimatedUnitPrintPrice = firstPersonalizedItem ? (printPrices[firstPersonalizedItem.printOption] || 0) : 0;
 
       const savedPrintPrice = viewingQuote.client.finalPrintPrice !== undefined && viewingQuote.client.finalPrintPrice !== null
         ? viewingQuote.client.finalPrintPrice.toString()
-        : estimatedPrintTotal.toString();
+        : estimatedUnitPrintPrice.toString();
 
       const savedShippingPrice = viewingQuote.client.finalShippingPrice !== undefined && viewingQuote.client.finalShippingPrice !== null
         ? viewingQuote.client.finalShippingPrice.toString()
@@ -224,9 +222,11 @@ export function AdminView() {
         return sum + (baseProdPrice * item.quantity);
       }, 0);
 
+      const personalizedQuantity = viewingQuote.items.reduce((sum, item) => sum + (item.isPersonalized ? item.quantity : 0), 0);
+
       let printSubtotal = 0;
       if (parsedPrintPrice !== null && !isNaN(parsedPrintPrice)) {
-        printSubtotal = parsedPrintPrice;
+        printSubtotal = parsedPrintPrice * personalizedQuantity;
       } else {
         printSubtotal = viewingQuote.items.reduce((sum, item) => {
           const estPrintPrice = item.isPersonalized ? (printPrices[item.printOption] || 0) : 0;
@@ -334,6 +334,7 @@ export function AdminView() {
 
       // 6. Calculate Totals
       const totalQuantity = quote.items.reduce((sum, i) => sum + i.quantity, 0);
+      const personalizedQuantity = quote.items.reduce((sum, i) => sum + (i.isPersonalized ? i.quantity : 0), 0);
       const finalPrintPriceVal = quote.client.finalPrintPrice !== undefined && quote.client.finalPrintPrice !== null ? quote.client.finalPrintPrice : null;
       const finalShippingPriceVal = quote.client.finalShippingPrice !== undefined && quote.client.finalShippingPrice !== null ? quote.client.finalShippingPrice : null;
 
@@ -343,7 +344,7 @@ export function AdminView() {
         return sum + (baseProdPrice * item.quantity);
       }, 0);
 
-      const printSubtotal = finalPrintPriceVal !== null ? finalPrintPriceVal : quote.items.reduce((sum, item) => {
+      const printSubtotal = finalPrintPriceVal !== null ? (finalPrintPriceVal * personalizedQuantity) : quote.items.reduce((sum, item) => {
         const estPrintPrice = item.isPersonalized ? (printPrices[item.printOption] || 0) : 0;
         return sum + (estPrintPrice * item.quantity);
       }, 0);
@@ -357,7 +358,9 @@ export function AdminView() {
       const tableData = quote.items.map(item => {
         const estPrintPrice = item.isPersonalized ? (printPrices[item.printOption] || 0) : 0;
         const baseProdPrice = item.unitPrice - estPrintPrice;
-        const unitPrintPrice = finalPrintPriceVal !== null ? (finalPrintPriceVal / totalQuantity) : estPrintPrice;
+        const unitPrintPrice = item.isPersonalized
+          ? (finalPrintPriceVal !== null ? finalPrintPriceVal : estPrintPrice)
+          : 0;
         const unitShippingPrice = finalShippingPriceVal !== null ? (finalShippingPriceVal / totalQuantity) : 0;
         const itemSubtotal = (baseProdPrice + unitPrintPrice + unitShippingPrice) * item.quantity;
 
