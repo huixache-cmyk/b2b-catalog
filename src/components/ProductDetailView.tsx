@@ -115,6 +115,10 @@ export function ProductDetailView({ product, relatedProducts }: { product: Produ
 
   const [savedMockups, setSavedMockups] = useState<{ bgIndex: number; imgData: string }[]>([]);
   
+  const mockupBgUrl = mockupBgIndex === getTechImageIndex() 
+    ? getCorsUrl(product.images[getTechImageIndex()]) 
+    : (paddedOriginalImage || getCorsUrl(product.images[getIndividualImageIndex()]));
+
   const mockupPreviewRef = useRef<HTMLDivElement>(null);
   const isDragging = useRef(false);
   const dragStartPos = useRef({ startX: 0, startY: 0, startPctX: 50, startPctY: 50 });
@@ -730,9 +734,9 @@ export function ProductDetailView({ product, relatedProducts }: { product: Produ
                 >
                   <div id="mockup-preview-capture" ref={mockupPreviewRef} className="relative inline-flex items-center justify-center max-w-full max-h-[35vh] md:max-h-[60vh]">
                     <img 
-                      src={mockupBgIndex === getTechImageIndex() ? getCorsUrl(product.images[getTechImageIndex()]) : (paddedOriginalImage || getCorsUrl(product.images[getIndividualImageIndex()]))} 
+                      src={mockupBgUrl} 
                       alt="Mockup Base" 
-                      crossOrigin="anonymous"
+                      crossOrigin={mockupBgUrl.startsWith('data:') ? undefined : "anonymous"}
                       className="max-w-full max-h-[35vh] md:max-h-[60vh] pointer-events-none object-contain" 
                     />
 
@@ -763,7 +767,7 @@ export function ProductDetailView({ product, relatedProducts }: { product: Produ
                         <img 
                           src={logoUrl} 
                           alt="Tu Logo" 
-                          crossOrigin="anonymous"
+                          crossOrigin={logoUrl.startsWith('data:') ? undefined : "anonymous"}
                           className="max-w-[150px] max-h-[150px] object-contain pointer-events-none drop-shadow-sm" 
                           style={{ filter: printOption.toLowerCase().includes('grabado') ? 'grayscale(100%) contrast(150%) opacity(80%) brightness(0.2)' : 'none' }}
                           draggable={false}
