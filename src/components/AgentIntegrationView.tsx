@@ -295,7 +295,9 @@ export function AgentIntegrationView() {
     if (!ctx) return;
 
     const img = new Image();
-    img.crossOrigin = "Anonymous";
+    if (mainIndividualImage && !mainIndividualImage.startsWith('data:')) {
+      img.crossOrigin = "Anonymous";
+    }
     img.onload = () => {
       if (!isMounted) return;
       

@@ -58,7 +58,9 @@ export function ProductDetailView({ product, relatedProducts }: { product: Produ
     if (!originalImgUrl) return;
 
     const img = new Image();
-    img.crossOrigin = "anonymous";
+    if (!originalImgUrl.startsWith('data:')) {
+      img.crossOrigin = "anonymous";
+    }
     img.onload = () => {
       const canvas = document.createElement('canvas');
       // Coincide exactamente con la lógica de AgentIntegrationView.tsx

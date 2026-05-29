@@ -9,7 +9,9 @@ export const generatePdfCatalog = async (products: Product[]) => {
     return new Promise((resolve) => {
       if (!src) return resolve(null);
       const img = new Image();
-      img.crossOrigin = "Anonymous";
+      if (src && !src.startsWith('data:')) {
+        img.crossOrigin = "Anonymous";
+      }
       img.onload = () => resolve(img);
       img.onerror = () => resolve(null);
       img.src = src;

@@ -15,7 +15,9 @@ const MEXICO_STATES = Object.keys(mexicoData);
 const getImageElement = (src: string): Promise<HTMLImageElement> => {
   return new Promise((resolve, reject) => {
     const img = new Image();
-    img.crossOrigin = "Anonymous";
+    if (src && !src.startsWith('data:')) {
+      img.crossOrigin = "Anonymous";
+    }
     img.onload = () => resolve(img);
     img.onerror = reject;
     img.src = src;
