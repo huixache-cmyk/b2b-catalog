@@ -22,7 +22,7 @@ export function ProductCard({ product }: { product: Product }) {
           )}
         </div>
         <img 
-          src={product.images?.[0] || "https://images.unsplash.com/photo-1505740420928-5e560c06d30e"} 
+          src={product.images?.find(img => !!img) || "https://images.unsplash.com/photo-1505740420928-5e560c06d30e"} 
           alt={product.name} 
           className="w-full h-full object-contain p-2 group-hover:scale-105 transition-transform duration-500"
           loading="lazy"

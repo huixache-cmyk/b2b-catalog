@@ -8,9 +8,11 @@ import { Check, Info, ShieldCheck, Truck, ChevronRight, Upload, Download, X, Ale
 import Link from "next/link";
 import { useCart } from "@/hooks/useCart";
 import html2canvas from "html2canvas";
+import { useSettings } from "@/hooks/useSettings";
 
 export function ProductDetailView({ product, relatedProducts }: { product: Product, relatedProducts: Product[] }) {
-  const [selectedImage, setSelectedImage] = useState(0);
+  const firstNonEmptyIndex = product.images.findIndex(img => !!img);
+  const [selectedImage, setSelectedImage] = useState(firstNonEmptyIndex !== -1 ? firstNonEmptyIndex : 0);
   const [printOption, setPrintOption] = useState("Impresión 1 tinta");
   const [showMockup, setShowMockup] = useState(false);
   const [isPersonalized, setIsPersonalized] = useState(false);
@@ -28,11 +30,26 @@ export function ProductDetailView({ product, relatedProducts }: { product: Produ
   const [logoRotation, setLogoRotation] = useState(0);
   const [logoOpacity, setLogoOpacity] = useState(1);
   
-  // Helper to find the correct images regardless of whether group image exists
-  const getIndividualImageIndex = () => product.images.length >= 3 ? 1 : 0;
-  const getTechImageIndex = () => product.images.length - 1;
+  const getIndividualImageIndex = () => product.images[1] ? 1 : (product.images[0] ? 0 : 1);
+  const getTechImageIndex = () => {
+    const individualIdx = getIndividualImageIndex();
+    for (let i = product.images.length - 1; i >= 0; i--) {
+      if (product.images[i] && i > individualIdx && i > 0) {
+        return i;
+      }
+    }
+    return 4;
+  };
 
-  const [mockupBgIndex, setMockupBgIndex] = useState(getTechImageIndex());
+  const [mockupBgIndex, setMockupBgIndex] = useState(
+    product.images[getTechImageIndex()] ? getTechImageIndex() : getIndividualImageIndex()
+  );
+
+  const getCorsUrl = (url: string) => {
+    if (!url) return "";
+    if (url.startsWith('data:')) return url;
+    return url + (url.includes('?') ? '&' : '?') + 'cors=1';
+  };
 
   const [paddedOriginalImage, setPaddedOriginalImage] = useState<string | null>(null);
 
@@ -61,7 +78,7 @@ export function ProductDetailView({ product, relatedProducts }: { product: Produ
         console.error("Failed to pad original image", e);
       }
     };
-    img.src = originalImgUrl;
+    img.src = getCorsUrl(originalImgUrl);
   }, [product.images]);
 
   useEffect(() => {
@@ -102,18 +119,25 @@ export function ProductDetailView({ product, relatedProducts }: { product: Produ
   const isDragging = useRef(false);
   const dragStartPos = useRef({ startX: 0, startY: 0, startPctX: 50, startPctY: 50 });
 
+  const { homeSettings } = useSettings();
   const printPrices: Record<string, number> = {
     "Sin Impresión": 0,
     "Grabado Chico": 15,
     "Grabado Grande": 25,
+    "DTF": 12,
     "Impresión 1 tinta": 10,
     "Impresión 2 tintas": 18,
     "Impresión 3 tintas": 25,
-    "Impresión 4 tintas": 30
+    "Impresión 4 tintas": 30,
+    ...(homeSettings?.print_prices || {})
   };
   const printPrice = isPersonalized ? (printPrices[printOption] || 0) : 0;
 
   const totalQuantity = typeof quantity === 'number' ? quantity : 0;
+
+  const minPurchase = product.minPurchase ?? 50;
+  const discountQty1 = product.discountQty1 ?? 100;
+  const discountQty2 = product.discountQty2 ?? 150;
 
   const roundToHalf = (num: number) => Math.round(num * 2) / 2;
   const basePrice = product.price || 0;
@@ -121,9 +145,9 @@ export function ProductDetailView({ product, relatedProducts }: { product: Produ
   const tier3Price = roundToHalf(basePrice * (1 - (product.discount150 || 0) / 100));
 
   let unitProductPrice = basePrice;
-  if (totalQuantity > 150) {
+  if (totalQuantity > discountQty2) {
     unitProductPrice = tier3Price;
-  } else if (totalQuantity >= 100) {
+  } else if (totalQuantity >= discountQty1) {
     unitProductPrice = tier2Price;
   }
 
@@ -132,7 +156,7 @@ export function ProductDetailView({ product, relatedProducts }: { product: Produ
   const total = finalPricePerUnit * totalQuantity;
 
   const handleAddToCart = () => {
-    if (totalQuantity < 50) return;
+    if (totalQuantity < minPurchase) return;
     
     // El plano mecánico siempre es la última imagen del array (a menos que el usuario guarde un mockup sobre él)
     const techIndex = getTechImageIndex();
@@ -154,7 +178,8 @@ export function ProductDetailView({ product, relatedProducts }: { product: Produ
       unitPrice: finalPricePerUnit,
       totalPrice: total,
       blueprintImage,
-      mockupImage
+      mockupImage,
+      minPurchase
     });
     
     setShowToast(true);
@@ -264,11 +289,16 @@ export function ProductDetailView({ product, relatedProducts }: { product: Produ
         }
       };
 
-      // 1. Capture Tech Drawing
-      setMockupBgIndex(getTechImageIndex());
-      await new Promise(r => setTimeout(r, 400)); // Esperar render y carga
-      const techCanvas = await html2canvas(mockupPreviewRef.current, captureOptions);
-      const techData = techCanvas.toDataURL("image/jpeg", 0.7);
+      // 1. Capture Tech Drawing (if exists)
+      const hasTechImage = !!product.images[getTechImageIndex()];
+      let techData = null;
+
+      if (hasTechImage) {
+        setMockupBgIndex(getTechImageIndex());
+        await new Promise(r => setTimeout(r, 400)); // Esperar render y carga
+        const techCanvas = await html2canvas(mockupPreviewRef.current, captureOptions);
+        techData = techCanvas.toDataURL("image/jpeg", 0.7);
+      }
 
       // 2. Capture Real Image
       setMockupBgIndex(getIndividualImageIndex());
@@ -276,11 +306,14 @@ export function ProductDetailView({ product, relatedProducts }: { product: Produ
       const realCanvas = await html2canvas(mockupPreviewRef.current, captureOptions);
       const realData = realCanvas.toDataURL("image/jpeg", 0.7);
 
-      // Save both
-      setSavedMockups([
-        { bgIndex: getTechImageIndex(), imgData: techData },
+      // Save mockups
+      const mockupsToSave = [
         { bgIndex: getIndividualImageIndex(), imgData: realData }
-      ]);
+      ];
+      if (hasTechImage && techData) {
+        mockupsToSave.push({ bgIndex: getTechImageIndex(), imgData: techData });
+      }
+      setSavedMockups(mockupsToSave);
       
       // Restore
       setMockupBgIndex(originalIndex);
@@ -339,15 +372,18 @@ export function ProductDetailView({ product, relatedProducts }: { product: Produ
               )}
             </div>
             <div className="grid grid-cols-4 sm:grid-cols-6 gap-3">
-              {product.images.map((img, idx) => (
-                <button 
-                  key={idx} 
-                  onClick={() => setSelectedImage(idx)}
-                  className={`aspect-square rounded-lg overflow-hidden border-2 transition-all ${selectedImage === idx ? 'border-primary-500 ring-2 ring-primary-200' : 'border-transparent hover:border-gray-200'}`}
-                >
-                  <img src={img} alt="" className="w-full h-full object-contain p-1" />
-                </button>
-              ))}
+              {product.images.map((img, idx) => {
+                if (!img) return null;
+                return (
+                  <button 
+                    key={idx} 
+                    onClick={() => setSelectedImage(idx)}
+                    className={`aspect-square rounded-lg overflow-hidden border-2 transition-all ${selectedImage === idx ? 'border-primary-500 ring-2 ring-primary-200' : 'border-transparent hover:border-gray-200'}`}
+                  >
+                    <img src={img} alt="" className="w-full h-full object-contain p-1" />
+                  </button>
+                );
+              })}
             </div>
 
             {/* Saved Mockups Area */}
@@ -423,9 +459,9 @@ export function ProductDetailView({ product, relatedProducts }: { product: Produ
                 <h4 className="font-semibold text-gray-900 mb-3">Precio por Volumen (Producto)</h4>
                 <div className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
                   <div className="grid grid-cols-3 bg-gray-50 text-center text-xs font-bold text-gray-500 uppercase tracking-wider border-b border-gray-200">
-                    <div className="py-3 border-r border-gray-200">DE 50 A 99 PIEZAS</div>
-                    <div className="py-3 border-r border-gray-200">DE 100 A 150 PIEZAS</div>
-                    <div className="py-3">MÁS DE 150 PIEZAS</div>
+                    <div className="py-3 border-r border-gray-200">DE {minPurchase} A {discountQty1 - 1} PIEZAS</div>
+                    <div className="py-3 border-r border-gray-200">DE {discountQty1} A {discountQty2} PIEZAS</div>
+                    <div className="py-3">MÁS DE {discountQty2} PIEZAS</div>
                   </div>
                   <div className="grid grid-cols-3 text-center">
                     <div className="py-4 border-r border-gray-200 font-bold text-gray-900">${basePrice.toFixed(2)} MXN</div>
@@ -448,11 +484,11 @@ export function ProductDetailView({ product, relatedProducts }: { product: Produ
                         value={quantity}
                         onChange={(e) => setQuantity(parseInt(e.target.value) || "")}
                         onBlur={() => {
-                          if (typeof quantity === 'number' && quantity > 0 && quantity < 50) {
-                            setQuantity(50);
+                          if (typeof quantity === 'number' && quantity > 0 && quantity < minPurchase) {
+                            setQuantity(minPurchase);
                           }
                         }}
-                        placeholder="Mín: 50"
+                        placeholder={`Mín: ${minPurchase}`}
                         className="w-full bg-white border border-gray-300 text-gray-900 text-lg rounded-lg focus:ring-primary-500 focus:border-primary-500 block p-2.5 font-bold"
                       />
                     </div>
@@ -477,7 +513,7 @@ export function ProductDetailView({ product, relatedProducts }: { product: Produ
                 {quantity === "" && (
                   <p className="text-red-500 text-sm mt-2 flex items-center">
                     <AlertCircle className="w-4 h-4 mr-1" />
-                    El pedido mínimo es de 50 piezas.
+                    El pedido mínimo es de {minPurchase} piezas.
                   </p>
                 )}
               </div>
@@ -573,9 +609,9 @@ export function ProductDetailView({ product, relatedProducts }: { product: Produ
           <button 
             id="add-to-cart-btn"
             onClick={handleAddToCart} 
-            disabled={totalQuantity < 50}
+            disabled={totalQuantity < minPurchase}
             className={`px-8 py-4 rounded-full font-bold text-lg transition-colors flex items-center justify-center focus:ring-4 focus:ring-primary-300 focus:outline-none ${
-              totalQuantity >= 50 
+              totalQuantity >= minPurchase 
                 ? 'bg-primary-600 text-white hover:bg-primary-700 shadow-md hover:-translate-y-0.5' 
                 : 'bg-gray-300 text-gray-500 cursor-not-allowed'
             }`}
@@ -694,7 +730,7 @@ export function ProductDetailView({ product, relatedProducts }: { product: Produ
                 >
                   <div id="mockup-preview-capture" ref={mockupPreviewRef} className="relative inline-flex items-center justify-center max-w-full max-h-[35vh] md:max-h-[60vh]">
                     <img 
-                      src={mockupBgIndex === getTechImageIndex() ? product.images[getTechImageIndex()] : (paddedOriginalImage || product.images[getIndividualImageIndex()])} 
+                      src={mockupBgIndex === getTechImageIndex() ? getCorsUrl(product.images[getTechImageIndex()]) : (paddedOriginalImage || getCorsUrl(product.images[getIndividualImageIndex()]))} 
                       alt="Mockup Base" 
                       crossOrigin="anonymous"
                       className="max-w-full max-h-[35vh] md:max-h-[60vh] pointer-events-none object-contain" 
@@ -749,6 +785,7 @@ export function ProductDetailView({ product, relatedProducts }: { product: Produ
                 <div className="mt-6 flex justify-center pb-2">
                   <div className="flex gap-2 px-8 relative max-w-full overflow-x-auto pb-2">
                     {product.images.map((img, idx) => {
+                      if (!img) return null;
                       if (idx !== getIndividualImageIndex() && idx !== getTechImageIndex()) return null;
                       return (
                         <button 
@@ -757,7 +794,7 @@ export function ProductDetailView({ product, relatedProducts }: { product: Produ
                           className={`flex-shrink-0 w-20 h-20 bg-white rounded-lg overflow-hidden border-2 transition-all ${mockupBgIndex === idx ? 'border-[#11a98c]' : 'border-transparent hover:border-gray-300'}`}
                         >
                           <img 
-                            src={idx === getTechImageIndex() ? img : (paddedOriginalImage || product.images[getIndividualImageIndex()])} 
+                            src={idx === getTechImageIndex() ? getCorsUrl(img) : (paddedOriginalImage || getCorsUrl(product.images[getIndividualImageIndex()]))} 
                             alt="" 
                             className="w-full h-full object-contain p-1" 
                           />

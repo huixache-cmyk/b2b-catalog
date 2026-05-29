@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { DEFAULT_CATEGORIES, DEFAULT_SEASONS } from "@/types";
+import { DEFAULT_CATEGORIES, DEFAULT_SEASONS, PrintSupplier, ProductSupplier, ProductSupplierAssociation } from "@/types";
 import { supabase } from "@/lib/supabase";
 
 export type HomeSettings = {
@@ -20,6 +20,10 @@ export type HomeSettings = {
     buttonText: string;
   };
   campaigns: Array<{ img: string; color: string }>;
+  print_suppliers?: PrintSupplier[];
+  product_suppliers?: ProductSupplier[];
+  product_supplier_map?: Record<string, ProductSupplierAssociation>;
+  print_prices?: Record<string, number>;
 };
 
 const DEFAULT_HOME_SETTINGS: HomeSettings = {
@@ -41,8 +45,22 @@ const DEFAULT_HOME_SETTINGS: HomeSettings = {
     { img: "https://images.unsplash.com/photo-1518605368461-1ee71165920f?auto=format&fit=crop&w=600&q=80", color: "from-green-900/80 to-green-600/40" },
     { img: "https://images.unsplash.com/photo-1469334031218-e382a71b716b?auto=format&fit=crop&w=600&q=80", color: "from-pink-900/80 to-pink-600/40" },
     { img: "https://images.unsplash.com/photo-1513885535751-8b9238bd345a?auto=format&fit=crop&w=600&q=80", color: "from-red-900/80 to-red-600/40" }
-  ]
+  ],
+  print_suppliers: [],
+  product_suppliers: [],
+  product_supplier_map: {},
+  print_prices: {
+    "Sin Impresión": 0,
+    "Grabado Chico": 15,
+    "Grabado Grande": 25,
+    "DTF": 12,
+    "Impresión 1 tinta": 10,
+    "Impresión 2 tintas": 18,
+    "Impresión 3 tintas": 25,
+    "Impresión 4 tintas": 30
+  }
 };
+
 
 let saveTimeout: NodeJS.Timeout;
 

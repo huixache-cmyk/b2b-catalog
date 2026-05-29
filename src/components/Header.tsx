@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Search, Menu, Phone, Mail, ShoppingCart, User, Download, FileText } from "lucide-react";
+import { Search, Menu, Phone, Mail, ShoppingCart, User, Download, FileText, X } from "lucide-react";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useSettings } from "@/hooks/useSettings";
@@ -10,17 +10,23 @@ import { useCart } from "@/hooks/useCart";
 export function Header() {
   const [searchQuery, setSearchQuery] = useState("");
   const router = useRouter();
-  const { featuredSeason, isLoaded } = useSettings();
+  const { categories, featuredSeason, isLoaded } = useSettings();
   const { cartItems, isLoaded: cartLoaded } = useCart();
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [showPdfFilterModal, setShowPdfFilterModal] = useState(false);
 
-  const handleDownloadPdf = async () => {
+  const handleDownloadPdf = async (categoryFilter: string | null) => {
     try {
       setIsGeneratingPdf(true);
+      setShowPdfFilterModal(false);
       
       const { supabase } = await import("@/lib/supabase");
-      const { data, error } = await supabase.from("products").select("*").order("created_at", { ascending: false });
+      let query = supabase.from("products").select("*");
+      if (categoryFilter) {
+        query = query.eq("category", categoryFilter);
+      }
+      const { data, error } = await query.order("created_at", { ascending: false });
       
       if (error) throw error;
       
@@ -93,7 +99,7 @@ export function Header() {
           {/* Actions */}
           <div className="flex items-center gap-4">
             <button 
-              onClick={handleDownloadPdf}
+              onClick={() => setShowPdfFilterModal(true)}
               disabled={isGeneratingPdf}
               className="flex items-center gap-1.5 text-gray-600 hover:text-primary-600 font-medium text-sm transition-colors hidden lg:flex"
               title="Descargar Catálogo PDF"
@@ -133,7 +139,7 @@ export function Header() {
             {/* Mobile-only menu items */}
             <li className="md:hidden border-t pt-4 mt-2">
               <button 
-                onClick={() => { handleDownloadPdf(); setIsMobileMenuOpen(false); }} 
+                onClick={() => { setShowPdfFilterModal(true); setIsMobileMenuOpen(false); }} 
                 disabled={isGeneratingPdf} 
                 className="flex items-center gap-2 text-gray-600 hover:text-primary-600 w-full text-left py-2"
               >
@@ -152,6 +158,56 @@ export function Header() {
           </ul>
         </div>
       </nav>
+
+      {/* Category selection modal for PDF download */}
+      {showPdfFilterModal && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-md w-full shadow-2xl overflow-hidden border border-gray-100 animate-in fade-in zoom-in-95 duration-200">
+            <div className="p-6">
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-xl font-bold text-gray-900">Descargar Catálogo</h3>
+                <button 
+                  onClick={() => setShowPdfFilterModal(false)}
+                  className="p-1 hover:bg-gray-100 rounded-full transition-colors text-gray-400 hover:text-gray-600"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              
+              <p className="text-sm text-gray-500 mb-6">
+                Selecciona si deseas descargar el catálogo completo o filtrado por una categoría específica:
+              </p>
+              
+              <div className="space-y-2 max-h-[60vh] overflow-y-auto pr-1">
+                {/* Option for All Categories */}
+                <button
+                  onClick={() => handleDownloadPdf(null)}
+                  className="w-full text-left px-4 py-3 rounded-xl border border-primary-100 bg-primary-50/50 hover:bg-primary-50 hover:border-primary-300 transition-all font-bold text-primary-900 flex justify-between items-center"
+                >
+                  <span>Descargar Todo el Catálogo</span>
+                  <span className="text-xs bg-primary-200 text-primary-800 px-2 py-0.5 rounded-full">Completo</span>
+                </button>
+                
+                <div className="border-t border-gray-100 my-4 pt-4">
+                  <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Filtrar por Categoría:</h4>
+                </div>
+                
+                {/* Options for individual categories */}
+                {categories.map((cat) => (
+                  <button
+                    key={cat}
+                    onClick={() => handleDownloadPdf(cat)}
+                    className="w-full text-left px-4 py-2.5 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 hover:border-gray-300 transition-all text-sm font-semibold text-gray-700 flex justify-between items-center"
+                  >
+                    <span>{cat}</span>
+                    <span className="text-[10px] text-gray-400 font-normal">Solo esta sección</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </header>
   );
 }

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { Resend } from 'resend';
 import { QuoteRequest, getColorName } from '@/types';
+import { supabase } from '@/lib/supabase';
 
 // The RESEND_API_KEY must be configured in Vercel / .env.local
 const resend = new Resend(process.env.RESEND_API_KEY || 're_dummy');
@@ -13,15 +14,31 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Datos de cotización incompletos' }, { status: 400 });
     }
 
-    // Prepare HTML content for the email
+    // Fetch dynamic print prices from settings
+    let dynamicPrices: Record<string, number> = {};
+    try {
+      const { data: settingsData } = await supabase
+        .from('settings')
+        .select('home_settings')
+        .eq('id', 1)
+        .single();
+      if (settingsData?.home_settings?.print_prices) {
+        dynamicPrices = settingsData.home_settings.print_prices;
+      }
+    } catch (e) {
+      console.error("Error fetching print prices for email:", e);
+    }
+
     const printPrices: Record<string, number> = {
       "Sin Impresión": 0,
       "Grabado Chico": 15,
       "Grabado Grande": 25,
+      "DTF": 12,
       "Impresión 1 tinta": 10,
       "Impresión 2 tintas": 18,
       "Impresión 3 tintas": 25,
-      "Impresión 4 tintas": 30
+      "Impresión 4 tintas": 30,
+      ...dynamicPrices
     };
 
     // Prepare HTML content for the email

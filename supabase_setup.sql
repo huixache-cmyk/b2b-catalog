@@ -117,3 +117,53 @@ CREATE POLICY "Allow admin manage b2b_contacts" ON public.b2b_contacts FOR ALL T
 CREATE POLICY "Allow admin manage b2b_hooks" ON public.b2b_hooks FOR ALL TO authenticated USING (true) WITH CHECK (true);
 CREATE POLICY "Allow admin manage b2b_opportunities" ON public.b2b_opportunities FOR ALL TO authenticated USING (true) WITH CHECK (true);
 CREATE POLICY "Allow admin manage b2b_scraper_config" ON public.b2b_scraper_config FOR ALL TO authenticated USING (true) WITH CHECK (true);
+
+-- Nueva actualización: Casilla para publicar y campos de compra mínima / descuentos por volumen
+ALTER TABLE public.products ADD COLUMN IF NOT EXISTS published boolean DEFAULT true;
+ALTER TABLE public.products ADD COLUMN IF NOT EXISTS "minPurchase" integer DEFAULT 50;
+ALTER TABLE public.products ADD COLUMN IF NOT EXISTS "discountQty1" integer DEFAULT 100;
+ALTER TABLE public.products ADD COLUMN IF NOT EXISTS "discountQty2" integer DEFAULT 150;
+
+-- ==========================================
+-- Documentación: Tablas de Proveedores
+-- NOTA: Actualmente la aplicación utiliza el almacenamiento dinámico en settings.home_settings
+-- para evitar fallos de RLS / DDL en el despliegue automático.
+-- Si deseas migrar a tablas dedicadas en el futuro, ejecuta el siguiente bloque SQL:
+-- ==========================================
+
+-- CREATE TABLE IF NOT EXISTS public.print_suppliers (
+--     id text PRIMARY KEY,
+--     name text NOT NULL,
+--     contact text,
+--     phone1 text,
+--     phone2 text,
+--     address text,
+--     grabado_chico numeric DEFAULT 0,
+--     grabado_grande numeric DEFAULT 0,
+--     dtf numeric DEFAULT 0,
+--     seri_1_tinta numeric DEFAULT 0,
+--     seri_2_tintas numeric DEFAULT 0,
+--     seri_3_tintas numeric DEFAULT 0,
+--     seri_4_tintas numeric DEFAULT 0,
+--     created_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL
+-- );
+
+-- CREATE TABLE IF NOT EXISTS public.product_suppliers (
+--     id text PRIMARY KEY,
+--     name text NOT NULL,
+--     contact text,
+--     phone1 text,
+--     phone2 text,
+--     address text,
+--     created_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL
+-- );
+
+-- Habilitar RLS para ambas tablas:
+-- ALTER TABLE public.print_suppliers ENABLE ROW LEVEL SECURITY;
+-- ALTER TABLE public.product_suppliers ENABLE ROW LEVEL SECURITY;
+
+-- Crear políticas de acceso:
+-- CREATE POLICY "Allow admin manage print_suppliers" ON public.print_suppliers FOR ALL TO authenticated USING (true) WITH CHECK (true);
+-- CREATE POLICY "Allow admin manage product_suppliers" ON public.product_suppliers FOR ALL TO authenticated USING (true) WITH CHECK (true);
+
+

@@ -15,6 +15,10 @@ export interface Product {
   colors?: string[];
   discount100?: number;
   discount150?: number;
+  published?: boolean;
+  minPurchase?: number;
+  discountQty1?: number;
+  discountQty2?: number;
 }
 
 export interface CartItem {
@@ -34,6 +38,7 @@ export interface CartItem {
   finalPrintPrice?: number | null;
   finalShippingPrice?: number | null;
   deliveryTime?: string | null;
+  minPurchase?: number;
 }
 
 export interface QuoteRequest {
@@ -110,3 +115,35 @@ export const getColorName = (hex: string) => {
   const color = COLOR_PALETTE.find(c => c.hex.toLowerCase() === hex.toLowerCase());
   return color ? color.name : hex;
 };
+
+export interface PrintSupplier {
+  id: string;
+  name: string;
+  contact: string;
+  phone1: string;
+  phone2: string;
+  address: string;
+  grabado_chico: number;
+  grabado_grande: number;
+  dtf: number;
+  seri_1_tinta: number;
+  seri_2_tintas: number;
+  seri_3_tintas: number;
+  seri_4_tintas: number;
+}
+
+export interface ProductSupplier {
+  id: string;
+  name: string;
+  contact: string;
+  phone1: string;
+  phone2: string;
+  address: string;
+}
+
+export interface ProductSupplierAssociation {
+  supplierId: string;
+  price: number; // cost in products
+  piecesPerBox: number; // minPurchase in products
+}
+

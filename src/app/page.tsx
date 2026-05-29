@@ -10,7 +10,7 @@ export default function Home() {
   const { products, isLoaded: productsLoaded } = useProducts();
   const { homeSettings, seasons, isLoaded: settingsLoaded } = useSettings();
   
-  const featuredProducts = productsLoaded ? products.filter(p => p.featured).slice(0, 8) : [];
+  const featuredProducts = productsLoaded ? products.filter(p => p.featured && p.published !== false).slice(0, 8) : [];
   const isLoaded = productsLoaded && settingsLoaded;
 
   // Derive campaigns from top 3 active seasons

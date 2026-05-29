@@ -71,10 +71,10 @@ export function CartView() {
   const handleSendQuote = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    // Validar mínimo 50 en todos los items (ya validado en la UI, pero por si acaso)
-    const hasInvalidQuantities = cartItems.some(i => i.quantity < 50);
-    if (hasInvalidQuantities) {
-      alert("Por favor, asegúrate de que todos los artículos tengan al menos 50 piezas.");
+    // Validar compra mínima por producto en todos los items
+    const invalidItem = cartItems.find(i => i.quantity < (i.minPurchase ?? 50));
+    if (invalidItem) {
+      alert(`Por favor, asegúrate de que el producto "${invalidItem.productName}" tenga al menos ${invalidItem.minPurchase ?? 50} piezas.`);
       return;
     }
 
@@ -198,18 +198,19 @@ Quedo en espera de confirmación de existencias.`;
                   <label className="text-xs font-bold text-gray-500">CANTIDAD:</label>
                   <input 
                     type="number" 
-                    min="50"
+                    min={item.minPurchase ?? 50}
                     value={item.quantity}
                     onChange={(e) => updateQuantity(item.id, parseInt(e.target.value) || 0)}
                     onBlur={(e) => {
                       const val = parseInt(e.target.value) || 0;
-                      if (val > 0 && val < 50) updateQuantity(item.id, 50);
+                      const minVal = item.minPurchase ?? 50;
+                      if (val > 0 && val < minVal) updateQuantity(item.id, minVal);
                     }}
                     className="w-20 bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded focus:ring-primary-500 focus:border-primary-500 block px-2 py-1 font-bold text-center"
                   />
-                  {item.quantity > 0 && item.quantity < 50 && (
+                  {item.quantity > 0 && item.quantity < (item.minPurchase ?? 50) && (
                     <span className="text-red-500 text-xs flex items-center">
-                      <AlertCircle className="w-3 h-3 mr-1" /> Mín. 50
+                      <AlertCircle className="w-3 h-3 mr-1" /> Mín. {item.minPurchase ?? 50}
                     </span>
                   )}
                 </div>

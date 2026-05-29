@@ -3,7 +3,7 @@ import autoTable from "jspdf-autotable";
 import { Product } from "@/types";
 
 export const generatePdfCatalog = async (products: Product[]) => {
-  const activeProducts = products.filter(p => p.stock > 0);
+  const activeProducts = products.filter(p => p.stock > 0 && p.published !== false);
 
   const getImageElement = (src: string): Promise<HTMLImageElement | null> => {
     return new Promise((resolve) => {
@@ -19,8 +19,9 @@ export const generatePdfCatalog = async (products: Product[]) => {
   // Preload images
   const imgElements: Record<string, HTMLImageElement> = {};
   for (const p of activeProducts) {
-    if (p.images && p.images[0]) {
-      const el = await getImageElement(p.images[0]);
+    const firstImg = p.images?.find(img => !!img);
+    if (firstImg) {
+      const el = await getImageElement(firstImg);
       if (el) imgElements[p.id || p.sku] = el;
     }
   }

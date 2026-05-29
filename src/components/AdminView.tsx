@@ -5,7 +5,7 @@ import { useProducts } from "@/hooks/useProducts";
 import { useSettings } from "@/hooks/useSettings";
 import { useQuotes } from "@/hooks/useQuotes";
 import { Product, MATERIALS, QuoteRequest } from "@/types";
-import { Edit, Trash2, Plus, Search, X, Image as ImageIcon, Eye, Clock, CheckCircle, FileText, Download, User, ChevronUp, ChevronDown } from "lucide-react";
+import { Edit, Trash2, Plus, Search, X, Image as ImageIcon, Eye, Clock, CheckCircle, FileText, Download, User, ChevronUp, ChevronDown, Truck } from "lucide-react";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import dynamic from "next/dynamic";
@@ -59,13 +59,15 @@ const roundToHalf = (num: number): number => {
   return Math.round(num * 2) / 2;
 };
 
-const getQuoteTotals = (quote: QuoteRequest) => {
+const getQuoteTotals = (quote: QuoteRequest, customPrices?: Record<string, number>) => {
   let baseProductSubtotal = 0;
   let printSubtotal = 0;
   let shippingSubtotal = 0;
 
+  const pricesToUse = customPrices || printPrices;
+
   quote.items.forEach(item => {
-    const estPrintPrice = item.isPersonalized ? (printPrices[item.printOption] || 0) : 0;
+    const estPrintPrice = item.isPersonalized ? (pricesToUse[item.printOption] || 0) : 0;
     const baseProdPrice = item.unitPrice - estPrintPrice;
     
     const finalPrint = item.finalPrintPrice !== undefined && item.finalPrintPrice !== null
@@ -99,7 +101,7 @@ export function AdminView() {
   const { products, isLoaded, addProduct, updateProduct, deleteProduct } = useProducts();
   const { quotes, isLoaded: quotesLoaded, updateQuoteStatus, deleteQuote, updateQuote } = useQuotes();
   const [searchTerm, setSearchTerm] = useState("");
-  const [activeTab, setActiveTab] = useState<'products' | 'settings' | 'home' | 'quotes' | 'agent' | 'b2b-agent'>('products');
+  const [activeTab, setActiveTab] = useState<'products' | 'settings' | 'suppliers' | 'home' | 'quotes' | 'agent' | 'b2b-agent'>('products');
   const { categories, seasons, isLoaded: settingsLoaded, addCategory, removeCategory, addSeason, removeSeason, featuredSeason, updateFeaturedSeason, homeSettings, updateHomeSettings, updateCategories, updateSeasons } = useSettings();
   
   const [newCategory, setNewCategory] = useState("");
@@ -135,17 +137,32 @@ export function AdminView() {
   const [isLoggingIn, setIsLoggingIn] = useState(false);
 
   useEffect(() => {
-    // Check initial session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setIsAuthenticated(!!session);
-    });
+    // Check initial session safely
+    supabase.auth.getSession()
+      .then((res) => {
+        const session = res?.data?.session;
+        setIsAuthenticated(!!session);
+        if (res?.error) {
+          console.warn("Auth session error:", res.error.message);
+          // Auto-signout to clear stale tokens from storage
+          supabase.auth.signOut().catch(() => {});
+        }
+      })
+      .catch((err) => {
+        console.error("Failed to check auth session:", err);
+        setIsAuthenticated(false);
+      });
 
     // Listen to changes in auth state
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data } = supabase.auth.onAuthStateChange((_event, session) => {
       setIsAuthenticated(!!session);
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      if (data?.subscription) {
+        data.subscription.unsubscribe();
+      }
+    };
   }, []);
   
   // Modal state
@@ -178,7 +195,7 @@ export function AdminView() {
       if (targetKey === null) {
         const currentImages = editingProduct.images || [];
         let firstEmpty = -1;
-        for (let idx = 0; idx < 6; idx++) {
+        for (let idx = 0; idx < 5; idx++) {
           if (!currentImages[idx]) {
             firstEmpty = idx;
             break;
@@ -222,12 +239,352 @@ export function AdminView() {
   const [zip, setZip] = useState<string>("");
   const [isSavingQuote, setIsSavingQuote] = useState(false);
 
+  // Suppliers & Shipping states
+  const [supplierTab, setSupplierTab] = useState<'print' | 'product'>('print');
+  
+  const [printSuppliers, setPrintSuppliers] = useState<any[]>([]);
+  const [editingPrintSupplierId, setEditingPrintSupplierId] = useState<string | null>(null);
+  const [printForm, setPrintForm] = useState({
+    name: "",
+    contact: "",
+    phone1: "",
+    phone2: "",
+    address: "",
+    grabado_chico: 0,
+    grabado_grande: 0,
+    dtf: 0,
+    seri_1_tinta: 0,
+    seri_2_tintas: 0,
+    seri_3_tintas: 0,
+    seri_4_tintas: 0
+  });
+
+  const [productSuppliers, setProductSuppliers] = useState<any[]>([]);
+  const [editingProductSupplierId, setEditingProductSupplierId] = useState<string | null>(null);
+  const [productForm, setProductForm] = useState({
+    name: "",
+    contact: "",
+    phone1: "",
+    phone2: "",
+    address: ""
+  });
+
+  const [selectedAssocProductId, setSelectedAssocProductId] = useState<string>("");
+  const [selectedAssocSupplierId, setSelectedAssocSupplierId] = useState<string>("");
+  const [assocPrice, setAssocPrice] = useState<number>(0);
+  const [assocPiecesPerBox, setAssocPiecesPerBox] = useState<number>(50);
+  const [productSupplierSearch, setProductSupplierSearch] = useState<string>("");
+  const [filterSupplierId, setFilterSupplierId] = useState<string>("all");
+
+  const [shippingBoxes, setShippingBoxes] = useState<number>(1);
+  const [shippingWeight, setShippingWeight] = useState<number>(10);
+  const [shippingInitialCost, setShippingInitialCost] = useState<number>(0);
+  const [shippingSelectedCarrier, setShippingSelectedCarrier] = useState<string>("dhl");
+  const [shippingLength, setShippingLength] = useState<number>(30);
+  const [shippingWidth, setShippingWidth] = useState<number>(30);
+  const [shippingHeight, setShippingHeight] = useState<number>(30);
+
+  // Sync settings when loaded
+  useEffect(() => {
+    if (homeSettings) {
+      setPrintSuppliers(homeSettings.print_suppliers || []);
+      setProductSuppliers(homeSettings.product_suppliers || []);
+    }
+  }, [homeSettings]);
+
+  const activePrintPrices: Record<string, number> = {
+    "Sin Impresión": 0,
+    "Grabado Chico": 15,
+    "Grabado Grande": 25,
+    "DTF": 12,
+    "Impresión 1 tinta": 10,
+    "Impresión 2 tintas": 18,
+    "Impresión 3 tintas": 25,
+    "Impresión 4 tintas": 30,
+    ...(homeSettings?.print_prices || {})
+  };
+
+  const calculateCarrierCosts = (
+    boxes: number,
+    weightPerBox: number,
+    originZip: string,
+    destZip: string
+  ) => {
+    const numBoxes = Math.max(1, boxes);
+    const weight = Math.max(0.1, weightPerBox);
+    
+    const orig = parseInt(originZip) || 20000;
+    const dest = parseInt(destZip) || 20000;
+    const zipDistance = Math.abs(orig - dest);
+    const distanceFactor = 1 + (zipDistance / 100000) * 1.5;
+    const billableWeight = weight;
+    
+    const dhlBase = 180;
+    const dhlPerKg = 15;
+    const dhlCost = (dhlBase + billableWeight * dhlPerKg) * distanceFactor * numBoxes;
+    
+    const fedexBase = 160;
+    const fedexPerKg = 12;
+    const fedexCost = (fedexBase + billableWeight * fedexPerKg) * distanceFactor * numBoxes;
+    
+    const estafetaBase = 130;
+    const estafetaPerKg = 10;
+    const estafetaCost = (estafetaBase + billableWeight * estafetaPerKg) * distanceFactor * numBoxes;
+    
+    const paquetexpressBase = 110;
+    const paquetexpressPerKg = 8;
+    const paquetexpressCost = (paquetexpressBase + billableWeight * paquetexpressPerKg) * distanceFactor * numBoxes;
+    
+    return [
+      { id: 'dhl', name: 'DHL Mex', cost: Math.round(dhlCost * 2) / 2, time: '1-2 días hábiles' },
+      { id: 'fedex', name: 'Fedex Mex', cost: Math.round(fedexCost * 2) / 2, time: '2-3 días hábiles' },
+      { id: 'estafeta', name: 'Estafeta', cost: Math.round(estafetaCost * 2) / 2, time: '2-4 días hábiles' },
+      { id: 'paquetexpress', name: 'Paquetexpress', cost: Math.round(paquetexpressCost * 2) / 2, time: '3-5 días hábiles' }
+    ];
+  };
+
+  const handleSavePrintSupplier = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!printForm.name.trim()) return;
+
+    let updatedSuppliers = [...printSuppliers];
+    if (editingPrintSupplierId) {
+      updatedSuppliers = updatedSuppliers.map(s => s.id === editingPrintSupplierId ? { ...printForm, id: editingPrintSupplierId } : s);
+      setEditingPrintSupplierId(null);
+    } else {
+      updatedSuppliers.push({
+        ...printForm,
+        id: `PS-${Date.now()}`
+      });
+    }
+
+    setPrintSuppliers(updatedSuppliers);
+    await updateHomeSettings({
+      ...homeSettings,
+      print_suppliers: updatedSuppliers
+    });
+
+    setPrintForm({
+      name: "",
+      contact: "",
+      phone1: "",
+      phone2: "",
+      address: "",
+      grabado_chico: 0,
+      grabado_grande: 0,
+      dtf: 0,
+      seri_1_tinta: 0,
+      seri_2_tintas: 0,
+      seri_3_tintas: 0,
+      seri_4_tintas: 0
+    });
+    alert("Proveedor de impresión guardado.");
+  };
+
+  const handleEditPrintSupplier = (supplier: any) => {
+    setEditingPrintSupplierId(supplier.id);
+    setPrintForm({
+      name: supplier.name || "",
+      contact: supplier.contact || "",
+      phone1: supplier.phone1 || "",
+      phone2: supplier.phone2 || "",
+      address: supplier.address || "",
+      grabado_chico: supplier.grabado_chico || 0,
+      grabado_grande: supplier.grabado_grande || 0,
+      dtf: supplier.dtf || 0,
+      seri_1_tinta: supplier.seri_1_tinta || 0,
+      seri_2_tintas: supplier.seri_2_tintas || 0,
+      seri_3_tintas: supplier.seri_3_tintas || 0,
+      seri_4_tintas: supplier.seri_4_tintas || 0
+    });
+  };
+
+  const handleDeletePrintSupplier = async (id: string) => {
+    if (!confirm("¿Seguro que deseas eliminar este proveedor de impresión?")) return;
+    const updated = printSuppliers.filter(s => s.id !== id);
+    setPrintSuppliers(updated);
+    await updateHomeSettings({
+      ...homeSettings,
+      print_suppliers: updated
+    });
+  };
+
+  const handleSaveProductSupplier = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!productForm.name.trim()) return;
+
+    let updatedSuppliers = [...productSuppliers];
+    if (editingProductSupplierId) {
+      updatedSuppliers = updatedSuppliers.map(s => s.id === editingProductSupplierId ? { ...productForm, id: editingProductSupplierId } : s);
+      setEditingProductSupplierId(null);
+    } else {
+      updatedSuppliers.push({
+        ...productForm,
+        id: `PROD-S-${Date.now()}`
+      });
+    }
+
+    setProductSuppliers(updatedSuppliers);
+    await updateHomeSettings({
+      ...homeSettings,
+      product_suppliers: updatedSuppliers
+    });
+
+    setProductForm({
+      name: "",
+      contact: "",
+      phone1: "",
+      phone2: "",
+      address: ""
+    });
+    alert("Proveedor de producto guardado.");
+  };
+
+  const handleEditProductSupplier = (supplier: any) => {
+    setEditingProductSupplierId(supplier.id);
+    setProductForm({
+      name: supplier.name || "",
+      contact: supplier.contact || "",
+      phone1: supplier.phone1 || "",
+      phone2: supplier.phone2 || "",
+      address: supplier.address || ""
+    });
+  };
+
+  const handleDeleteProductSupplier = async (id: string) => {
+    if (!confirm("¿Seguro que deseas eliminar este proveedor de producto?")) return;
+    const updated = productSuppliers.filter(s => s.id !== id);
+    setProductSuppliers(updated);
+    
+    const map = { ...(homeSettings?.product_supplier_map || {}) };
+    Object.keys(map).forEach(prodId => {
+      if (map[prodId]?.supplierId === id) {
+        delete map[prodId];
+      }
+    });
+
+    await updateHomeSettings({
+      ...homeSettings,
+      product_suppliers: updated,
+      product_supplier_map: map
+    });
+  };
+
+  const handleSaveProductAssociation = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedAssocProductId || !selectedAssocSupplierId) {
+      alert("Por favor selecciona un producto y un proveedor.");
+      return;
+    }
+
+    const prod = products.find(p => p.id === selectedAssocProductId);
+    if (!prod) return;
+
+    const updatedProduct = {
+      ...prod,
+      cost: assocPrice,
+      minPurchase: assocPiecesPerBox
+    };
+    await updateProduct(updatedProduct);
+
+    const map = { ...(homeSettings?.product_supplier_map || {}) };
+    map[selectedAssocProductId] = {
+      supplierId: selectedAssocSupplierId,
+      price: assocPrice,
+      piecesPerBox: assocPiecesPerBox
+    };
+
+    await updateHomeSettings({
+      ...homeSettings,
+      product_supplier_map: map
+    });
+
+    alert("Producto asociado exitosamente. Se actualizaron el Costo y Compra Mínima.");
+  };
+
+  const handleUnlinkProduct = async (productId: string) => {
+    if (!confirm("¿Seguro que deseas desvincular este producto del proveedor?")) return;
+    
+    const map = { ...(homeSettings?.product_supplier_map || {}) };
+    delete map[productId];
+
+    await updateHomeSettings({
+      ...homeSettings,
+      product_supplier_map: map
+    });
+    
+    alert("Producto desvinculado.");
+  };
+
+  const printTechniques = [
+    { key: 'grabado_chico', name: 'Grabado Chico' },
+    { key: 'grabado_grande', name: 'Grabado Grande' },
+    { key: 'dtf', name: 'DTF' },
+    { key: 'seri_1_tinta', name: 'Seri 1 Tinta' },
+    { key: 'seri_2_tintas', name: 'Seri 2 Tintas' },
+    { key: 'seri_3_tintas', name: 'Seri 3 Tintas' },
+    { key: 'seri_4_tintas', name: 'Seri 4 Tintas' }
+  ];
+
+  const getMinMaxPrices = () => {
+    const minPrices: Record<string, number> = {};
+    const maxPrices: Record<string, number> = {};
+
+    printTechniques.forEach(tech => {
+      const activePrices = printSuppliers
+        .map(s => Number(s[tech.key]) || 0)
+        .filter(price => price > 0);
+
+      if (activePrices.length > 0) {
+        minPrices[tech.key] = Math.min(...activePrices);
+        maxPrices[tech.key] = Math.max(...activePrices);
+      }
+    });
+
+    return { minPrices, maxPrices };
+  };
+
+  const { minPrices, maxPrices } = getMinMaxPrices();
+
+  const handleSyncPrintPrices = async () => {
+    if (printSuppliers.length === 0) {
+      alert("No hay proveedores de impresión registrados.");
+      return;
+    }
+
+    const mapping: Record<string, string> = {
+      'grabado_chico': 'Grabado Chico',
+      'grabado_grande': 'Grabado Grande',
+      'dtf': 'DTF',
+      'seri_1_tinta': 'Impresión 1 tinta',
+      'seri_2_tintas': 'Impresión 2 tintas',
+      'seri_3_tintas': 'Impresión 3 tintas',
+      'seri_4_tintas': 'Impresión 4 tintas'
+    };
+
+    const newPrintPrices = { ...activePrintPrices };
+
+    printTechniques.forEach(tech => {
+      const mappedKey = mapping[tech.key];
+      if (mappedKey && minPrices[tech.key] !== undefined) {
+        newPrintPrices[mappedKey] = minPrices[tech.key];
+      }
+    });
+
+    await updateHomeSettings({
+      ...homeSettings,
+      print_prices: newPrintPrices
+    });
+
+    alert("¡Tarifas B2B actualizadas con los precios más bajos de los proveedores!");
+  };
+
   useEffect(() => {
     if (viewingQuote) {
       const initialAdjustments: Record<string, { finalPrintPrice: string; finalShippingPrice: string }> = {};
       
       viewingQuote.items.forEach(item => {
-        const estPrintPrice = item.isPersonalized ? (printPrices[item.printOption] || 0) : 0;
+        const estPrintPrice = item.isPersonalized ? (activePrintPrices[item.printOption] || 0) : 0;
         
         // default finalPrintPrice: if item.finalPrintPrice is set, use it. Else, estimated print price per unit (not total!)
         const savedPrintPrice = item.finalPrintPrice !== undefined && item.finalPrintPrice !== null
@@ -286,7 +643,7 @@ export function AdminView() {
         }
       };
 
-      const { total } = getQuoteTotals(tempQuote);
+      const { total } = getQuoteTotals(tempQuote, activePrintPrices);
 
       const updatedQuote: QuoteRequest = {
         ...tempQuote,
@@ -376,11 +733,11 @@ export function AdminView() {
       }
 
       // 6. Calculate Totals using getQuoteTotals helper
-      const { baseProductSubtotal, printSubtotal, shippingSubtotal, subtotal, iva, total } = getQuoteTotals(quote);
+      const { baseProductSubtotal, printSubtotal, shippingSubtotal, subtotal, iva, total } = getQuoteTotals(quote, activePrintPrices);
 
       // 7. Prepare Table Data
       const tableData = quote.items.map(item => {
-        const estPrintPrice = item.isPersonalized ? (printPrices[item.printOption] || 0) : 0;
+        const estPrintPrice = item.isPersonalized ? (activePrintPrices[item.printOption] || 0) : 0;
         const baseProdPrice = item.unitPrice - estPrintPrice;
         
         const unitPrintPrice = item.isPersonalized
@@ -710,7 +1067,11 @@ export function AdminView() {
       isNew: false,
       featured: false,
       discount100: 0,
-      discount150: 0
+      discount150: 0,
+      published: true,
+      minPurchase: 50,
+      discountQty1: 100,
+      discountQty2: 150
     });
     setIsEditing(false);
     setIsModalOpen(true);
@@ -729,10 +1090,14 @@ export function AdminView() {
       ...editingProduct
     } as Product;
 
-    // Fix empty images fallback
-    let cleanedImages = (productToSave.images || []).filter(img => img.trim() !== "");
-    if (cleanedImages.length === 0) {
-      cleanedImages = ["https://picsum.photos/seed/newprod/600/600"];
+    // Fix empty images fallback (maintain 5-index layout without shifting)
+    let cleanedImages = [...(productToSave.images || [])];
+    while (cleanedImages.length < 5) {
+      cleanedImages.push("");
+    }
+    const hasAnyImage = cleanedImages.some(img => img.trim() !== "");
+    if (!hasAnyImage) {
+      cleanedImages[0] = "https://picsum.photos/seed/newprod/600/600";
     }
     productToSave.images = cleanedImages;
 
@@ -761,6 +1126,12 @@ export function AdminView() {
             className={`px-6 py-3 font-bold text-sm border-b-2 transition-colors ${activeTab === 'settings' ? 'border-primary-600 text-primary-700' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}`}
           >
             Ajustes / Catálogos
+          </button>
+          <button 
+            onClick={() => setActiveTab('suppliers')}
+            className={`px-6 py-3 font-bold text-sm border-b-2 transition-colors ${activeTab === 'suppliers' ? 'border-primary-600 text-primary-700' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}`}
+          >
+            Proveedores
           </button>
           <button 
             onClick={() => setActiveTab('home')}
@@ -831,6 +1202,7 @@ export function AdminView() {
               <th scope="col" className="px-6 py-4 text-right">Costo</th>
               <th scope="col" className="px-6 py-4 text-right">Precio Base</th>
               <th scope="col" className="px-6 py-4 text-right">Stock Total</th>
+              <th scope="col" className="px-6 py-4 text-center">Publicado</th>
               <th scope="col" className="px-6 py-4 text-center">Acciones</th>
             </tr>
           </thead>
@@ -839,11 +1211,18 @@ export function AdminView() {
               <tr key={product.id} className="bg-white border-b hover:bg-gray-50">
                 <td className="px-6 py-4 font-medium text-gray-900 whitespace-nowrap flex items-center gap-3">
                   <div className="w-10 h-10 rounded overflow-hidden bg-gray-100 flex-shrink-0">
-                    <img src={product.images[0]} alt={product.name} className="w-full h-full object-cover" />
+                    <img src={product.images?.find(img => !!img) || "https://images.unsplash.com/photo-1505740420928-5e560c06d30e"} alt={product.name} className="w-full h-full object-cover" />
                   </div>
                   <div className="flex flex-col">
                     <span className="truncate max-w-[200px] block font-bold" title={product.name}>{product.name}</span>
-                    <span className="text-xs text-gray-400">{product.colors?.length || 0} colores</span>
+                    <span className="text-xs text-gray-400">
+                      {product.colors?.length || 0} colores
+                      {(() => {
+                        const assoc = homeSettings?.product_supplier_map?.[product.id];
+                        const s = productSuppliers.find(ps => ps.id === assoc?.supplierId);
+                        return s ? ` • Prov: ${s.name}` : '';
+                      })()}
+                    </span>
                   </div>
                 </td>
                 <td className="px-6 py-4">{product.sku}</td>
@@ -864,6 +1243,19 @@ export function AdminView() {
                   </span>
                 </td>
                 <td className="px-6 py-4 text-center">
+                  <input
+                    type="checkbox"
+                    checked={product.published !== false}
+                    onChange={(e) => {
+                      updateProduct({
+                        ...product,
+                        published: e.target.checked
+                      });
+                    }}
+                    className="w-4 h-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500 cursor-pointer"
+                  />
+                </td>
+                <td className="px-6 py-4 text-center">
                   <div className="flex items-center justify-center gap-2">
                     <button onClick={() => openEditModal(product)} className="text-gray-400 hover:text-primary-600 transition-colors p-1" title="Editar">
                       <Edit className="w-4 h-4" />
@@ -877,7 +1269,7 @@ export function AdminView() {
             ))}
             {filtered.length === 0 && (
               <tr>
-                <td colSpan={7} className="px-6 py-8 text-center text-gray-500">
+                <td colSpan={8} className="px-6 py-8 text-center text-gray-500">
                   No se encontraron productos con ese término de búsqueda.
                 </td>
               </tr>
@@ -1272,6 +1664,556 @@ export function AdminView() {
         <B2BAgentCRM />
       )}
 
+      {activeTab === 'suppliers' && (
+        <div className="p-6 space-y-8 animate-in fade-in duration-300">
+          <div className="bg-[#0f766e] rounded-2xl p-6 text-white shadow-md flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+            <div>
+              <h2 className="text-2xl font-black">Gestión de Proveedores y Tarifas</h2>
+              <p className="text-primary-100 text-sm mt-1">Control de costos de impresión, proveedores de producto y vinculación de catálogo.</p>
+            </div>
+            <div className="flex gap-2 bg-primary-900/40 p-1.5 rounded-xl border border-white/10">
+              <button 
+                onClick={() => setSupplierTab('print')} 
+                className={`px-4 py-2 text-xs font-bold rounded-lg transition-all ${supplierTab === 'print' ? 'bg-white text-primary-850 shadow-sm' : 'text-white hover:bg-white/10'}`}
+              >
+                Imprentas / Impresión
+              </button>
+              <button 
+                onClick={() => setSupplierTab('product')} 
+                className={`px-4 py-2 text-xs font-bold rounded-lg transition-all ${supplierTab === 'product' ? 'bg-white text-primary-850 shadow-sm' : 'text-white hover:bg-white/10'}`}
+              >
+                Proveedores de Producto
+              </button>
+            </div>
+          </div>
+
+          {supplierTab === 'print' ? (
+            <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
+              {/* Form Col */}
+              <div className="xl:col-span-1 space-y-6">
+                <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+                  <h3 className="text-lg font-bold text-gray-900 mb-6 flex items-center gap-2">
+                    <Plus className="w-5 h-5 text-primary-600" />
+                    {editingPrintSupplierId ? "Editar Proveedor de Impresión" : "Nuevo Proveedor de Impresión"}
+                  </h3>
+                  <form onSubmit={handleSavePrintSupplier} className="space-y-4">
+                    <div>
+                      <label className="block text-xs font-bold text-gray-700 uppercase mb-1">Nombre del Proveedor *</label>
+                      <input 
+                        type="text" 
+                        required 
+                        placeholder="Ej. Impresiones Monterrey" 
+                        value={printForm.name} 
+                        onChange={e => setPrintForm({...printForm, name: e.target.value})}
+                        className="w-full border border-gray-300 rounded-lg p-2.5 text-sm bg-gray-50 focus:bg-white focus:ring-primary-500 focus:border-primary-500"
+                      />
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-xs font-bold text-gray-700 uppercase mb-1">Contacto</label>
+                        <input 
+                          type="text" 
+                          placeholder="Ej. Ing. Carlos" 
+                          value={printForm.contact} 
+                          onChange={e => setPrintForm({...printForm, contact: e.target.value})}
+                          className="w-full border border-gray-300 rounded-lg p-2.5 text-sm bg-gray-50 focus:bg-white"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-gray-700 uppercase mb-1">Dirección</label>
+                        <input 
+                          type="text" 
+                          placeholder="Ej. Calle Juárez #10" 
+                          value={printForm.address} 
+                          onChange={e => setPrintForm({...printForm, address: e.target.value})}
+                          className="w-full border border-gray-300 rounded-lg p-2.5 text-sm bg-gray-50 focus:bg-white"
+                        />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-xs font-bold text-gray-700 uppercase mb-1">Teléfono 1</label>
+                        <input 
+                          type="text" 
+                          placeholder="Ej. 8112345678" 
+                          value={printForm.phone1} 
+                          onChange={e => setPrintForm({...printForm, phone1: e.target.value})}
+                          className="w-full border border-gray-300 rounded-lg p-2.5 text-sm bg-gray-55 focus:bg-white"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-gray-700 uppercase mb-1">Teléfono 2</label>
+                        <input 
+                          type="text" 
+                          placeholder="Ej. 8118765432" 
+                          value={printForm.phone2} 
+                          onChange={e => setPrintForm({...printForm, phone2: e.target.value})}
+                          className="w-full border border-gray-300 rounded-lg p-2.5 text-sm bg-gray-55 focus:bg-white"
+                        />
+                      </div>
+                    </div>
+
+                    <h4 className="font-bold text-xs text-gray-400 uppercase tracking-wider pt-4 border-t border-gray-150 mb-2">Costos de Técnicas de Impresión ($)</h4>
+                    
+                    <div className="grid grid-cols-2 gap-3 text-xs">
+                      <div>
+                        <label className="block font-bold text-gray-600 mb-1">Grabado Chico</label>
+                        <input type="number" step="0.01" value={printForm.grabado_chico} onChange={e => setPrintForm({...printForm, grabado_chico: parseFloat(e.target.value) || 0})} className="w-full border border-gray-300 rounded p-1.5 bg-gray-50" />
+                      </div>
+                      <div>
+                        <label className="block font-bold text-gray-600 mb-1">Grabado Grande</label>
+                        <input type="number" step="0.01" value={printForm.grabado_grande} onChange={e => setPrintForm({...printForm, grabado_grande: parseFloat(e.target.value) || 0})} className="w-full border border-gray-300 rounded p-1.5 bg-gray-50" />
+                      </div>
+                      <div>
+                        <label className="block font-bold text-gray-600 mb-1">DTF</label>
+                        <input type="number" step="0.01" value={printForm.dtf} onChange={e => setPrintForm({...printForm, dtf: parseFloat(e.target.value) || 0})} className="w-full border border-gray-300 rounded p-1.5 bg-gray-50" />
+                      </div>
+                      <div>
+                        <label className="block font-bold text-gray-600 mb-1">Seri 1 Tinta</label>
+                        <input type="number" step="0.01" value={printForm.seri_1_tinta} onChange={e => setPrintForm({...printForm, seri_1_tinta: parseFloat(e.target.value) || 0})} className="w-full border border-gray-300 rounded p-1.5 bg-gray-50" />
+                      </div>
+                      <div>
+                        <label className="block font-bold text-gray-600 mb-1">Seri 2 Tintas</label>
+                        <input type="number" step="0.01" value={printForm.seri_2_tintas} onChange={e => setPrintForm({...printForm, seri_2_tintas: parseFloat(e.target.value) || 0})} className="w-full border border-gray-300 rounded p-1.5 bg-gray-50" />
+                      </div>
+                      <div>
+                        <label className="block font-bold text-gray-600 mb-1">Seri 3 Tintas</label>
+                        <input type="number" step="0.01" value={printForm.seri_3_tintas} onChange={e => setPrintForm({...printForm, seri_3_tintas: parseFloat(e.target.value) || 0})} className="w-full border border-gray-300 rounded p-1.5 bg-gray-50" />
+                      </div>
+                      <div className="col-span-2">
+                        <label className="block font-bold text-gray-600 mb-1">Seri 4 Tintas</label>
+                        <input type="number" step="0.01" value={printForm.seri_4_tintas} onChange={e => setPrintForm({...printForm, grabado_grande: 0, dtf: 0, seri_4_tintas: parseFloat(e.target.value) || 0})} className="w-full border border-gray-300 rounded p-1.5 bg-gray-50" />
+                      </div>
+                    </div>
+
+                    <div className="flex gap-3 pt-6">
+                      <button 
+                        type="submit" 
+                        className="flex-1 bg-primary-600 text-white font-bold py-2.5 px-4 rounded-lg shadow-sm hover:bg-primary-700 transition-colors text-sm"
+                      >
+                        {editingPrintSupplierId ? "Guardar Cambios" : "Agregar Proveedor"}
+                      </button>
+                      {editingPrintSupplierId && (
+                        <button 
+                          type="button" 
+                          onClick={() => {
+                            setEditingPrintSupplierId(null);
+                            setPrintForm({
+                              name: "", contact: "", phone1: "", phone2: "", address: "",
+                              grabado_chico: 0, grabado_grande: 0, dtf: 0,
+                              seri_1_tinta: 0, seri_2_tintas: 0, seri_3_tintas: 0, seri_4_tintas: 0
+                            });
+                          }}
+                          className="px-4 py-2.5 border border-gray-300 rounded-lg text-sm text-gray-700 font-bold hover:bg-gray-50"
+                        >
+                          Cancelar
+                        </button>
+                      )}
+                    </div>
+                  </form>
+                </div>
+              </div>
+
+              {/* Suppliers List Col */}
+              <div className="xl:col-span-2 space-y-6">
+                {/* Sync Card */}
+                {printSuppliers.length > 0 && (
+                  <div className="bg-primary-50 rounded-xl border border-primary-200 p-6 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                    <div className="text-left">
+                      <h3 className="font-bold text-primary-900 text-base">Sincronización Tarifaria B2B</h3>
+                      <p className="text-primary-700 text-xs mt-0.5">Analiza y sincroniza las tarifas cobradas al cliente con el precio más competitivo del mercado.</p>
+                    </div>
+                    <button 
+                      onClick={handleSyncPrintPrices}
+                      className="bg-primary-600 hover:bg-primary-700 text-white text-xs font-bold py-2.5 px-4 rounded-lg shadow-sm transition-colors flex items-center"
+                    >
+                      <CheckCircle className="w-4 h-4 mr-1.5" />
+                      Sincronizar Costos B2B al Más Bajo
+                    </button>
+                  </div>
+                )}
+
+                {/* Print Suppliers Grid */}
+                <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+                  <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50">
+                    <h3 className="font-bold text-gray-900">Directorio de Proveedores de Impresión</h3>
+                    <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">{printSuppliers.length} registrados</span>
+                  </div>
+                  {printSuppliers.length === 0 ? (
+                    <div className="p-12 text-center text-gray-400 text-sm">No hay proveedores de impresión registrados. Agrega uno a la izquierda.</div>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-xs text-left text-gray-500">
+                        <thead className="text-[10px] text-gray-700 uppercase bg-gray-50 border-b border-gray-200">
+                          <tr>
+                            <th className="px-4 py-3 font-bold">Proveedor</th>
+                            <th className="px-3 py-3 font-bold text-center">G. Chico</th>
+                            <th className="px-3 py-3 font-bold text-center">G. Grande</th>
+                            <th className="px-3 py-3 font-bold text-center">DTF</th>
+                            <th className="px-3 py-3 font-bold text-center">Seri 1 T</th>
+                            <th className="px-3 py-3 font-bold text-center">Seri 2 T</th>
+                            <th className="px-3 py-3 font-bold text-center">Seri 3 T</th>
+                            <th className="px-3 py-3 font-bold text-center">Seri 4 T</th>
+                            <th className="px-4 py-3 font-bold text-center">Acciones</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {printSuppliers.map((supplier: any) => (
+                            <tr key={supplier.id} className="bg-white border-b hover:bg-gray-50/50">
+                              <td className="px-4 py-3 font-bold text-gray-900">
+                                <div>{supplier.name}</div>
+                                <div className="text-[9px] text-gray-450 font-normal">Cont: {supplier.contact || '-'} | Tel: {supplier.phone1 || '-'}</div>
+                              </td>
+                              {printTechniques.map(tech => {
+                                const price = Number(supplier[tech.key]) || 0;
+                                const isMin = price === minPrices[tech.key] && printSuppliers.length > 1;
+                                const isMax = price === maxPrices[tech.key] && printSuppliers.length > 1;
+                                return (
+                                  <td key={tech.key} className="px-3 py-3 text-center">
+                                    <span className={isMin ? 'bg-green-100 text-green-800 font-bold px-1.5 py-0.5 rounded border border-green-200' : isMax ? 'bg-red-100 text-red-800 font-bold px-1.5 py-0.5 rounded border border-red-200' : 'text-gray-900'}>
+                                      ${price.toFixed(2)}
+                                    </span>
+                                  </td>
+                                );
+                              })}
+                              <td className="px-4 py-3 text-center">
+                                <div className="flex gap-2 justify-center">
+                                  <button onClick={() => handleEditPrintSupplier(supplier)} className="text-primary-600 hover:text-primary-800" title="Editar"><Edit className="w-4 h-4" /></button>
+                                  <button onClick={() => handleDeletePrintSupplier(supplier.id)} className="text-red-500 hover:text-red-700" title="Eliminar"><Trash2 className="w-4 h-4" /></button>
+                                </div>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+
+                {/* B2B Live comparison reference panel */}
+                <div className="bg-white rounded-xl shadow-sm border border-gray-250 p-6">
+                  <h3 className="font-bold text-gray-900 mb-4 border-b pb-2">Referencia de Costos de Cotización B2B</h3>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    {printTechniques.map(tech => {
+                      const mapping: Record<string, string> = {
+                        'grabado_chico': 'Grabado Chico',
+                        'grabado_grande': 'Grabado Grande',
+                        'dtf': 'DTF',
+                        'seri_1_tinta': 'Impresión 1 tinta',
+                        'seri_2_tintas': 'Impresión 2 tintas',
+                        'seri_3_tintas': 'Impresión 3 tintas',
+                        'seri_4_tintas': 'Impresión 4 tintas'
+                      };
+                      const b2bName = mapping[tech.key];
+                      const b2bPrice = activePrintPrices[b2bName] || 0;
+                      const bestPrice = minPrices[tech.key] || 0;
+                      const bestSupplier = printSuppliers.find(s => Number(s[tech.key]) === bestPrice);
+
+                      return (
+                        <div key={tech.key} className="bg-gray-50 p-3 rounded-lg border border-gray-200">
+                          <span className="text-[10px] text-gray-500 font-bold block uppercase">{tech.name}</span>
+                          <div className="flex justify-between items-baseline mt-1">
+                            <span className="text-xs text-gray-700">B2B: <strong>${b2bPrice}</strong></span>
+                            <span className="text-xs text-green-750 font-bold">Mín: ${bestPrice}</span>
+                          </div>
+                          {bestSupplier && (
+                            <span className="text-[9px] text-gray-400 block mt-1 truncate">Mín: {bestSupplier.name}</span>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
+              {/* Product Supplier Forms */}
+              <div className="xl:col-span-1 space-y-6">
+                {/* CRUD Form */}
+                <div className="bg-white rounded-xl shadow-sm border border-gray-250 p-6">
+                  <h3 className="text-lg font-bold text-gray-900 mb-6 flex items-center gap-2">
+                    <Plus className="w-5 h-5 text-primary-600" />
+                    {editingProductSupplierId ? "Editar Proveedor de Producto" : "Nuevo Proveedor de Producto"}
+                  </h3>
+                  <form onSubmit={handleSaveProductSupplier} className="space-y-4">
+                    <div>
+                      <label className="block text-xs font-bold text-gray-700 uppercase mb-1">Nombre del Proveedor *</label>
+                      <input 
+                        type="text" 
+                        required 
+                        placeholder="Ej. Promocionales de Occidente" 
+                        value={productForm.name} 
+                        onChange={e => setProductForm({...productForm, name: e.target.value})}
+                        className="w-full border border-gray-300 rounded-lg p-2.5 text-sm bg-gray-50 focus:bg-white"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-gray-700 uppercase mb-1">Contacto</label>
+                      <input 
+                        type="text" 
+                        placeholder="Ej. Lic. Fernando" 
+                        value={productForm.contact} 
+                        onChange={e => setProductForm({...productForm, contact: e.target.value})}
+                        className="w-full border border-gray-300 rounded-lg p-2.5 text-sm bg-gray-55 focus:bg-white"
+                      />
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-xs font-bold text-gray-700 uppercase mb-1">Teléfono 1</label>
+                        <input 
+                          type="text" 
+                          placeholder="Ej. 3312345678" 
+                          value={productForm.phone1} 
+                          onChange={e => setProductForm({...productForm, phone1: e.target.value})}
+                          className="w-full border border-gray-300 rounded-lg p-2.5 text-sm bg-gray-55 focus:bg-white"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-gray-700 uppercase mb-1">Teléfono 2</label>
+                        <input 
+                          type="text" 
+                          placeholder="Ej. 3318765432" 
+                          value={productForm.phone2} 
+                          onChange={e => setProductForm({...productForm, phone2: e.target.value})}
+                          className="w-full border border-gray-300 rounded-lg p-2.5 text-sm bg-gray-55 focus:bg-white"
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-gray-700 uppercase mb-1">Domicilio</label>
+                      <input 
+                        type="text" 
+                        placeholder="Ej. Av. Vallarta #100" 
+                        value={productForm.address} 
+                        onChange={e => setProductForm({...productForm, address: e.target.value})}
+                        className="w-full border border-gray-300 rounded-lg p-2.5 text-sm bg-gray-55 focus:bg-white"
+                      />
+                    </div>
+
+                    <div className="flex gap-3 pt-4">
+                      <button type="submit" className="flex-1 bg-primary-600 text-white font-bold py-2.5 px-4 rounded-lg shadow-sm hover:bg-primary-700 text-sm">
+                        {editingProductSupplierId ? "Guardar Cambios" : "Agregar Proveedor"}
+                      </button>
+                      {editingProductSupplierId && (
+                        <button 
+                          type="button" 
+                          onClick={() => {
+                            setEditingProductSupplierId(null);
+                            setProductForm({ name: "", contact: "", phone1: "", phone2: "", address: "" });
+                          }}
+                          className="px-4 py-2.5 border border-gray-300 rounded-lg text-sm text-gray-700 font-bold hover:bg-gray-50"
+                        >
+                          Cancelar
+                        </button>
+                      )}
+                    </div>
+                  </form>
+                </div>
+
+                {/* Association Form */}
+                {productSuppliers.length > 0 && products.length > 0 && (
+                  <div className="bg-white rounded-xl shadow-sm border border-gray-250 p-6">
+                    <h3 className="text-lg font-bold text-gray-900 mb-6 flex items-center gap-2">
+                      <Plus className="w-5 h-5 text-primary-600" />
+                      Asociar Producto a Proveedor
+                    </h3>
+                    <form onSubmit={handleSaveProductAssociation} className="space-y-4">
+                      <div>
+                        <label className="block text-xs font-bold text-gray-700 uppercase mb-1">Proveedor de Producto</label>
+                        <select 
+                          required 
+                          value={selectedAssocSupplierId} 
+                          onChange={e => setSelectedAssocSupplierId(e.target.value)}
+                          className="w-full border border-gray-300 rounded-lg p-2.5 text-sm bg-white"
+                        >
+                          <option value="" disabled>Selecciona un proveedor...</option>
+                          {productSuppliers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-gray-700 uppercase mb-1">Producto del Catálogo</label>
+                        <select 
+                          required 
+                          value={selectedAssocProductId} 
+                          onChange={e => {
+                            setSelectedAssocProductId(e.target.value);
+                            const p = products.find(prod => prod.id === e.target.value);
+                            if (p) {
+                              setAssocPrice(p.cost || 0);
+                              setAssocPiecesPerBox(p.minPurchase || 50);
+                            }
+                          }}
+                          className="w-full border border-gray-300 rounded-lg p-2.5 text-sm bg-white"
+                        >
+                          <option value="" disabled>Selecciona un producto...</option>
+                          {products.map(p => <option key={p.id} value={p.id}>{p.name} ({p.sku})</option>)}
+                        </select>
+                      </div>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-xs font-bold text-gray-750 uppercase mb-1">Costo Proveedor ($)</label>
+                          <input 
+                            type="number" 
+                            step="0.01" 
+                            min="0" 
+                            value={assocPrice} 
+                            onChange={e => setAssocPrice(parseFloat(e.target.value) || 0)}
+                            className="w-full border border-gray-300 rounded-lg p-2.5 text-sm"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-bold text-gray-750 uppercase mb-1">Piezas por Caja</label>
+                          <input 
+                            type="number" 
+                            min="1" 
+                            value={assocPiecesPerBox} 
+                            onChange={e => setAssocPiecesPerBox(parseInt(e.target.value) || 1)}
+                            className="w-full border border-gray-300 rounded-lg p-2.5 text-sm"
+                          />
+                        </div>
+                      </div>
+                      <button type="submit" className="w-full bg-primary-600 text-white font-bold py-2.5 px-4 rounded-lg shadow-sm hover:bg-primary-700 text-sm mt-2">
+                        Vincular y Actualizar Producto
+                      </button>
+                    </form>
+                  </div>
+                )}
+              </div>
+
+              {/* Product Supplier List & Directory */}
+              <div className="xl:col-span-2 space-y-6">
+                {/* Product Suppliers Directory */}
+                <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+                  <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50">
+                    <h3 className="font-bold text-gray-900">Directorio de Proveedores de Producto</h3>
+                    <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">{productSuppliers.length} registrados</span>
+                  </div>
+                  {productSuppliers.length === 0 ? (
+                    <div className="p-12 text-center text-gray-400 text-sm">No hay proveedores de producto registrados. Agrega uno a la izquierda.</div>
+                  ) : (
+                    <div className="divide-y divide-gray-100 text-xs">
+                      {productSuppliers.map((supplier: any) => (
+                        <div key={supplier.id} className="p-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white hover:bg-gray-50/50 transition-colors">
+                          <div className="text-left space-y-1">
+                            <h4 className="font-bold text-gray-900 text-sm">{supplier.name}</h4>
+                            <div className="text-xs text-gray-500 space-y-0.5">
+                              <div>Contacto: <strong className="text-gray-700">{supplier.contact || '-'}</strong></div>
+                              <div>Tel: <span className="font-mono">{supplier.phone1 || '-'}</span> {supplier.phone2 ? " / " + supplier.phone2 : ""}</div>
+                              <div>Domicilio: <span>{supplier.address || '-'}</span></div>
+                            </div>
+                          </div>
+                          <div className="flex gap-2">
+                            <button onClick={() => handleEditProductSupplier(supplier)} className="px-3 py-1.5 text-xs border border-gray-200 rounded font-bold hover:bg-gray-50 flex items-center text-gray-700" title="Editar"><Edit className="w-3.5 h-3.5 mr-1" /> Editar</button>
+                            <button onClick={() => handleDeleteProductSupplier(supplier.id)} className="px-3 py-1.5 text-xs bg-red-50 border border-red-200 text-red-600 rounded font-bold hover:bg-red-100 flex items-center" title="Eliminar"><Trash2 className="w-3.5 h-3.5 mr-1" /> Borrar</button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Linked Products Table with search and filter */}
+                {productSuppliers.length > 0 && (
+                  <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+                    <div className="p-6 border-b border-gray-100 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-gray-50">
+                      <div>
+                        <h3 className="font-bold text-gray-900">Productos Vinculados</h3>
+                        <p className="text-xs text-gray-400">Listado de productos del catálogo y sus costos de proveedor asignados.</p>
+                      </div>
+                      <div className="flex flex-wrap gap-2 w-full md:w-auto">
+                        <input 
+                          type="text" 
+                          placeholder="Buscar por nombre/SKU..." 
+                          value={productSupplierSearch}
+                          onChange={e => setProductSupplierSearch(e.target.value)}
+                          className="border border-gray-300 rounded p-1.5 text-xs bg-white flex-1 md:flex-none w-36"
+                        />
+                        <select 
+                          value={filterSupplierId} 
+                          onChange={e => setFilterSupplierId(e.target.value)}
+                          className="border border-gray-300 rounded p-1.5 text-xs bg-white w-40"
+                        >
+                          <option value="all">Todos los proveedores</option>
+                          {productSuppliers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                        </select>
+                      </div>
+                    </div>
+
+                    {(() => {
+                      const associations = homeSettings?.product_supplier_map || {};
+                      const assocList = Object.keys(associations).map(prodId => {
+                        const prod = products.find(p => p.id === prodId);
+                        const assoc = associations[prodId];
+                        const supplier = productSuppliers.find(s => s.id === assoc.supplierId);
+                        return {
+                          productId: prodId,
+                          product: prod,
+                          supplierId: assoc.supplierId,
+                          supplierName: supplier ? supplier.name : 'Desconocido',
+                          price: assoc.price,
+                          piecesPerBox: assoc.piecesPerBox
+                        };
+                      }).filter(item => {
+                        if (!item.product) return false;
+                        const matchSearch = item.product.name.toLowerCase().includes(productSupplierSearch.toLowerCase()) || item.product.sku.toLowerCase().includes(productSupplierSearch.toLowerCase());
+                        const matchSupplier = filterSupplierId === 'all' || item.supplierId === filterSupplierId;
+                        return matchSearch && matchSupplier;
+                      });
+
+                      if (assocList.length === 0) {
+                        return <div className="p-12 text-center text-gray-400 text-sm">No hay productos vinculados que coincidan con la búsqueda.</div>;
+                      }
+
+                      return (
+                        <div className="overflow-x-auto text-xs">
+                          <table className="w-full text-xs text-left text-gray-500">
+                            <thead className="text-[10px] text-gray-700 uppercase bg-gray-50 border-b border-gray-200">
+                              <tr>
+                                <th className="px-6 py-3">Producto</th>
+                                <th className="px-6 py-3">SKU</th>
+                                <th className="px-6 py-3">Proveedor</th>
+                                <th className="px-6 py-3 text-right">Costo ($)</th>
+                                <th className="px-6 py-3 text-right">Piezas x Caja</th>
+                                <th className="px-6 py-3 text-center">Acciones</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {assocList.map(item => (
+                                <tr key={item.productId} className="bg-white border-b hover:bg-gray-50/50">
+                                  <td className="px-6 py-3 font-bold text-gray-900 flex items-center gap-2">
+                                    <div className="w-8 h-8 rounded bg-gray-100 overflow-hidden shrink-0 border">
+                                      <img src={item.product?.images?.[0]} alt="" className="w-full h-full object-cover" />
+                                    </div>
+                                    <span className="truncate max-w-[150px]">{item.product?.name}</span>
+                                  </td>
+                                  <td className="px-6 py-3">{item.product?.sku}</td>
+                                  <td className="px-6 py-3 font-medium text-gray-800">{item.supplierName}</td>
+                                  <td className="px-6 py-3 text-right font-bold text-gray-900">${item.price.toFixed(2)}</td>
+                                  <td className="px-6 py-3 text-right font-medium">{item.piecesPerBox} pz</td>
+                                  <td className="px-6 py-3 text-center">
+                                    <button 
+                                      onClick={() => handleUnlinkProduct(item.productId)}
+                                      className="text-red-500 hover:text-red-700 font-bold hover:underline"
+                                    >
+                                      Desvincular
+                                    </button>
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      );
+                    })()}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Modal */}
       {isModalOpen && (
         <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
@@ -1298,6 +2240,40 @@ export function AdminView() {
                 <div className="col-span-2">
                   <h4 className="block text-sm font-bold text-gray-700 mb-2">Precios y Descuentos por Volumen</h4>
                   <div className="bg-gray-50 border border-gray-200 rounded-xl p-4">
+                    {/* Dynamic scale thresholds configuration */}
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4 border-b border-gray-200 pb-4">
+                      <div>
+                        <label className="block text-xs font-bold text-gray-600 mb-1">Compra Mínima (pz)</label>
+                        <input 
+                          type="number" 
+                          min="1"
+                          value={editingProduct.minPurchase === undefined ? 50 : editingProduct.minPurchase}
+                          onChange={e => setEditingProduct({...editingProduct, minPurchase: parseInt(e.target.value) || 0})}
+                          className="w-full border border-gray-300 rounded-lg p-2 text-sm focus:ring-primary-500 focus:border-primary-500 font-bold"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-gray-600 mb-1">Cant. Descuento 1 (pz)</label>
+                        <input 
+                          type="number" 
+                          min="1"
+                          value={editingProduct.discountQty1 === undefined ? 100 : editingProduct.discountQty1}
+                          onChange={e => setEditingProduct({...editingProduct, discountQty1: parseInt(e.target.value) || 0})}
+                          className="w-full border border-gray-300 rounded-lg p-2 text-sm focus:ring-primary-500 focus:border-primary-500 font-bold"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-gray-600 mb-1">Cant. Descuento 2 (pz)</label>
+                        <input 
+                          type="number" 
+                          min="1"
+                          value={editingProduct.discountQty2 === undefined ? 150 : editingProduct.discountQty2}
+                          onChange={e => setEditingProduct({...editingProduct, discountQty2: parseInt(e.target.value) || 0})}
+                          className="w-full border border-gray-300 rounded-lg p-2 text-sm focus:ring-primary-500 focus:border-primary-500 font-bold"
+                        />
+                      </div>
+                    </div>
+
                     <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
                       {/* Costo */}
                       <div className="bg-white p-3 rounded-lg border border-gray-200">
@@ -1327,7 +2303,9 @@ export function AdminView() {
 
                       {/* Tier 1 */}
                       <div className="bg-white p-3 rounded-lg border border-gray-200">
-                        <label className="block text-xs font-bold text-gray-500 uppercase mb-2">50 a 99 piezas (Base)</label>
+                        <label className="block text-xs font-bold text-gray-500 uppercase mb-2">
+                          {(editingProduct.minPurchase === undefined ? 50 : editingProduct.minPurchase)} a {(editingProduct.discountQty1 === undefined ? 100 : editingProduct.discountQty1) - 1} piezas (Base)
+                        </label>
                         <div className="flex items-center gap-2">
                           <span className="text-gray-500 font-bold">$</span>
                           <input required type="number" step="0.01" min="0" value={editingProduct.price || 0} onChange={e => setEditingProduct({...editingProduct, price: parseFloat(e.target.value) || 0})} className="w-full border border-gray-300 rounded-lg p-2 focus:ring-primary-500 focus:border-primary-500 text-sm font-bold" />
@@ -1336,7 +2314,9 @@ export function AdminView() {
                       
                       {/* Tier 2 */}
                       <div className="bg-white p-3 rounded-lg border border-gray-200">
-                        <label className="block text-xs font-bold text-gray-500 uppercase mb-2">100 a 150 piezas</label>
+                        <label className="block text-xs font-bold text-gray-500 uppercase mb-2">
+                          {(editingProduct.discountQty1 === undefined ? 100 : editingProduct.discountQty1)} a {(editingProduct.discountQty2 === undefined ? 150 : editingProduct.discountQty2) - 1} piezas
+                        </label>
                         <div className="flex items-center gap-2 mb-2">
                           <input type="number" step="1" min="0" max="100" value={editingProduct.discount100 || 0} onChange={e => setEditingProduct({...editingProduct, discount100: parseFloat(e.target.value) || 0})} className="w-20 border border-gray-300 rounded-lg p-1.5 focus:ring-primary-500 focus:border-primary-500 text-sm font-bold" />
                           <span className="text-sm font-bold text-gray-500">% Desc.</span>
@@ -1348,7 +2328,9 @@ export function AdminView() {
 
                       {/* Tier 3 */}
                       <div className="bg-white p-3 rounded-lg border border-gray-200">
-                        <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Más de 150 piezas</label>
+                        <label className="block text-xs font-bold text-gray-500 uppercase mb-2">
+                          Más de {(editingProduct.discountQty2 === undefined ? 150 : editingProduct.discountQty2)} piezas
+                        </label>
                         <div className="flex items-center gap-2 mb-2">
                           <input type="number" step="1" min="0" max="100" value={editingProduct.discount150 || 0} onChange={e => setEditingProduct({...editingProduct, discount150: parseFloat(e.target.value) || 0})} className="w-20 border border-gray-300 rounded-lg p-1.5 focus:ring-primary-500 focus:border-primary-500 text-sm font-bold" />
                           <span className="text-sm font-bold text-gray-500">% Desc.</span>
@@ -1415,11 +2397,10 @@ export function AdminView() {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-gray-50 p-4 rounded-xl border border-gray-200">
                     {[
                       { label: "Foto Principal *", key: 0 },
-                      { label: "Plano Mecánico", key: 1 },
-                      { label: "Foto Individual 1", key: 2 },
-                      { label: "Foto Individual 2", key: 3 },
-                      { label: "Foto Individual 3", key: 4 },
-                      { label: "Foto Individual 4", key: 5 }
+                      { label: "Foto Individual 1", key: 1 },
+                      { label: "Foto Individual 2", key: 2 },
+                      { label: "Foto Individual 3", key: 3 },
+                      { label: "Plano Mecánico", key: 4 }
                     ].map(imgField => {
                        const isHovered = hoveredImageKey === imgField.key;
                        return (
@@ -1489,7 +2470,7 @@ export function AdminView() {
 
               <div className="grid grid-cols-2 gap-6">
                 <div className="col-span-2">
-                  <div className="flex gap-6 p-4 bg-gray-50 rounded-lg border border-gray-200 mb-2">
+                  <div className="flex flex-wrap gap-6 p-4 bg-gray-50 rounded-lg border border-gray-200 mb-2">
                     <label className="flex items-center gap-2 cursor-pointer">
                       <input type="checkbox" checked={editingProduct.isNew || false} onChange={e => setEditingProduct({...editingProduct, isNew: e.target.checked})} className="w-4 h-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500" />
                       <span className="text-sm font-bold text-gray-700">Etiqueta "NUEVO"</span>
@@ -1497,6 +2478,10 @@ export function AdminView() {
                     <label className="flex items-center gap-2 cursor-pointer">
                       <input type="checkbox" checked={editingProduct.featured || false} onChange={e => setEditingProduct({...editingProduct, featured: e.target.checked})} className="w-4 h-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500" />
                       <span className="text-sm font-bold text-gray-700">Producto Destacado</span>
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input type="checkbox" checked={editingProduct.published !== false} onChange={e => setEditingProduct({...editingProduct, published: e.target.checked})} className="w-4 h-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500" />
+                      <span className="text-sm font-bold text-gray-700">Publicado en Catálogo</span>
                     </label>
                   </div>
                 </div>
@@ -1590,7 +2575,7 @@ export function AdminView() {
                   </div>
                   
                   {(() => {
-                    const { subtotal, iva, total } = getQuoteTotals(viewingQuote);
+                    const { subtotal, iva, total } = getQuoteTotals(viewingQuote, activePrintPrices);
                     const headerDeliveryTime = deliveryTime || viewingQuote.client.deliveryTime;
                     
                     return (
@@ -1725,7 +2710,7 @@ export function AdminView() {
                 <div className="md:col-span-2 space-y-4">
                   <h3 className="font-bold text-gray-900 text-lg">Artículos Solicitados</h3>
                   {viewingQuote.items.map(item => {
-                    const estPrintPrice = item.isPersonalized ? (printPrices[item.printOption] || 0) : 0;
+                    const estPrintPrice = item.isPersonalized ? (activePrintPrices[item.printOption] || 0) : 0;
                     const baseProdPrice = item.unitPrice - estPrintPrice;
                     const finalPrintPriceVal = item.finalPrintPrice !== undefined && item.finalPrintPrice !== null ? item.finalPrintPrice : estPrintPrice;
                     const finalShippingPriceVal = item.finalShippingPrice !== undefined && item.finalShippingPrice !== null ? item.finalShippingPrice : 0;
@@ -1837,6 +2822,256 @@ export function AdminView() {
                 })}
                 </div>
                 
+                {/* Cálculo de Paquetería / Envíos */}
+                {(() => {
+                  const volumetricWeight = Math.round(((shippingLength * shippingWidth * shippingHeight) / 5000) * 10) / 10;
+                  const billableWeightPerBox = Math.max(shippingWeight, volumetricWeight);
+                  const totalRealWeight = shippingBoxes * shippingWeight;
+                  const totalVolumetricWeight = shippingBoxes * volumetricWeight;
+                  const totalBillableWeight = shippingBoxes * billableWeightPerBox;
+
+                  return (
+                    <div className="bg-gradient-to-br from-white to-gray-50/50 p-6 rounded-2xl border border-gray-250 shadow-md mt-8 md:col-span-3">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-gray-150 pb-4 mb-5 gap-3">
+                        <div className="flex items-center gap-3">
+                          <div className="bg-primary-50 p-2.5 rounded-xl border border-primary-100">
+                            <Truck className="w-6 h-6 text-primary-650" />
+                          </div>
+                          <div>
+                            <h4 className="font-bold text-gray-900 text-base uppercase tracking-wide">
+                              Cálculo de Envío (Paqueterías)
+                            </h4>
+                            <p className="text-xs text-gray-500 mt-0.5">
+                              Artículo: <span className="font-bold text-primary-905">{viewingQuote.items.find(item => item.id === selectedItemId)?.productName || "Ninguno"}</span>
+                            </p>
+                          </div>
+                        </div>
+                        <span className="bg-primary-50 text-primary-800 text-[10px] font-bold uppercase tracking-wider px-3 py-1 rounded-full border border-primary-100 self-start sm:self-center">
+                          Margen Requerido: +10%
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        {/* Recuadro 1: Paquetería de Inicio */}
+                        <div className="bg-white p-5 rounded-xl border border-gray-200/80 shadow-sm flex flex-col justify-between">
+                          <div>
+                            <h5 className="font-extrabold text-gray-800 text-xs uppercase tracking-wider mb-4 pb-2 border-b border-gray-100 flex items-center justify-between">
+                              <span>1. Origen e Inicio</span>
+                              <span className="text-[10px] text-gray-400 font-semibold lowercase">caja e inicio</span>
+                            </h5>
+                            <div className="space-y-4">
+                              <div className="grid grid-cols-2 gap-3">
+                                <div>
+                                  <label className="block text-[11px] font-bold text-gray-655 uppercase mb-1">Cajas</label>
+                                  <input 
+                                    type="number" 
+                                    min="1" 
+                                    value={shippingBoxes} 
+                                    onChange={e => setShippingBoxes(parseInt(e.target.value) || 1)}
+                                    className="w-full border border-gray-300 rounded-lg p-2 bg-gray-50/50 font-bold text-sm focus:bg-white focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all text-gray-800"
+                                  />
+                                </div>
+                                <div>
+                                  <label className="block text-[11px] font-bold text-gray-655 uppercase mb-1">Peso (kg)</label>
+                                  <input 
+                                    type="number" 
+                                    min="0.1" 
+                                    step="0.1" 
+                                    value={shippingWeight} 
+                                    onChange={e => setShippingWeight(parseFloat(e.target.value) || 0)}
+                                    className="w-full border border-gray-300 rounded-lg p-2 bg-gray-50/50 font-bold text-sm focus:bg-white focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all text-gray-800"
+                                  />
+                                </div>
+                              </div>
+                              
+                              <div>
+                                <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">Medidas de Caja (Largo x Ancho x Alto cm)</label>
+                                <div className="grid grid-cols-3 gap-2">
+                                  <div>
+                                    <input 
+                                      type="number" 
+                                      min="1" 
+                                      placeholder="Largo"
+                                      value={shippingLength} 
+                                      onChange={e => setShippingLength(parseInt(e.target.value) || 0)}
+                                      className="w-full border border-gray-300 rounded-lg p-2 bg-gray-50/50 font-bold text-sm text-center focus:bg-white focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all text-gray-800"
+                                    />
+                                    <span className="text-[9px] text-gray-400 block text-center mt-0.5">Largo</span>
+                                  </div>
+                                  <div>
+                                    <input 
+                                      type="number" 
+                                      min="1" 
+                                      placeholder="Ancho"
+                                      value={shippingWidth} 
+                                      onChange={e => setShippingWidth(parseInt(e.target.value) || 0)}
+                                      className="w-full border border-gray-300 rounded-lg p-2 bg-gray-50/50 font-bold text-sm text-center focus:bg-white focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all text-gray-800"
+                                    />
+                                    <span className="text-[9px] text-gray-400 block text-center mt-0.5">Ancho</span>
+                                  </div>
+                                  <div>
+                                    <input 
+                                      type="number" 
+                                      min="1" 
+                                      placeholder="Alto"
+                                      value={shippingHeight} 
+                                      onChange={e => setShippingHeight(parseInt(e.target.value) || 0)}
+                                      className="w-full border border-gray-300 rounded-lg p-2 bg-gray-50/50 font-bold text-sm text-center focus:bg-white focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all text-gray-800"
+                                    />
+                                    <span className="text-[9px] text-gray-400 block text-center mt-0.5">Alto</span>
+                                  </div>
+                                </div>
+                              </div>
+
+                              <div>
+                                <label className="block text-[11px] font-bold text-gray-655 uppercase mb-1">Costo Envío Inicio (Prov. a Geeky)</label>
+                                <div className="relative rounded-lg shadow-sm">
+                                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-500 font-bold text-sm">$</div>
+                                  <input 
+                                    type="number" 
+                                    min="0" 
+                                    step="0.01"
+                                    value={shippingInitialCost} 
+                                    onChange={e => setShippingInitialCost(parseFloat(e.target.value) || 0)}
+                                    className="w-full border border-gray-300 rounded-lg p-2 pl-7 bg-gray-50/50 font-extrabold text-sm focus:bg-white focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all text-primary-750"
+                                  />
+                                  <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none text-[10px] text-gray-400 font-bold">MXN</div>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Recuadro 2: Paquetería Destino */}
+                        <div className="bg-white p-5 rounded-xl border border-gray-200/80 shadow-sm flex flex-col">
+                          <h5 className="font-extrabold text-gray-800 text-xs uppercase tracking-wider mb-4 pb-2 border-b border-gray-100 flex items-center justify-between">
+                            <span>2. Destino y Tarifas</span>
+                            <span className="text-[10px] text-green-650 font-bold font-mono">CP: {zip || "N/A"}</span>
+                          </h5>
+                          <div className="grid grid-cols-2 gap-x-3 gap-y-2 text-[11px] text-gray-650 bg-gray-55 p-3 rounded-lg border border-gray-150 mb-4">
+                            <div>
+                              <span className="text-gray-450 block text-[9px] uppercase font-bold">CP Origen</span>
+                              <strong className="text-gray-700 font-mono">20000</strong>
+                            </div>
+                            <div>
+                              <span className="text-gray-450 block text-[9px] uppercase font-bold">CP Destino</span>
+                              <strong className="text-gray-755 font-mono">{zip || "N/A"}</strong>
+                            </div>
+                            <div>
+                              <span className="text-gray-450 block text-[9px] uppercase font-bold">Peso Real</span>
+                              <strong className="text-gray-700">{totalRealWeight.toFixed(1)} kg</strong>
+                            </div>
+                            <div>
+                              <span className="text-gray-450 block text-[9px] uppercase font-bold">Peso Vol.</span>
+                              <strong className="text-gray-700">{totalVolumetricWeight.toFixed(1)} kg</strong>
+                            </div>
+                            <div className="bg-primary-50 p-1.5 rounded border border-primary-100 col-span-2 flex justify-between items-center mt-1">
+                              <span className="text-primary-850 font-bold text-[9px] uppercase">Facturable:</span>
+                              <strong className="text-primary-850 text-xs font-black">{totalBillableWeight.toFixed(1)} kg</strong>
+                            </div>
+                          </div>
+
+                          {/* Carrier Options Selector */}
+                          <label className="block text-[10px] font-bold text-gray-500 uppercase mb-2">Selecciona Paquetería Destino</label>
+                          <div className="space-y-2 flex-1 overflow-y-auto max-h-[170px] pr-1 scrollbar-thin">
+                            {calculateCarrierCosts(shippingBoxes, billableWeightPerBox, '20000', zip).map(carrier => {
+                              const isSelected = shippingSelectedCarrier === carrier.id;
+                              return (
+                                <div 
+                                  key={carrier.id} 
+                                  onClick={() => setShippingSelectedCarrier(carrier.id)}
+                                  className={`flex items-center justify-between p-3 rounded-xl border cursor-pointer transition-all duration-200 ${
+                                    isSelected 
+                                      ? 'border-primary-600 bg-primary-50/50 shadow-sm ring-1 ring-primary-500' 
+                                      : 'border-gray-200 bg-white hover:bg-gray-50 hover:border-gray-300'
+                                  }`}
+                                >
+                                  <div className="flex items-center gap-3">
+                                    <div className={`w-4 h-4 rounded-full border flex items-center justify-center transition-all ${
+                                      isSelected ? 'border-primary-600 bg-primary-600' : 'border-gray-350'
+                                    }`}>
+                                      {isSelected && <div className="w-1.5 h-1.5 rounded-full bg-white" />}
+                                    </div>
+                                    <div className="text-left">
+                                      <span className="font-bold text-gray-800 text-[12px] block leading-tight">{carrier.name}</span>
+                                      <span className="text-[10px] text-gray-455">{carrier.time}</span>
+                                    </div>
+                                  </div>
+                                  <span className="font-mono font-extrabold text-primary-850 text-sm">${carrier.cost.toFixed(2)}</span>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+
+                        {/* Recuadro 3: Resumen y Aplicación */}
+                        {(() => {
+                          const carriers = calculateCarrierCosts(shippingBoxes, billableWeightPerBox, '20000', zip);
+                          const selectedCarrier = carriers.find(c => c.id === shippingSelectedCarrier);
+                          const carrierCost = selectedCarrier ? selectedCarrier.cost : 0;
+                          const sumCost = shippingInitialCost + carrierCost;
+                          const markup = sumCost * 0.10;
+                          const finalShippingTotal = sumCost + markup;
+
+                          return (
+                            <div className="bg-white p-5 rounded-xl border border-gray-200/80 shadow-sm flex flex-col justify-between">
+                              <div>
+                                <h5 className="font-extrabold text-gray-800 text-xs uppercase tracking-wider mb-4 pb-2 border-b border-gray-100 flex items-center justify-between">
+                                  <span>3. Resumen y Aplicación</span>
+                                  <span className="text-[10px] text-primary-600 font-bold">desglose</span>
+                                </h5>
+                                
+                                <div className="space-y-2.5 text-xs border-b border-gray-100 pb-4 mb-4">
+                                  <div className="flex justify-between items-center text-gray-650">
+                                    <span>Costo Inicio:</span>
+                                    <span className="font-semibold text-gray-850">${shippingInitialCost.toFixed(2)}</span>
+                                  </div>
+                                  <div className="flex justify-between items-center text-gray-650">
+                                    <span>Costo Destino ({selectedCarrier?.name}):</span>
+                                    <span className="font-semibold text-gray-850">${carrierCost.toFixed(2)}</span>
+                                  </div>
+                                  <div className="flex justify-between items-center pt-2 border-t border-gray-100 text-gray-600">
+                                    <span>Suma Costos:</span>
+                                    <span className="font-bold text-gray-900">${sumCost.toFixed(2)}</span>
+                                  </div>
+                                  <div className="flex justify-between items-center text-primary-750 font-medium">
+                                    <span>Margen Distribuidor (+10%):</span>
+                                    <span className="font-bold text-primary-750">${markup.toFixed(2)}</span>
+                                  </div>
+                                </div>
+                              </div>
+
+                              <div className="space-y-4">
+                                <div className="bg-emerald-50/50 p-4 rounded-xl border border-emerald-100 text-center">
+                                  <span className="text-[10px] font-bold text-emerald-800 uppercase tracking-widest block mb-1">Costo Envío Final Sugerido</span>
+                                  <span className="text-xl font-black text-emerald-700 font-mono">${finalShippingTotal.toFixed(2)} MXN</span>
+                                </div>
+
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setItemAdjustments(prev => ({
+                                      ...prev,
+                                      [selectedItemId]: {
+                                        ...prev[selectedItemId],
+                                        finalShippingPrice: finalShippingTotal.toFixed(2)
+                                      }
+                                    }));
+                                    alert(`Se aplicó el costo de envío de $${finalShippingTotal.toFixed(2)} al artículo seleccionado. Recuerda guardar los cambios de la cotización.`);
+                                  }}
+                                  className="w-full bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white font-extrabold py-3 px-4 rounded-xl shadow hover:shadow-md transition-all duration-200 flex items-center justify-center gap-2 text-sm text-center cursor-pointer"
+                                >
+                                  <CheckCircle className="w-4 h-4 shrink-0" />
+                                  Aplicar a Envío de Artículo
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        })()}
+                      </div>
+                    </div>
+                  );
+                })()}
               </div>
             </div>
           </div>

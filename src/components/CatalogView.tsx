@@ -38,6 +38,7 @@ export function CatalogView() {
     if (!isLoaded) return [];
     
     let filtered = products.filter((product) => {
+      if (product.published === false) return false;
       if (selectedCategory && product.category !== selectedCategory) return false;
       if (selectedSeason && !product.seasons?.includes(selectedSeason)) return false;
       if (searchQuery) {

@@ -49,8 +49,10 @@ export function AgentIntegrationView() {
     logoRotation: 0
   });
   const [isSaving, setIsSaving] = useState(false);
+  const [selectedProductIdToUpdate, setSelectedProductIdToUpdate] = useState<string>("");
+  const [isUpdatingExisting, setIsUpdatingExisting] = useState(false);
 
-  const { addProduct } = useProducts();
+  const { products, addProduct, updateProduct } = useProducts();
 
   const resizeImage = (file: File, maxWidth = 1000, maxHeight = 1000): Promise<string> => {
     return new Promise((resolve, reject) => {
@@ -399,7 +401,13 @@ export function AgentIntegrationView() {
       stock: 100,
       category: analysis.category,
       material: analysis.material,
-      images: [groupImage, ...individualImages.filter(Boolean), techImage].filter(Boolean) as string[],
+      images: [
+        groupImage || "",
+        individualImages[0] || "",
+        individualImages[1] || "",
+        individualImages[2] || "",
+        techImage || ""
+      ],
       colors: [],
       isNew: true
     };
@@ -416,6 +424,64 @@ export function AgentIntegrationView() {
       setIndividualImages([null, null, null]);
       setShowBlueprintEditor(false);
     }, 800);
+  };
+
+  const updateExistingProductPhotos = async () => {
+    if (!selectedProductIdToUpdate) {
+      alert("Por favor selecciona un producto.");
+      return;
+    }
+    const targetProduct = products.find(p => p.id === selectedProductIdToUpdate);
+    if (!targetProduct) return;
+
+    const hasNewImages = groupImage || individualImages.some(img => img !== null) || techImage;
+    if (!hasNewImages) {
+      alert("No hay nuevas imágenes o planos en la IA para copiar.");
+      return;
+    }
+
+    setIsUpdatingExisting(true);
+    try {
+      const targetImages = targetProduct.images || [];
+
+      // 1. Selectively update only the fields that were modified/generated in the IA panel
+      const finalGroupImage = groupImage || targetImages[0] || "";
+      const finalTechImage = techImage || targetImages[4] || "";
+
+      const finalIndividualImages = [
+        individualImages[0] || targetImages[1] || "",
+        individualImages[1] || targetImages[2] || "",
+        individualImages[2] || targetImages[3] || ""
+      ];
+
+      // 2. Re-assemble the fixed-index images array of length 5
+      const mergedImages = [
+        finalGroupImage,
+        ...finalIndividualImages,
+        finalTechImage
+      ];
+
+      const updatedProduct: Product = {
+        ...targetProduct,
+        images: mergedImages
+      };
+      
+      await updateProduct(updatedProduct);
+      alert(`¡Fotos del producto "${targetProduct.name}" actualizadas con éxito!`);
+      
+      // Reset
+      setSourceImage(null);
+      setAnalysis(null);
+      setGroupImage(null);
+      setIndividualImages([null, null, null]);
+      setShowBlueprintEditor(false);
+      setSelectedProductIdToUpdate("");
+    } catch (err) {
+      console.error(err);
+      alert("Error al actualizar las fotos.");
+    } finally {
+      setIsUpdatingExisting(false);
+    }
   };
 
   return (
@@ -778,21 +844,62 @@ export function AgentIntegrationView() {
             </div>
           </div>
 
-          <div className="bg-white p-6 rounded-xl border shadow-sm flex flex-col items-center justify-center min-h-[160px]">
-            <h3 className="font-semibold text-lg flex items-center gap-2 mb-2 w-full">
+          <div className="bg-white p-6 rounded-xl border shadow-sm min-h-[160px]">
+            <h3 className="font-semibold text-lg flex items-center gap-2 mb-4">
               <span className="bg-blue-100 text-blue-700 w-6 h-6 rounded-full flex items-center justify-center text-sm">4</span>
-              Publicación Directa
+              Guardar e Integrar en el Catálogo
             </h3>
-            <p className="text-sm text-gray-500 mb-6 w-full">Todos los datos extraídos por la IA y las imágenes generadas se convertirán en un producto activo.</p>
             
-            <button
-              onClick={publishToCatalog}
-              disabled={!analysis || !individualImages.some(img => img !== null) || isSaving}
-              className={`w-full md:w-auto px-8 py-3 rounded-xl font-bold flex items-center gap-2 transition-all shadow-md ${(!analysis || !individualImages.some(img => img !== null)) ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-green-600 hover:bg-green-700 text-white hover:scale-105'}`}
-            >
-              {isSaving ? <Loader2 className="w-5 h-5 animate-spin"/> : <CheckCircle className="w-5 h-5"/>}
-              {isSaving ? "Guardando en Base de Datos..." : "Publicar Producto en Catálogo B2B"}
-            </button>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* Option A: Publish as New */}
+              <div className="bg-gray-50 p-4 rounded-xl border border-gray-200 flex flex-col justify-between">
+                <div>
+                  <h4 className="font-bold text-sm text-gray-800 mb-1">Opción A: Publicar Producto Nuevo</h4>
+                  <p className="text-xs text-gray-500 mb-4">Crea un producto nuevo en el catálogo con los datos y fotos extraídos por la IA.</p>
+                </div>
+                <button
+                  onClick={publishToCatalog}
+                  disabled={!analysis || !individualImages.some(img => img !== null) || isSaving}
+                  className={`w-full px-4 py-2.5 rounded-lg font-bold flex items-center justify-center gap-2 transition-all text-sm ${(!analysis || !individualImages.some(img => img !== null)) ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : 'bg-green-600 hover:bg-green-700 text-white shadow-sm'}`}
+                >
+                  {isSaving ? <Loader2 className="w-4 h-4 animate-spin"/> : <CheckCircle className="w-4 h-4"/>}
+                  {isSaving ? "Publicando..." : "Publicar como Nuevo"}
+                </button>
+              </div>
+
+              {/* Option B: Update Existing Product Photos */}
+              <div className="bg-gray-50 p-4 rounded-xl border border-gray-200 flex flex-col justify-between">
+                <div>
+                  <h4 className="font-bold text-sm text-gray-800 mb-1">Opción B: Actualizar Fotos de Producto Existente</h4>
+                  <p className="text-xs text-gray-500 mb-4">Copia las fotos generadas por la IA y el plano técnico a un producto del catálogo.</p>
+                  
+                  <div className="mb-4">
+                    <label className="block text-xs font-bold text-gray-600 mb-1">Seleccionar Producto Destino:</label>
+                    <select
+                      value={selectedProductIdToUpdate}
+                      onChange={e => setSelectedProductIdToUpdate(e.target.value)}
+                      className="w-full border border-gray-300 rounded-lg p-2 text-sm bg-white font-medium"
+                    >
+                      <option value="">-- Selecciona un producto --</option>
+                      {products.map(p => (
+                        <option key={p.id} value={p.id}>
+                          {p.name} {p.sku ? `(${p.sku})` : ""}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                <button
+                  onClick={updateExistingProductPhotos}
+                  disabled={!selectedProductIdToUpdate || (!groupImage && !individualImages.some(img => img !== null) && !techImage) || isUpdatingExisting}
+                  className={`w-full px-4 py-2.5 rounded-lg font-bold flex items-center justify-center gap-2 transition-all text-sm ${(!selectedProductIdToUpdate || (!groupImage && !individualImages.some(img => img !== null) && !techImage)) ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700 text-white shadow-sm'}`}
+                >
+                  {isUpdatingExisting ? <Loader2 className="w-4 h-4 animate-spin"/> : <Database className="w-4 h-4"/>}
+                  {isUpdatingExisting ? "Copiando..." : "Copiar Fotos e Imagen IA"}
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       </div>
