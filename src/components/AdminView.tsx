@@ -932,14 +932,36 @@ export function AdminView() {
       // 12. Save PDF
       const pdfBlob = doc.output('blob');
 
-      // Auto-guardar localmente en segundo plano
+      // Helper para descarga manual si falla el guardado automático local
+      const triggerManualDownload = async () => {
+        if ('showSaveFilePicker' in window) {
+          const handle = await (window as any).showSaveFilePicker({
+            suggestedName: `Cotizacion_${quote.id}.pdf`,
+            types: [{ description: 'Documento PDF', accept: { 'application/pdf': ['.pdf'] } }],
+          });
+          const writable = await handle.createWritable();
+          await writable.write(pdfBlob);
+          await writable.close();
+        } else {
+          const url = URL.createObjectURL(pdfBlob);
+          const a = document.createElement('a');
+          a.style.display = 'none';
+          a.href = url;
+          a.setAttribute('download', `Cotizacion_${quote.id}.pdf`);
+          document.body.appendChild(a);
+          a.click();
+          setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 100);
+        }
+      };
+
+      // Intentar auto-guardado en OneDrive
       try {
         const reader = new FileReader();
         reader.readAsDataURL(pdfBlob);
         reader.onloadend = async () => {
           try {
             const base64data = reader.result as string;
-            await fetch('/api/save-quote-pdf', {
+            const res = await fetch('/api/save-quote-pdf', {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',
@@ -950,31 +972,22 @@ export function AdminView() {
                 quoteId: quote.id,
               }),
             });
+
+            if (res.ok) {
+              const data = await res.json();
+              alert(`¡Cotización guardada automáticamente en tu OneDrive!\nArchivo: ${data.filePath.split('\\').pop()}`);
+            } else {
+              console.warn("API de guardado local falló, recurriendo a descarga manual.");
+              await triggerManualDownload();
+            }
           } catch (e) {
-            console.error("Failed to auto-save PDF locally in background:", e);
+            console.error("Error en petición de auto-guardado, descargando manualmente:", e);
+            await triggerManualDownload();
           }
         };
       } catch (err) {
-        console.error("Error setting up local PDF auto-save:", err);
-      }
-
-      if ('showSaveFilePicker' in window) {
-        const handle = await (window as any).showSaveFilePicker({
-          suggestedName: `Cotizacion_${quote.id}.pdf`,
-          types: [{ description: 'Documento PDF', accept: { 'application/pdf': ['.pdf'] } }],
-        });
-        const writable = await handle.createWritable();
-        await writable.write(pdfBlob);
-        await writable.close();
-      } else {
-        const url = URL.createObjectURL(pdfBlob);
-        const a = document.createElement('a');
-        a.style.display = 'none';
-        a.href = url;
-        a.setAttribute('download', `Cotizacion_${quote.id}.pdf`);
-        document.body.appendChild(a);
-        a.click();
-        setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 100);
+        console.error("Error preparando auto-guardado, descargando manualmente:", err);
+        await triggerManualDownload();
       }
     } catch (err: any) {
       if (err.name !== 'AbortError') console.error("Error generating PDF:", err);
