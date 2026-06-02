@@ -26,7 +26,7 @@ export function useQuotes() {
         if (saved) setQuotes(JSON.parse(saved) as QuoteRequest[]);
       } else if (data) {
         setQuotes(data as QuoteRequest[]);
-        localStorage.setItem("geekystore_quotes", JSON.stringify(data)); // Actualizar backup
+        saveToLocalBackup(data as QuoteRequest[]);
       }
     } catch (err) {
       console.error(err);

@@ -5,7 +5,7 @@ import { Upload, Image as ImageIcon, Search, CheckCircle, Trash2, Wand2, PenTool
 import { removeBackground } from "@imgly/background-removal";
 import { Product } from "@/types";
 import { useProducts } from "@/hooks/useProducts";
-import { uploadImage } from "@/lib/supabase";
+import { uploadImage, supabase } from "@/lib/supabase";
 
 type AnalysisResult = {
   productName: string;
@@ -99,15 +99,19 @@ export function AgentIntegrationView() {
         setSourceImagePublicUrl(publicUrl);
       }
     } catch (uploadError) {
-      console.error("Error uploading source image to Supabase:", uploadError);
+      console.warn("Error uploading source image to Supabase:", uploadError);
     } finally {
       setIsUploadingSource(false);
     }
 
     try {
+      const { data: { session } } = await supabase.auth.getSession();
       const res = await fetch('/api/analyze-image', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session?.access_token || ''}`
+        },
         body: JSON.stringify({ imageBase64: base64 })
       });
       
@@ -128,7 +132,7 @@ export function AgentIntegrationView() {
       setEditableAmazonQuery(data.data.amazonQuery || data.data.keywordsEs || "");
       setEditableMercadolibreQuery(data.data.mercadolibreQuery || data.data.keywordsEs || "");
     } catch (error: any) {
-      console.error(error);
+      console.warn("Error analyzing image:", error);
       alert(`Hubo un error al analizar la imagen: ${error.message}. Revisa la consola o asegúrate de tener la API Key correcta.`);
     } finally {
       setIsAnalyzing(false);

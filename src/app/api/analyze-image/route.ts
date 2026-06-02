@@ -6,8 +6,14 @@ import { z } from 'zod';
 // Configure runtime to allow longer executions if needed
 export const maxDuration = 60;
 
+import { verifyUser } from '@/lib/auth';
+
 export async function POST(req: Request) {
   try {
+    const user = await verifyUser(req);
+    if (!user) {
+      return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
+    }
     const { imageBase64 } = await req.json();
 
     if (!imageBase64) {

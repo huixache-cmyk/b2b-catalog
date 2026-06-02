@@ -2,8 +2,14 @@ import { NextResponse } from 'next/server';
 import { promises as fs } from 'fs';
 import path from 'path';
 
+import { verifyUser } from '@/lib/auth';
+
 export async function POST(request: Request) {
   try {
+    const user = await verifyUser(request);
+    if (!user) {
+      return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
+    }
     const { pdfBase64, clientName, quoteId } = await request.json();
 
     if (!pdfBase64) {

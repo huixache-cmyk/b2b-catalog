@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Search, Building2, User, FileText, Target, Mail, BrainCircuit, TrendingUp, CheckCircle, BarChart3, Clock, AlertCircle, Wand2, Trash2 } from "lucide-react";
 
 import { useB2BAgent, B2BOpportunity } from "@/hooks/useB2BAgent";
+import { supabase } from "@/lib/supabase";
 
 const STAGES = [
   "Lead Detectado",
@@ -31,9 +32,13 @@ export function B2BAgentCRM() {
     if (!opp.company) return;
     setLoadingContactId(opp.id);
     try {
+      const { data: { session } } = await supabase.auth.getSession();
       const res = await fetch('/api/find-contact', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session?.access_token || ''}`
+        },
         body: JSON.stringify({
           company_id: opp.company_id,
           company_name: opp.company.name,
@@ -55,9 +60,13 @@ export function B2BAgentCRM() {
     if (!opp.company) return;
     setLoadingHookId(opp.id);
     try {
+      const { data: { session } } = await supabase.auth.getSession();
       const res = await fetch('/api/generate-hook', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session?.access_token || ''}`
+        },
         body: JSON.stringify({
           opp_id: opp.id,
           company_name: opp.company.name,
@@ -83,9 +92,13 @@ export function B2BAgentCRM() {
     }
     setLoadingSendId(opp.id);
     try {
+      const { data: { session } } = await supabase.auth.getSession();
       const res = await fetch('/api/send-hook', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session?.access_token || ''}`
+        },
         body: JSON.stringify({
           opp_id: opp.id,
           email: opp.contacts[0].email,
@@ -436,7 +449,13 @@ export function B2BAgentCRM() {
                       setIsTriggering(true);
                       setTriggerMessage(null);
                       try {
-                        const res = await fetch('/api/run-scraper', { method: 'POST' });
+                        const { data: { session } } = await supabase.auth.getSession();
+                        const res = await fetch('/api/run-scraper', { 
+                          method: 'POST',
+                          headers: {
+                            'Authorization': `Bearer ${session?.access_token || ''}`
+                          }
+                        });
                         const data = await res.json();
                         if (!res.ok) throw new Error(data.error || 'Error desconocido');
                         setTriggerMessage({ type: 'success', text: '¡Motor iniciado! Revisa la pestaña Pipeline en un par de minutos.' });

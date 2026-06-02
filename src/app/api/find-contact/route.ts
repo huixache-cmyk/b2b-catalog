@@ -1,8 +1,14 @@
 import { NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
 
+import { verifyUser } from '@/lib/auth';
+
 export async function POST(request: Request) {
   try {
+    const user = await verifyUser(request);
+    if (!user) {
+      return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
+    }
     const { company_id, company_name, opp_id } = await request.json();
     
     if (!company_name || !company_id) {

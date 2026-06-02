@@ -4,8 +4,14 @@ import { supabase } from '@/lib/supabase';
 
 const resend = new Resend(process.env.RESEND_API_KEY || 're_dummy');
 
+import { verifyUser } from '@/lib/auth';
+
 export async function POST(request: Request) {
   try {
+    const user = await verifyUser(request);
+    if (!user) {
+      return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
+    }
     const { opp_id, email, phone, contact_name, hook_text, company_name, signal_desc } = await request.json();
 
     if (!opp_id || !email || !hook_text) {

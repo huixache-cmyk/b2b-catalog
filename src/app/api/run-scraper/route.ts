@@ -1,6 +1,11 @@
 import { NextResponse } from 'next/server';
+import { verifyUser } from '@/lib/auth';
 
-export async function POST() {
+export async function POST(request: Request) {
+  const user = await verifyUser(request);
+  if (!user) {
+    return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
+  }
   const GITHUB_PAT = process.env.GITHUB_PAT;
   const OWNER = 'huixache-cmyk';
   const REPO = 'b2b-catalog';

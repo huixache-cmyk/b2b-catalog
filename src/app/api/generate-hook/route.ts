@@ -1,9 +1,14 @@
 import { NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
 import { GoogleGenerativeAI } from '@google/generative-ai';
+import { verifyUser } from '@/lib/auth';
 
 export async function POST(request: Request) {
   try {
+    const user = await verifyUser(request);
+    if (!user) {
+      return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
+    }
     const body = await request.json();
     const { opp_id, company_name, contact_name, contact_title, signal_desc } = body;
     

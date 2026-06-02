@@ -19,14 +19,14 @@ export async function uploadImage(file: File, bucket: string = 'images'): Promis
       });
 
     if (uploadError) {
-      console.error('Error uploading image:', uploadError);
+      console.warn('Error uploading image:', uploadError);
       return null;
     }
 
     const { data } = supabase.storage.from(bucket).getPublicUrl(filePath);
     return data.publicUrl;
   } catch (error) {
-    console.error('Unexpected error uploading image:', error);
+    console.warn('Unexpected error uploading image:', error);
     return null;
   }
 }

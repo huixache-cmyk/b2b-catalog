@@ -137,6 +137,30 @@ export function AdminView() {
   const [isLoggingIn, setIsLoggingIn] = useState(false);
 
   useEffect(() => {
+    // Intercept unhandled promise rejections from Supabase GoTrue token refresh failure
+    const handleRejection = (event: PromiseRejectionEvent) => {
+      const msg = event.reason?.message || '';
+      if (msg.includes('Refresh Token') || event.reason?.name === 'AuthApiError') {
+        console.warn("Caught and suppressed unhandled Supabase auth rejection:", event.reason);
+        event.preventDefault(); // Prevents Next.js crash overlay
+        
+        // Clear stale local storage session
+        if (typeof window !== 'undefined') {
+          for (let i = 0; i < localStorage.length; i++) {
+            const key = localStorage.key(i);
+            if (key && key.startsWith('sb-') && key.endsWith('-auth-token')) {
+              localStorage.removeItem(key);
+            }
+          }
+        }
+        setIsAuthenticated(false);
+      }
+    };
+
+    if (typeof window !== 'undefined') {
+      window.addEventListener('unhandledrejection', handleRejection);
+    }
+
     // Check initial session safely
     supabase.auth.getSession()
       .then((res) => {
@@ -144,6 +168,16 @@ export function AdminView() {
         setIsAuthenticated(!!session);
         if (res?.error) {
           console.warn("Auth session error:", res.error.message);
+          
+          // Clear stale local storage session
+          if (typeof window !== 'undefined') {
+            for (let i = 0; i < localStorage.length; i++) {
+              const key = localStorage.key(i);
+              if (key && key.startsWith('sb-') && key.endsWith('-auth-token')) {
+                localStorage.removeItem(key);
+              }
+            }
+          }
           // Auto-signout to clear stale tokens from storage
           supabase.auth.signOut().catch(() => {});
         }
@@ -159,6 +193,9 @@ export function AdminView() {
     });
 
     return () => {
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('unhandledrejection', handleRejection);
+      }
       if (data?.subscription) {
         data.subscription.unsubscribe();
       }
@@ -961,10 +998,12 @@ export function AdminView() {
         reader.onloadend = async () => {
           try {
             const base64data = reader.result as string;
+            const { data: { session } } = await supabase.auth.getSession();
             const res = await fetch('/api/save-quote-pdf', {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',
+                'Authorization': `Bearer ${session?.access_token || ''}`
               },
               body: JSON.stringify({
                 pdfBase64: base64data,
