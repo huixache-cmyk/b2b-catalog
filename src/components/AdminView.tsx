@@ -931,6 +931,33 @@ export function AdminView() {
 
       // 12. Save PDF
       const pdfBlob = doc.output('blob');
+
+      // Auto-guardar localmente en segundo plano
+      try {
+        const reader = new FileReader();
+        reader.readAsDataURL(pdfBlob);
+        reader.onloadend = async () => {
+          try {
+            const base64data = reader.result as string;
+            await fetch('/api/save-quote-pdf', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                pdfBase64: base64data,
+                clientName: quote.client.company || quote.client.name || 'Sin_Nombre',
+                quoteId: quote.id,
+              }),
+            });
+          } catch (e) {
+            console.error("Failed to auto-save PDF locally in background:", e);
+          }
+        };
+      } catch (err) {
+        console.error("Error setting up local PDF auto-save:", err);
+      }
+
       if ('showSaveFilePicker' in window) {
         const handle = await (window as any).showSaveFilePicker({
           suggestedName: `Cotizacion_${quote.id}.pdf`,
