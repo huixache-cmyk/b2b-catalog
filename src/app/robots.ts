@@ -7,6 +7,6 @@ export default function robots(): MetadataRoute.Robots {
       allow: '/',
       disallow: ['/admin/', '/api/'],
     },
-    sitemap: 'https://geekystore.mx/sitemap.xml',
+    sitemap: 'https://www.geekystore.mx/sitemap.xml',
   };
 }

@@ -19,7 +19,7 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
 
     const title = `${product.name} | Catálogo B2B geekystore`;
     const description = product.description.substring(0, 150) + (product.description.length > 150 ? '...' : '');
-    const imageUrl = product.images && product.images.length > 0 ? product.images[0] : 'https://geekystore.mx/default-og.png';
+    const imageUrl = product.images && product.images.length > 0 ? product.images[0] : 'https://www.geekystore.mx/default-og.png';
 
     return {
       title,
@@ -29,7 +29,7 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
         description,
         images: [imageUrl],
         type: 'website',
-        url: `https://geekystore.mx/product/${resolvedParams.id}`,
+        url: `https://www.geekystore.mx/product/${resolvedParams.id}`,
       },
       twitter: {
         card: 'summary_large_image',

@@ -1,32 +1,69 @@
-"use client";
-
 import Link from "next/link";
 import { ArrowRight, Star, TrendingUp, ShieldCheck, Clock } from "lucide-react";
-import { useProducts } from "@/hooks/useProducts";
-import { useSettings } from "@/hooks/useSettings";
+import { supabase } from "@/lib/supabase";
 import { ProductCard } from "@/components/ProductCard";
+import { Product, DEFAULT_SEASONS } from "@/types";
 
-export default function Home() {
-  const { products, isLoaded: productsLoaded } = useProducts();
-  const { homeSettings, seasons, isLoaded: settingsLoaded } = useSettings();
-  
-  const featuredProducts = productsLoaded ? products.filter(p => p.featured && p.published !== false).slice(0, 8) : [];
-  const isLoaded = productsLoaded && settingsLoaded;
+const DEFAULT_HOME_SETTINGS = {
+  hero: {
+    label: "Campaña Corporativa",
+    titleMain: "Más que un promocional,",
+    titleHighlight: "fideliza tu marca",
+    description: "Descubre nuestro catálogo B2B con más de 1,000 productos listos para personalizar. Precios especiales por volumen.",
+    ctaPrimary: "Ver Catálogo",
+    ctaSecondary: "Solicitar Asesoría",
+    bgImage: "https://images.unsplash.com/photo-1556761175-5973dc0f32d7?ixlib=rb-4.0.3&auto=format&fit=crop&w=1600&q=80"
+  },
+  cta: {
+    title: "¿Tienes un proyecto en mente?",
+    description: "Nuestro equipo de asesores está listo para ayudarte a encontrar el promocional perfecto para tu campaña, ajustado a tu presupuesto.",
+    buttonText: "Cotiza Ahora"
+  },
+  campaigns: [
+    { img: "https://images.unsplash.com/photo-1518605368461-1ee71165920f?auto=format&fit=crop&w=600&q=80", color: "from-green-900/80 to-green-600/40" },
+    { img: "https://images.unsplash.com/photo-1469334031218-e382a71b716b?auto=format&fit=crop&w=600&q=80", color: "from-pink-900/80 to-pink-600/40" },
+    { img: "https://images.unsplash.com/photo-1513885535751-8b9238bd345a?auto=format&fit=crop&w=600&q=80", color: "from-red-900/80 to-red-600/40" }
+  ]
+};
+
+export default async function Home() {
+  // Fetch products directly on the server
+  const { data: productsData } = await supabase
+    .from("products")
+    .select("*")
+    .order("created_at", { ascending: false });
+  const products = (productsData || []) as Product[];
+
+  // Fetch settings directly on the server
+  const { data: settingsData } = await supabase
+    .from('settings')
+    .select('*')
+    .eq('id', 1)
+    .single();
+
+  const seasons = settingsData?.seasons || DEFAULT_SEASONS;
+  const homeSettings = {
+    ...DEFAULT_HOME_SETTINGS,
+    ...(settingsData?.home_settings || {}),
+    cta: {
+      ...DEFAULT_HOME_SETTINGS.cta,
+      ...(settingsData?.home_settings?.cta || {})
+    }
+  };
+
+  const featuredProducts = products
+    .filter(p => p.featured && p.published !== false)
+    .slice(0, 8);
 
   // Derive campaigns from top 3 active seasons
-  const campaigns = (seasons || []).slice(0, 3).map((season, idx) => {
-    // Merge with saved color/image from settings if available
-    const savedConfig = homeSettings?.campaigns?.[idx] || {};
+  const campaigns = (seasons || []).slice(0, 3).map((season: string, idx: number) => {
+    const savedConfig = (homeSettings?.campaigns?.[idx] || {}) as { img?: string; color?: string };
     return {
       title: season,
       img: savedConfig.img || "https://images.unsplash.com/photo-1518605368461-1ee71165920f?auto=format&fit=crop&w=600&q=80",
       color: savedConfig.color || "from-green-900/80 to-green-600/40"
     };
   });
-
-  if (!isLoaded) {
-    return <div className="h-screen flex items-center justify-center text-gray-500">Cargando...</div>;
-  }
 
   const { hero } = homeSettings;
 
@@ -106,7 +143,7 @@ export default function Home() {
             </div>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {campaigns.map((promo, idx) => (
+            {campaigns.map((promo: { title: string; img: string; color: string }, idx: number) => (
               <Link href={`/catalog?season=${encodeURIComponent(promo.title)}`} key={idx} className="group relative h-64 rounded-2xl overflow-hidden shadow-sm hover:shadow-xl transition-all block">
                 <div 
                   className="absolute inset-0 bg-cover bg-center transition-transform duration-700 group-hover:scale-105"

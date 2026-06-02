@@ -180,13 +180,13 @@ export async function POST(request: Request) {
         const waData = await waResponse.json();
         if (!waResponse.ok) {
           console.error("Error from WhatsApp API:", waData);
-          return NextResponse.json({ error: `WhatsApp Error: ${JSON.stringify(waData)}` }, { status: 500 });
+          // Si falla WA, no bloqueamos el éxito de la cotización porque el email ya se procesó.
         } else {
           console.log("WhatsApp message sent successfully:", waData);
         }
       } catch (err: any) {
         console.error("Error connecting to WhatsApp API:", err);
-        return NextResponse.json({ error: `Connection Error: ${err.message}` }, { status: 500 });
+        // Si falla WA, no bloqueamos el éxito de la cotización
       }
     } else {
       console.warn("Faltan credenciales de WhatsApp o teléfono del cliente. Omitiendo mensaje de WhatsApp.");
