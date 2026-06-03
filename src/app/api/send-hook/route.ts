@@ -5,6 +5,17 @@ import { supabase } from '@/lib/supabase';
 const resend = new Resend(process.env.RESEND_API_KEY || 're_dummy');
 
 import { verifyUser } from '@/lib/auth';
+import { z } from 'zod';
+
+const sendHookSchema = z.object({
+  opp_id: z.string().min(1),
+  email: z.string().email(),
+  phone: z.string().optional().nullable(),
+  contact_name: z.string().optional().nullable(),
+  hook_text: z.string().min(1),
+  company_name: z.string().optional().nullable(),
+  signal_desc: z.string().optional().nullable(),
+});
 
 export async function POST(request: Request) {
   try {
@@ -12,11 +23,12 @@ export async function POST(request: Request) {
     if (!user) {
       return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
     }
-    const { opp_id, email, phone, contact_name, hook_text, company_name, signal_desc } = await request.json();
-
-    if (!opp_id || !email || !hook_text) {
-      return NextResponse.json({ error: 'Faltan parámetros requeridos (opp_id, email, hook_text)' }, { status: 400 });
+    const body = await request.json();
+    const validation = sendHookSchema.safeParse(body);
+    if (!validation.success) {
+      return NextResponse.json({ error: 'Payload inválido', details: validation.error.format() }, { status: 400 });
     }
+    const { opp_id, email, phone, contact_name, hook_text, company_name, signal_desc } = validation.data;
 
     // 1. Send Email via Resend
     let emailSent = false;

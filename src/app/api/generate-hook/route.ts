@@ -2,6 +2,15 @@ import { NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { verifyUser } from '@/lib/auth';
+import { z } from 'zod';
+
+const generateHookSchema = z.object({
+  opp_id: z.string().min(1),
+  company_name: z.string().min(1),
+  contact_name: z.string().optional().nullable(),
+  contact_title: z.string().optional().nullable(),
+  signal_desc: z.string().optional().nullable(),
+});
 
 export async function POST(request: Request) {
   try {
@@ -10,11 +19,11 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
     }
     const body = await request.json();
-    const { opp_id, company_name, contact_name, contact_title, signal_desc } = body;
-    
-    if (!opp_id || !company_name) {
-      return NextResponse.json({ error: 'Faltan parámetros requeridos' }, { status: 400 });
+    const validation = generateHookSchema.safeParse(body);
+    if (!validation.success) {
+      return NextResponse.json({ error: 'Payload inválido', details: validation.error.format() }, { status: 400 });
     }
+    const { opp_id, company_name, contact_name, contact_title, signal_desc } = validation.data;
 
     const apiKey = process.env.GOOGLE_GENERATIVE_AI_API_KEY;
     if (!apiKey) {

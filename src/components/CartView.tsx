@@ -9,12 +9,14 @@ import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import mexicoData from "@/utils/mexicoStates.json";
 import { getColorName } from "@/types";
+import { formatCurrency } from "@/utils/formatters";
+import Image from "next/image";
 
 const MEXICO_STATES = Object.keys(mexicoData);
 
 const getImageElement = (src: string): Promise<HTMLImageElement> => {
   return new Promise((resolve, reject) => {
-    const img = new Image();
+    const img = new window.Image();
     if (src && !src.startsWith('data:')) {
       img.crossOrigin = "Anonymous";
     }
@@ -62,7 +64,7 @@ export function CartView() {
           <ShoppingCart className="w-10 h-10 text-gray-300" />
         </div>
         <h2 className="text-2xl font-bold text-gray-900 mb-2">Tu cotización está vacía</h2>
-        <p className="text-gray-500 mb-8">Aún no has agregado productos a tu lista de cotización.</p>
+        <p className="text-gray-550 mb-8">Aún no has agregado productos a tu lista de cotización.</p>
         <Link href="/catalog" className="inline-block bg-primary-600 text-white font-bold py-3 px-8 rounded-full hover:bg-primary-700 transition-colors">
           Explorar Catálogo
         </Link>
@@ -96,7 +98,7 @@ Destino: ${formData.city}, ${formData.state}
 *Artículos Solicitados:*
 ${itemsText}
 
-*Subtotal Estimado:* $${cartTotal.toLocaleString('es-MX', { minimumFractionDigits: 2 })} MXN
+*Subtotal Estimado:* ${formatCurrency(cartTotal)} MXN
 *Comentarios:* ${formData.comments || 'Ninguno'}
 
 Quedo en espera de confirmación de existencias.`;
@@ -160,12 +162,12 @@ Quedo en espera de confirmación de existencias.`;
             
             <div className="flex gap-2 shrink-0">
               <div className="w-24 h-24 bg-gray-50 rounded-lg overflow-hidden border border-gray-100 relative group">
-                <img src={item.mockupImage || item.image} alt={item.productName} className="w-full h-full object-contain p-1" />
+                <Image src={item.mockupImage || item.image} alt={item.productName} width={96} height={96} className="w-full h-full object-contain p-1" />
                 <div className="absolute inset-x-0 bottom-0 bg-black/60 text-[10px] text-white font-bold text-center py-0.5">Vista</div>
               </div>
               {item.blueprintImage && (
                 <div className="w-24 h-24 bg-gray-50 rounded-lg overflow-hidden border border-gray-100 hidden sm:block relative group">
-                  <img src={item.blueprintImage} alt="Plano Mecánico" className="w-full h-full object-contain p-1" />
+                  <Image src={item.blueprintImage} alt="Plano Mecánico" width={96} height={96} className="w-full h-full object-contain p-1" />
                   <div className="absolute inset-x-0 bottom-0 bg-black/60 text-[10px] text-white font-bold text-center py-0.5">Plano</div>
                 </div>
               )}
@@ -208,7 +210,7 @@ Quedo en espera de confirmación de existencias.`;
                       const minVal = item.minPurchase ?? 50;
                       if (val > 0 && val < minVal) updateQuantity(item.id, minVal);
                     }}
-                    className="w-20 bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded focus:ring-primary-500 focus:border-primary-500 block px-2 py-1 font-bold text-center"
+                    className="w-20 bg-gray-55 border border-gray-300 text-gray-900 text-sm rounded focus:ring-primary-500 focus:border-primary-500 block px-2 py-1 font-bold text-center"
                   />
                   {item.quantity > 0 && item.quantity < (item.minPurchase ?? 50) && (
                     <span className="text-red-500 text-xs flex items-center">
@@ -220,7 +222,7 @@ Quedo en espera de confirmación de existencias.`;
                 <div className="text-right">
                   <div className="text-xs text-gray-500">Subtotal</div>
                   <div className="font-black text-primary-700 text-lg">
-                    ${item.totalPrice.toLocaleString('es-MX', { minimumFractionDigits: 2 })}
+                    {formatCurrency(item.totalPrice)}
                   </div>
                 </div>
               </div>
@@ -232,7 +234,7 @@ Quedo en espera de confirmación de existencias.`;
           <Link href="/catalog" className="text-primary-600 font-bold hover:underline">
             &larr; Seguir comprando
           </Link>
-          <button onClick={clearCart} className="text-gray-500 hover:text-red-500 text-sm font-medium">
+          <button onClick={clearCart} className="text-gray-555 hover:text-red-500 text-sm font-medium">
             Vaciar Carrito
           </button>
         </div>
@@ -249,7 +251,7 @@ Quedo en espera de confirmación de existencias.`;
           </div>
           <div className="flex justify-between mb-6 text-xl font-black text-gray-900">
             <span>Total Estimado</span>
-            <span>${cartTotal.toLocaleString('es-MX', { minimumFractionDigits: 2 })}</span>
+            <span>{formatCurrency(cartTotal)}</span>
           </div>
           <p className="text-xs text-gray-500 mb-6 text-center">
             * Precios sujetos a verificación de stock y volumen final. No incluye IVA.

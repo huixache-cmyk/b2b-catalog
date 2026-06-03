@@ -9,6 +9,8 @@ import Link from "next/link";
 import { useCart } from "@/hooks/useCart";
 import html2canvas from "html2canvas";
 import { useSettings } from "@/hooks/useSettings";
+import { formatCurrency } from "@/utils/formatters";
+import Image from "next/image";
 
 export function ProductDetailView({ product, relatedProducts }: { product: Product, relatedProducts: Product[] }) {
   const firstNonEmptyIndex = product.images.findIndex(img => !!img);
@@ -57,7 +59,7 @@ export function ProductDetailView({ product, relatedProducts }: { product: Produ
     const originalImgUrl = product.images[getIndividualImageIndex()];
     if (!originalImgUrl) return;
 
-    const img = new Image();
+    const img = new window.Image();
     if (!originalImgUrl.startsWith('data:')) {
       img.crossOrigin = "anonymous";
     }
@@ -356,10 +358,13 @@ export function ProductDetailView({ product, relatedProducts }: { product: Produ
           {/* Gallery */}
           <div className="space-y-4">
             <div className="aspect-square bg-white rounded-xl overflow-hidden border border-gray-100 relative">
-              <img 
+              <Image 
                 src={product.images[selectedImage]} 
                 alt={product.name} 
+                width={600}
+                height={600}
                 className="w-full h-full object-contain p-4"
+                priority
               />
               {product.isNew && (
                 <div className="absolute top-4 left-4 bg-green-500 text-white text-sm font-bold px-3 py-1 rounded shadow-sm z-10">
@@ -373,7 +378,7 @@ export function ProductDetailView({ product, relatedProducts }: { product: Produ
                   style={{ backgroundColor: selectedColor.startsWith('#') ? selectedColor : '#e5e7eb' }}
                   title={`Color seleccionado: ${selectedColor}`}
                 >
-                   {!selectedColor.startsWith('#') && <span className="text-[10px] font-bold text-gray-500">{selectedColor.substring(0,3)}</span>}
+                   {!selectedColor.startsWith('#') && <span className="text-[10px] font-bold text-gray-550">{selectedColor.substring(0,3)}</span>}
                 </div>
               )}
             </div>
@@ -386,7 +391,7 @@ export function ProductDetailView({ product, relatedProducts }: { product: Produ
                     onClick={() => setSelectedImage(idx)}
                     className={`aspect-square rounded-lg overflow-hidden border-2 transition-all ${selectedImage === idx ? 'border-primary-500 ring-2 ring-primary-200' : 'border-transparent hover:border-gray-200'}`}
                   >
-                    <img src={img} alt="" className="w-full h-full object-contain p-1" />
+                    <Image src={img} alt="" width={80} height={80} className="w-full h-full object-contain p-1" />
                   </button>
                 );
               })}
@@ -470,9 +475,9 @@ export function ProductDetailView({ product, relatedProducts }: { product: Produ
                     <div className="py-3">MÁS DE {discountQty2} PIEZAS</div>
                   </div>
                   <div className="grid grid-cols-3 text-center">
-                    <div className="py-4 border-r border-gray-200 font-bold text-gray-900">${basePrice.toFixed(2)} MXN</div>
-                    <div className="py-4 border-r border-gray-200 font-bold text-gray-900">${tier2Price.toFixed(2)} MXN</div>
-                    <div className="py-4 font-bold text-gray-900">${tier3Price.toFixed(2)} MXN</div>
+                    <div className="py-4 border-r border-gray-200 font-bold text-gray-900">{formatCurrency(basePrice)} MXN</div>
+                    <div className="py-4 border-r border-gray-200 font-bold text-gray-900">{formatCurrency(tier2Price)} MXN</div>
+                    <div className="py-4 font-bold text-gray-900">{formatCurrency(tier3Price)} MXN</div>
                   </div>
                 </div>
               </div>
@@ -505,14 +510,14 @@ export function ProductDetailView({ product, relatedProducts }: { product: Produ
                   <div className="flex-1">
                     <label className="text-xs text-gray-500 font-bold uppercase block mb-1">COSTO UNITARIO</label>
                     <div className="bg-white border border-gray-300 rounded-lg p-2.5 flex items-center justify-center">
-                      <span className="font-bold text-gray-900 text-lg">${unitProductPrice.toFixed(2)}</span>
+                      <span className="font-bold text-gray-900 text-lg">{formatCurrency(unitProductPrice)}</span>
                     </div>
                   </div>
                   <div className="flex items-center justify-center px-4 text-gray-400 font-bold">=</div>
                   <div className="flex-1">
                     <label className="text-xs text-gray-500 font-bold uppercase block mb-1">TOTAL</label>
                     <div className="bg-primary-50 border border-primary-200 rounded-lg p-2.5 flex items-center justify-center">
-                      <span className="font-bold text-primary-700 text-lg">${(unitProductPrice * totalQuantity).toLocaleString('es-MX', { minimumFractionDigits: 2 })}</span>
+                      <span className="font-bold text-primary-700 text-lg">{formatCurrency(unitProductPrice * totalQuantity)}</span>
                     </div>
                   </div>
                 </div>
@@ -565,7 +570,7 @@ export function ProductDetailView({ product, relatedProducts }: { product: Produ
                       className="w-full bg-white border border-gray-300 text-gray-900 rounded-lg focus:ring-primary-500 focus:border-primary-500 block p-3 font-medium"
                     >
                       {Object.entries(printPrices).filter(([tech]) => tech !== "Sin Impresión").map(([tech, price]) => (
-                        <option key={tech} value={tech}>{tech} (+${price} c/u)</option>
+                        <option key={tech} value={tech}>{tech} (+{formatCurrency(price)} c/u)</option>
                       ))}
                     </select>
                   </div>
@@ -574,19 +579,19 @@ export function ProductDetailView({ product, relatedProducts }: { product: Produ
                 <div className="bg-gray-900 text-white p-6 rounded-xl">
                   <div className="flex justify-between items-center mb-4 pb-4 border-b border-gray-700">
                     <span className="text-gray-300">Precio Escala (Producto)</span>
-                    <span className="font-medium">${unitProductPrice.toFixed(2)} c/u</span>
+                    <span className="font-medium">{formatCurrency(unitProductPrice)} c/u</span>
                   </div>
                   <div className="flex justify-between items-center mb-4 pb-4 border-b border-gray-700">
                     <span className="text-gray-300">Costo Impresión</span>
-                    <span className="font-medium">+ ${unitDecoratedPrice.toFixed(2)} c/u</span>
+                    <span className="font-medium">+ {formatCurrency(unitDecoratedPrice)} c/u</span>
                   </div>
                   <div className="flex justify-between items-center mb-2">
                     <span className="text-gray-300">Precio Final Unitario</span>
-                    <span className="font-bold text-xl text-primary-400">${finalPricePerUnit.toFixed(2)}</span>
+                    <span className="font-bold text-xl text-primary-400">{formatCurrency(finalPricePerUnit)}</span>
                   </div>
                   <div className="flex justify-between items-end mt-6">
                     <span className="text-sm text-gray-400">Total Estimado ({totalQuantity} pz)</span>
-                    <span className="text-3xl font-black">${total.toLocaleString('es-MX', { minimumFractionDigits: 2 })}</span>
+                    <span className="text-3xl font-black">{formatCurrency(total)}</span>
                   </div>
                   <p className="text-xs text-gray-500 mt-4 text-center">* Precios no incluyen IVA. Sujetos a disponibilidad de stock.</p>
                 </div>

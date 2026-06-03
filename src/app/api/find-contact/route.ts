@@ -2,6 +2,13 @@ import { NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
 
 import { verifyUser } from '@/lib/auth';
+import { z } from 'zod';
+
+const findContactSchema = z.object({
+  company_id: z.string().min(1),
+  company_name: z.string().min(1),
+  opp_id: z.string().optional().nullable(),
+});
 
 export async function POST(request: Request) {
   try {
@@ -9,11 +16,12 @@ export async function POST(request: Request) {
     if (!user) {
       return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
     }
-    const { company_id, company_name, opp_id } = await request.json();
-    
-    if (!company_name || !company_id) {
-      return NextResponse.json({ error: 'Faltan parámetros requeridos' }, { status: 400 });
+    const body = await request.json();
+    const validation = findContactSchema.safeParse(body);
+    if (!validation.success) {
+      return NextResponse.json({ error: 'Payload inválido', details: validation.error.format() }, { status: 400 });
     }
+    const { company_id, company_name, opp_id } = validation.data;
 
     const HUNTER_API_KEY = process.env.HUNTER_API_KEY;
     if (!HUNTER_API_KEY) {

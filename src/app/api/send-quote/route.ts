@@ -6,13 +6,57 @@ import { supabase } from '@/lib/supabase';
 // The RESEND_API_KEY must be configured in Vercel / .env.local
 const resend = new Resend(process.env.RESEND_API_KEY || 're_dummy');
 
+import { z } from 'zod';
+
+const clientSchema = z.object({
+  name: z.string().min(1),
+  company: z.string().min(1),
+  email: z.string().email(),
+  phone: z.string().min(1),
+  state: z.string().min(1),
+  city: z.string().min(1),
+  comments: z.string().optional().nullable(),
+  address: z.string().optional().nullable(),
+  zip: z.string().optional().nullable(),
+  deliveryTime: z.string().optional().nullable(),
+});
+
+const itemSchema = z.object({
+  id: z.string().min(1),
+  productId: z.string().min(1),
+  productName: z.string().min(1),
+  sku: z.string().min(1),
+  image: z.string().min(1),
+  color: z.string().min(1),
+  quantity: z.number().int().positive(),
+  isPersonalized: z.boolean(),
+  printOption: z.string().min(1),
+  unitPrice: z.number(),
+  totalPrice: z.number(),
+  blueprintImage: z.string().optional().nullable(),
+  mockupImage: z.string().optional().nullable(),
+  minPurchase: z.number().optional().nullable(),
+  finalPrintPrice: z.number().nullable().optional(),
+  finalShippingPrice: z.number().nullable().optional(),
+});
+
+const quoteRequestSchema = z.object({
+  id: z.string().min(1),
+  date: z.string().min(1),
+  client: clientSchema,
+  items: z.array(itemSchema),
+  total: z.number(),
+  status: z.enum(['pending', 'reviewed', 'completed']),
+});
+
 export async function POST(request: Request) {
   try {
-    const quote: QuoteRequest = await request.json();
-
-    if (!quote || !quote.client || !quote.items) {
-      return NextResponse.json({ error: 'Datos de cotización incompletos' }, { status: 400 });
+    const body = await request.json();
+    const validation = quoteRequestSchema.safeParse(body);
+    if (!validation.success) {
+      return NextResponse.json({ error: 'Datos de cotización inválidos', details: validation.error.format() }, { status: 400 });
     }
+    const quote = validation.data as QuoteRequest;
 
     // Fetch dynamic print prices from settings
     let dynamicPrices: Record<string, number> = {};

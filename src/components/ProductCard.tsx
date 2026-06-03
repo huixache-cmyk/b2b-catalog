@@ -1,6 +1,8 @@
 import Link from "next/link";
+import Image from "next/image";
 import { Star } from "lucide-react";
 import { Product } from "@/types";
+import { formatCurrency } from "@/utils/formatters";
 
 export function ProductCard({ product }: { product: Product }) {
   return (
@@ -21,11 +23,12 @@ export function ProductCard({ product }: { product: Product }) {
             </div>
           )}
         </div>
-        <img 
+        <Image 
           src={product.images?.find(img => !!img) || "https://images.unsplash.com/photo-1505740420928-5e560c06d30e"} 
           alt={product.name} 
           className="w-full h-full object-contain p-2 group-hover:scale-105 transition-transform duration-500"
-          loading="lazy"
+          fill
+          sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
         />
         {/* Quick view overlay */}
         <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center backdrop-blur-sm">
@@ -45,7 +48,7 @@ export function ProductCard({ product }: { product: Product }) {
         <div className="mt-auto pt-4 flex items-end justify-between border-t border-gray-50">
           <div>
             <p className="text-xs text-gray-500 mb-1">Precio base aprox.</p>
-            <p className="text-lg font-bold text-gray-900">${product.price.toFixed(2)}</p>
+            <p className="text-lg font-bold text-gray-900">{formatCurrency(product.price)}</p>
           </div>
           <Link href={`/product/${product.id}`} className="text-sm font-semibold text-primary-600 hover:text-primary-800 bg-primary-50 px-3 py-1.5 rounded-md hover:bg-primary-100 transition-colors">
             Cotizar

@@ -14,11 +14,15 @@ export async function POST(req: Request) {
     if (!user) {
       return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
     }
-    const { imageBase64 } = await req.json();
-
-    if (!imageBase64) {
-      return NextResponse.json({ error: 'No image provided' }, { status: 400 });
+    const body = await req.json();
+    const validation = z.object({
+      imageBase64: z.string().min(1, 'imageBase64 is required')
+    }).safeParse(body);
+    
+    if (!validation.success) {
+      return NextResponse.json({ error: 'Payload inválido', details: validation.error.format() }, { status: 400 });
     }
+    const { imageBase64 } = validation.data;
 
     // Prepare prompt according to JSON requirements
     const prompt = `Analiza esta imagen y detecta el tipo de producto, categoría, material, uso, características clave o especificaciones. 

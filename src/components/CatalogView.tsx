@@ -8,6 +8,44 @@ import { useSettings } from "@/hooks/useSettings";
 import { ProductCard } from "./ProductCard";
 import { Filter, X, ChevronDown } from "lucide-react";
 
+function getSearchSimilarity(text: string, query: string): number {
+  const textLower = text.toLowerCase();
+  const queryLower = query.trim().toLowerCase();
+  if (!queryLower) return 0;
+  
+  if (textLower.includes(queryLower)) {
+    return textLower.startsWith(queryLower) ? 1.0 : 0.8;
+  }
+
+  const queryWords = queryLower.split(/\s+/).filter(w => w.length > 0);
+  const textWords = textLower.split(/\s+/).filter(w => w.length > 0);
+  
+  let matchingWordsCount = 0;
+  queryWords.forEach(qWord => {
+    if (textWords.some(tWord => tWord.includes(qWord) || qWord.includes(tWord))) {
+      matchingWordsCount++;
+    }
+  });
+
+  if (matchingWordsCount > 0) {
+    return (matchingWordsCount / queryWords.length) * 0.5;
+  }
+
+  let charsMatched = 0;
+  const queryCharSet = new Set(queryLower);
+  queryCharSet.forEach(c => {
+    if (textLower.includes(c)) {
+      charsMatched++;
+    }
+  });
+  const charOverlap = charsMatched / queryCharSet.size;
+  if (charOverlap > 0.75) {
+    return charOverlap * 0.2;
+  }
+
+  return 0;
+}
+
 export function CatalogView() {
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -42,10 +80,9 @@ export function CatalogView() {
       if (selectedCategory && product.category !== selectedCategory) return false;
       if (selectedSeason && !product.seasons?.includes(selectedSeason)) return false;
       if (searchQuery) {
-        const queryTerms = searchQuery.toLowerCase().split(" ").filter(t => t.length > 0);
-        const searchableText = `${product.name} ${product.category} ${product.material} ${product.description} ${product.sku} ${product.colors?.join(" ") || ""} ${product.seasons?.join(" ") || ""}`.toLowerCase();
-        const matchesAllTerms = queryTerms.every(term => searchableText.includes(term));
-        if (!matchesAllTerms) return false;
+        const searchableText = `${product.name} ${product.category} ${product.material} ${product.description} ${product.sku} ${product.colors?.join(" ") || ""} ${product.seasons?.join(" ") || ""}`;
+        const score = getSearchSimilarity(searchableText, searchQuery);
+        if (score <= 0.15) return false;
       }
       if (product.price > maxPrice) return false;
       return true;
@@ -55,6 +92,13 @@ export function CatalogView() {
       if (sortBy === "Precio: Menor a Mayor") return a.price - b.price;
       if (sortBy === "Precio: Mayor a Menor") return b.price - a.price;
       if (sortBy === "Más nuevos") return (b.isNew ? 1 : 0) - (a.isNew ? 1 : 0);
+      if (sortBy === "Relevancia" && searchQuery) {
+        const textA = `${a.name} ${a.category} ${a.material} ${a.description} ${a.sku} ${a.colors?.join(" ") || ""} ${a.seasons?.join(" ") || ""}`;
+        const textB = `${b.name} ${b.category} ${b.material} ${b.description} ${b.sku} ${b.colors?.join(" ") || ""} ${b.seasons?.join(" ") || ""}`;
+        const scoreA = getSearchSimilarity(textA, searchQuery);
+        const scoreB = getSearchSimilarity(textB, searchQuery);
+        return scoreB - scoreA;
+      }
       return 0;
     });
   }, [products, isLoaded, selectedCategory, selectedSeason, searchQuery, maxPrice, sortBy]);

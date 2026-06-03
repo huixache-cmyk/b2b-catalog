@@ -3,6 +3,13 @@ import { promises as fs } from 'fs';
 import path from 'path';
 
 import { verifyUser } from '@/lib/auth';
+import { z } from 'zod';
+
+const saveQuoteSchema = z.object({
+  pdfBase64: z.string().min(1, 'pdfBase64 has to be defined'),
+  clientName: z.string().min(1, 'clientName has to be defined'),
+  quoteId: z.string().min(1, 'quoteId has to be defined'),
+});
 
 export async function POST(request: Request) {
   try {
@@ -10,11 +17,12 @@ export async function POST(request: Request) {
     if (!user) {
       return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
     }
-    const { pdfBase64, clientName, quoteId } = await request.json();
-
-    if (!pdfBase64) {
-      return NextResponse.json({ error: 'No PDF data provided' }, { status: 400 });
+    const body = await request.json();
+    const validation = saveQuoteSchema.safeParse(body);
+    if (!validation.success) {
+      return NextResponse.json({ error: 'Payload inválido', details: validation.error.format() }, { status: 400 });
     }
+    const { pdfBase64, clientName, quoteId } = validation.data;
 
     // Extraer la parte de datos base64 eliminando el prefijo de data URI si existe
     const base64Data = pdfBase64.includes(',') ? pdfBase64.split(',')[1] : pdfBase64;
