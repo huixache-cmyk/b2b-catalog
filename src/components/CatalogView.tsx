@@ -54,10 +54,10 @@ export function CatalogView() {
   const isLoaded = productsLoaded && settingsLoaded;
   
   // States
-  const [selectedCategory, setSelectedCategory] = useState<string | null>(searchParams?.get("category") || null);
-  const [searchQuery, setSearchQuery] = useState<string | null>(searchParams?.get("q") || null);
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState<string | null>(null);
   const [sortBy, setSortBy] = useState<string>("Relevancia");
-  const [selectedSeason, setSelectedSeason] = useState<string | null>(searchParams?.get("season") || null);
+  const [selectedSeason, setSelectedSeason] = useState<string | null>(null);
   const [maxPrice, setMaxPrice] = useState<number>(500);
   const [isMobileFiltersOpen, setIsMobileFiltersOpen] = useState(false);
   const [page, setPage] = useState(1);
@@ -65,20 +65,34 @@ export function CatalogView() {
 
   // Sync state when URL params change
   useEffect(() => {
-    if (searchParams) {
-      setSelectedCategory(searchParams.get("category"));
-      setSelectedSeason(searchParams.get("season"));
+    if (searchParams && settingsLoaded) {
+      const catParam = searchParams.get("category");
+      if (catParam) {
+        const matched = categories.find(c => c.toLowerCase() === catParam.trim().toLowerCase());
+        setSelectedCategory(matched || catParam);
+      } else {
+        setSelectedCategory(null);
+      }
+
+      const seasonParam = searchParams.get("season");
+      if (seasonParam) {
+        const matched = seasons.find(s => s.toLowerCase() === seasonParam.trim().toLowerCase());
+        setSelectedSeason(matched || seasonParam);
+      } else {
+        setSelectedSeason(null);
+      }
+
       setSearchQuery(searchParams.get("q"));
     }
-  }, [searchParams]);
+  }, [searchParams, categories, seasons, settingsLoaded]);
 
   const filteredProducts = useMemo(() => {
     if (!isLoaded) return [];
     
     let filtered = products.filter((product) => {
       if (product.published === false) return false;
-      if (selectedCategory && product.category !== selectedCategory) return false;
-      if (selectedSeason && !product.seasons?.includes(selectedSeason)) return false;
+      if (selectedCategory && product.category.toLowerCase() !== selectedCategory.toLowerCase()) return false;
+      if (selectedSeason && !product.seasons?.some(s => s.toLowerCase() === selectedSeason.toLowerCase())) return false;
       if (searchQuery) {
         const searchableText = `${product.name} ${product.category} ${product.material} ${product.description} ${product.sku} ${product.colors?.join(" ") || ""} ${product.seasons?.join(" ") || ""}`;
         const score = getSearchSimilarity(searchableText, searchQuery);
@@ -158,14 +172,14 @@ export function CatalogView() {
                   <input 
                     type="radio" 
                     name="category_or_season"
-                    checked={selectedCategory === cat}
+                    checked={selectedCategory?.toLowerCase() === cat.toLowerCase()}
                     onChange={() => {
                       setSelectedCategory(cat);
                       setSelectedSeason(null);
                     }}
                     className="text-primary-600 focus:ring-primary-500 w-4 h-4 border-gray-300" 
                   />
-                  <span className={`text-sm ${selectedCategory === cat ? 'font-semibold text-primary-700' : 'text-gray-600 group-hover:text-gray-900'}`}>
+                  <span className={`text-sm ${selectedCategory?.toLowerCase() === cat.toLowerCase() ? 'font-semibold text-primary-700' : 'text-gray-600 group-hover:text-gray-900'}`}>
                     {cat}
                   </span>
                 </label>
@@ -182,14 +196,14 @@ export function CatalogView() {
                   <input 
                     type="radio" 
                     name="category_or_season"
-                    checked={selectedSeason === sea}
+                    checked={selectedSeason?.toLowerCase() === sea.toLowerCase()}
                     onChange={() => {
                       setSelectedSeason(sea);
                       setSelectedCategory(null);
                     }}
                     className="text-primary-600 focus:ring-primary-500 w-4 h-4 border-gray-300" 
                   />
-                  <span className={`text-sm ${selectedSeason === sea ? 'font-semibold text-primary-700' : 'text-gray-600 group-hover:text-gray-900'}`}>
+                  <span className={`text-sm ${selectedSeason?.toLowerCase() === sea.toLowerCase() ? 'font-semibold text-primary-700' : 'text-gray-600 group-hover:text-gray-900'}`}>
                     {sea}
                   </span>
                 </label>
