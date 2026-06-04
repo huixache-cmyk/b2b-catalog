@@ -892,91 +892,97 @@ export function ProductDetailView({ product, relatedProducts }: { product: Produ
 
           {/* Side Drawer Panel */}
           <div 
-            className={`fixed right-0 top-0 h-full w-[90vw] sm:w-[420px] bg-[#fdebea] text-gray-850 shadow-2xl z-50 transform transition-transform duration-300 flex flex-col ${
+            className={`fixed right-0 top-0 h-full w-[90vw] sm:w-[500px] bg-[#ffeceb] text-[#222222] shadow-2xl z-50 transform transition-transform duration-300 flex flex-col font-sans ${
               showSidePromo ? 'translate-x-0' : 'translate-x-full'
             }`}
           >
             {/* Vertical Toggle Trigger Button */}
             <button 
               onClick={() => setShowSidePromo(!showSidePromo)}
-              className="absolute left-0 top-1/3 -translate-x-full z-45 bg-black text-white hover:bg-gray-800 transition-colors flex items-center justify-between py-8 px-1.5 rounded-l-md shadow-md focus:outline-none cursor-pointer group"
-              style={{ writingMode: 'vertical-lr', textTransform: 'uppercase' }}
+              className="absolute left-0 top-1/4 -translate-x-full z-45 bg-black text-white hover:bg-gray-800 transition-colors flex flex-col items-center py-6 px-1.5 rounded-l-md shadow-md focus:outline-none cursor-pointer"
+              style={{ height: '260px' }}
             >
-              <span className="text-[10px] tracking-wider font-extrabold rotate-180 uppercase select-none">
+              {/* Arrow icon pointing to close (▶) or open (◀) */}
+              <div className="mb-4">
+                {showSidePromo ? (
+                  <span className="text-[10px] text-white">▶</span>
+                ) : (
+                  <span className="text-[10px] text-white">◀</span>
+                )}
+              </div>
+              
+              {/* Vertical text */}
+              <span 
+                className="text-[10px] tracking-widest font-extrabold uppercase select-none flex-1" 
+                style={{ writingMode: 'vertical-lr', transform: 'rotate(180deg)' }}
+              >
                 {homeSettings?.promotions?.sideTextTrigger || "CONSIGUE 30% DE DTO."}
               </span>
-              {showSidePromo ? (
-                <ChevronRight className="w-4 h-4 text-white mt-1 transform group-hover:translate-x-0.5 transition-transform" />
-              ) : (
-                <ChevronLeft className="w-4 h-4 text-white mt-1 transform group-hover:-translate-x-0.5 transition-transform" />
-              )}
             </button>
-            {/* Header / Close button */}
-            <div className="p-4 flex justify-between items-center bg-[#fdebea] shrink-0 border-b border-gray-200">
-              <span className="text-xs font-bold uppercase tracking-wider text-gray-500 font-sans">Oferta Especial</span>
-              <button 
-                onClick={() => setShowSidePromo(false)} 
-                className="p-1 rounded-full hover:bg-black/5 transition-colors cursor-pointer"
-              >
-                <X className="w-5 h-5 text-gray-700" />
-              </button>
-            </div>
 
             {/* Content Area */}
-            <div className="flex-1 overflow-y-auto p-6 flex flex-col justify-center space-y-6">
+            <div className="flex-1 overflow-y-auto p-8 sm:p-10 flex flex-col justify-center space-y-8">
               
               {/* Promo Header Text */}
-              <h3 className="text-center font-bold text-gray-800 leading-snug text-sm uppercase tracking-wide px-4">
+              <h3 className="text-center font-bold text-gray-900 leading-snug text-sm sm:text-base px-2">
                 {homeSettings?.promotions?.sideTitle || "Suscribirse para disfrutar los precios de VIP y Ventas Flash"}
               </h3>
 
-              {/* Promo Offer Boxes */}
-              <div className="grid grid-cols-2 gap-4 border-y border-red-200 py-6 items-center relative">
+              {/* Promo Offer Columns */}
+              <div className="grid grid-cols-2 gap-4 items-center relative py-2">
                 {/* Box 1 (Left) */}
-                <div className="text-center pr-2">
-                  <span className="block text-4xl font-extrabold text-red-700 mb-1">-30%</span>
-                  <span className="block text-[10px] font-bold text-red-650 uppercase leading-snug">
-                    {homeSettings?.promotions?.sideTextLeft || "Suscribirse y obtén en Primer Pedido"}
+                <div className="text-center flex flex-col justify-center items-center">
+                  <span className="text-[10px] sm:text-xs text-gray-800 uppercase tracking-wide">
+                    Suscribirse y obtén
+                  </span>
+                  <span className="text-5xl sm:text-6xl font-black text-[#e1251b] my-1 leading-none">-30%</span>
+                  <span className="text-xs sm:text-sm font-bold text-black uppercase tracking-wide">
+                    En Primer Pedido
                   </span>
                 </div>
 
+                {/* Vertical Divider */}
+                <div className="absolute left-1/2 top-2 bottom-2 border-l border-red-200" />
+
                 {/* Box 2 (Right) */}
-                <div className="text-center pl-2 border-l border-red-200">
-                  <span className="block text-3xl font-extrabold text-red-700 uppercase leading-none">ENVÍO GRATIS</span>
-                  <span className="block text-[9px] font-semibold text-gray-650 uppercase mt-2">
-                    {homeSettings?.promotions?.sideTextRight || "en su primer pedido +$MXN99"}
+                <div className="text-center flex flex-col justify-center items-center pl-4">
+                  <span className="text-3xl sm:text-4xl font-black text-[#e1251b] leading-none uppercase">ENVÍO</span>
+                  <span className="text-3xl sm:text-4xl font-black text-[#e1251b] leading-none uppercase mt-1">GRATIS</span>
+                  <span className="text-[10px] sm:text-[11px] text-gray-800 uppercase tracking-wide mt-2">
+                    en su primer pedido
+                  </span>
+                  <span className="text-xs sm:text-sm font-bold text-black mt-0.5">
+                    +$MXN99
                   </span>
                 </div>
               </div>
 
-              {/* Registration Form */}
-              <div className="space-y-4 pt-2">
-                <div>
-                  <input 
-                    type="email" 
-                    placeholder="INTRODUCE TU CORREO ELECTRÓNICO"
-                    className="w-full bg-white border border-gray-300 rounded p-3 text-xs focus:ring-[#11a98c] focus:border-[#11a98c] text-center font-semibold placeholder-gray-400"
-                  />
-                </div>
+              {/* Registration Form (Side-by-side) */}
+              <div className="flex gap-2 w-full pt-2">
+                <input 
+                  type="email" 
+                  placeholder="INTRODUCE TU CORREO ELECTRÓNICO"
+                  className="flex-1 bg-white border border-gray-300 rounded p-3 text-xs sm:text-sm focus:ring-[#e1251b] focus:border-[#e1251b] text-center font-semibold placeholder-gray-400 italic"
+                />
                 <button 
                   onClick={() => {
                     alert("¡Gracias por registrarte! Tu código de descuento ha sido enviado a tu correo.");
                     setShowSidePromo(false);
                   }}
-                  className="w-full bg-black hover:bg-gray-900 text-white font-extrabold py-3 px-4 rounded text-xs tracking-wider transition-colors uppercase cursor-pointer"
+                  className="w-28 sm:w-32 bg-black hover:bg-gray-900 text-white font-extrabold py-3 px-2 rounded text-xs sm:text-sm tracking-wider transition-colors uppercase cursor-pointer"
                 >
                   REGÍSTRATE
                 </button>
               </div>
 
               {/* Disclaimers & Checkboxes */}
-              <div className="text-[10px] text-gray-500 space-y-3 leading-relaxed pt-2">
+              <div className="text-[10px] sm:text-[11px] text-gray-500 space-y-4 leading-relaxed pt-2">
                 <p>
                   Al registrarse, acepta nuestra <span className="underline cursor-pointer hover:text-black">Política de privacidad y cookies</span> y nuestros <span className="underline cursor-pointer hover:text-black">Términos y condiciones</span>.
                 </p>
-                <label className="flex items-start gap-2 cursor-pointer">
-                  <input type="checkbox" defaultChecked className="mt-0.5 rounded text-[#11a98c] focus:ring-[#11a98c]" />
-                  <span>
+                <label className="flex items-start gap-2.5 cursor-pointer">
+                  <input type="checkbox" className="mt-0.5 rounded text-black focus:ring-black h-3.5 w-3.5 border-gray-300" />
+                  <span className="text-gray-500">
                     Me gustaría recibir ofertas exclusivas y las últimas noticias de SHEIN por correo electrónico. Entiendo que puedo comunicarme con SHEIN para cancelar la suscripción en cualquier momento.
                   </span>
                 </label>
