@@ -161,7 +161,7 @@ export function AdminPromotions({ homeSettings, updateHomeSettings }: AdminPromo
             <button
               type="submit"
               disabled={isSaving}
-              className="bg-primary-705 hover:bg-primary-800 text-white font-bold py-1.5 px-4 rounded-lg text-xs transition-all flex items-center gap-1.5 cursor-pointer shadow-sm"
+              className="bg-primary-600 hover:bg-primary-700 text-white font-bold py-1.5 px-4 rounded-lg text-xs transition-all flex items-center gap-1.5 cursor-pointer shadow-sm"
             >
               <Save className="w-3.5 h-3.5" />
               {isSaving ? "Guardando..." : "Actualizar"}
@@ -305,7 +305,7 @@ export function AdminPromotions({ homeSettings, updateHomeSettings }: AdminPromo
             <button
               type="submit"
               disabled={isSaving}
-              className="bg-primary-750 hover:bg-primary-800 text-white font-bold py-1.5 px-4 rounded-lg text-xs transition-all flex items-center gap-1.5 cursor-pointer shadow-sm"
+              className="bg-primary-600 hover:bg-primary-700 text-white font-bold py-1.5 px-4 rounded-lg text-xs transition-all flex items-center gap-1.5 cursor-pointer shadow-sm"
             >
               <Save className="w-3.5 h-3.5" />
               {isSaving ? "Guardando..." : "Actualizar"}
@@ -542,7 +542,7 @@ export function AdminPromotions({ homeSettings, updateHomeSettings }: AdminPromo
             <button
               type="submit"
               disabled={isSaving}
-              className="bg-primary-705 hover:bg-primary-800 text-white font-bold py-1.5 px-4 rounded-lg text-xs transition-all flex items-center gap-1.5 cursor-pointer shadow-sm"
+              className="bg-primary-600 hover:bg-primary-700 text-white font-bold py-1.5 px-4 rounded-lg text-xs transition-all flex items-center gap-1.5 cursor-pointer shadow-sm"
             >
               <Save className="w-3.5 h-3.5" />
               {isSaving ? "Guardando..." : "Actualizar"}
@@ -900,7 +900,7 @@ export function AdminPromotions({ homeSettings, updateHomeSettings }: AdminPromo
           <button
             type="submit"
             disabled={isSaving}
-            className="bg-primary-705 hover:bg-primary-800 text-white font-bold py-2.5 px-6 rounded-lg shadow-sm transition-all flex items-center gap-2 disabled:opacity-50 cursor-pointer"
+            className="bg-primary-600 hover:bg-primary-700 text-white font-bold py-2.5 px-6 rounded-lg shadow-sm transition-all flex items-center gap-2 disabled:opacity-50 cursor-pointer"
           >
             <Save className="w-4 h-4" />
             {isSaving ? "Guardando..." : "Guardar Cambios"}
