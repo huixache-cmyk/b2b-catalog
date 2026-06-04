@@ -5,7 +5,7 @@ export function formatCurrency(value: number | string | null | undefined): strin
   if (value === null || value === undefined) return '-';
   const num = typeof value === 'string' ? parseFloat(value) : value;
   if (isNaN(num)) return '-';
-  return `$${num.toFixed(2)}`;
+  return `$${num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
 /**
@@ -15,7 +15,7 @@ export function formatCurrencyMXN(value: number | string | null | undefined): st
   if (value === null || value === undefined) return '-';
   const num = typeof value === 'string' ? parseFloat(value) : value;
   if (isNaN(num)) return '-';
-  return `$${num.toFixed(2)} MXN`;
+  return `$${num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} MXN`;
 }
 
 /**

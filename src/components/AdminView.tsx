@@ -12,6 +12,7 @@ import { AdminProductList } from "./admin/AdminProductList";
 import { AdminQuotesList } from "./admin/AdminQuotesList";
 import { AdminSettings } from "./admin/AdminSettings";
 import { AdminSuppliers } from "./admin/AdminSuppliers";
+import { AdminPromotions } from "./admin/AdminPromotions";
 
 const AgentIntegrationView = dynamic(() => import('./AgentIntegrationView').then(mod => mod.AgentIntegrationView), { ssr: false });
 const B2BAgentCRM = dynamic(() => import('./B2BAgentCRM').then(mod => mod.B2BAgentCRM), { ssr: false });
@@ -19,7 +20,7 @@ const B2BAgentCRM = dynamic(() => import('./B2BAgentCRM').then(mod => mod.B2BAge
 export function AdminView() {
   const { products, isLoaded, addProduct, updateProduct, deleteProduct } = useProducts();
   const { quotes, isLoaded: quotesLoaded, updateQuoteStatus, deleteQuote, updateQuote } = useQuotes();
-  const [activeTab, setActiveTab] = useState<'products' | 'settings' | 'suppliers' | 'home' | 'quotes' | 'agent' | 'b2b-agent'>('products');
+  const [activeTab, setActiveTab] = useState<'products' | 'settings' | 'suppliers' | 'home' | 'quotes' | 'agent' | 'b2b-agent' | 'promotions'>('products');
   const { 
     categories, 
     seasons, 
@@ -244,6 +245,12 @@ export function AdminView() {
           >
             Agente B2B
           </button>
+          <button 
+            onClick={() => setActiveTab('promotions')}
+            className={`px-6 py-3 font-bold text-sm border-b-2 transition-colors ${activeTab === 'promotions' ? 'border-primary-600 text-primary-700' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}`}
+          >
+            Promociones
+          </button>
         </div>
         <button
           onClick={async () => {
@@ -330,6 +337,13 @@ export function AdminView() {
 
       {activeTab === 'b2b-agent' && (
         <B2BAgentCRM />
+      )}
+
+      {activeTab === 'promotions' && (
+        <AdminPromotions 
+          homeSettings={homeSettings}
+          updateHomeSettings={updateHomeSettings}
+        />
       )}
     </div>
   );

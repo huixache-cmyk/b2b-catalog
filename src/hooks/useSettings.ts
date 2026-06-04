@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { DEFAULT_CATEGORIES, DEFAULT_SEASONS, PrintSupplier, ProductSupplier, ProductSupplierAssociation } from "@/types";
 import { supabase } from "@/lib/supabase";
 
@@ -24,6 +24,27 @@ export type HomeSettings = {
   product_suppliers?: ProductSupplier[];
   product_supplier_map?: Record<string, ProductSupplierAssociation>;
   print_prices?: Record<string, number>;
+  promotions?: {
+    tagText: string;
+    tagPublished: boolean;
+    sideTextTrigger: string;
+    sideTitle: string;
+    sideTextLeft: string;
+    sideTextRight: string;
+    sidePublished: boolean;
+    catalogPromoPublished?: boolean;
+    catalogPromoDelay?: number;
+    coupon1Discount?: string;
+    coupon1LeftNote?: string;
+    coupon1RightTitle?: string;
+    coupon1RightLimit?: string;
+    coupon2Discount?: string;
+    coupon2LeftNote?: string;
+    coupon2RightTitle?: string;
+    coupon2RightLimit?: string;
+    catalogPromoButtonText?: string;
+    catalogPromoFooterNote?: string;
+  };
 };
 
 const DEFAULT_HOME_SETTINGS: HomeSettings = {
@@ -58,84 +79,255 @@ const DEFAULT_HOME_SETTINGS: HomeSettings = {
     "Impresión 2 tintas": 18,
     "Impresión 3 tintas": 25,
     "Impresión 4 tintas": 30
+  },
+  promotions: {
+    tagText: "Oferta especial de envío gratis",
+    tagPublished: true,
+    sideTextTrigger: "CONSIGUE 30% DE DTO.",
+    sideTitle: "Suscribirse para disfrutar los precios de VIP y Ventas Flash",
+    sideTextLeft: "Suscribirse y obtén -30% En Primer Pedido",
+    sideTextRight: "ENVÍO GRATIS en su primer pedido +$MXN99",
+    sidePublished: true,
+    catalogPromoPublished: true,
+    catalogPromoDelay: 3,
+    coupon1Discount: "30% DE DESCUENTO",
+    coupon1LeftNote: "Sin mín. de compra",
+    coupon1RightTitle: "Cupón válido en todo el sitio",
+    coupon1RightLimit: "Límite de $MXN3,000",
+    coupon2Discount: "65% DE DESCUENTO",
+    coupon2LeftNote: "Sin mín. de compra",
+    coupon2RightTitle: "Cupón válido en todo el sitio",
+    coupon2RightLimit: "Límite de $MXN240",
+    catalogPromoButtonText: "¡Consíguelos Todos!",
+    catalogPromoFooterNote: "Cupones confirmados después de iniciar sesión"
   }
 };
 
+type CachedSettingsData = {
+  categories: string[];
+  seasons: string[];
+  featuredSeason: string | null;
+  homeSettings: HomeSettings;
+};
+
+// Global in-memory cache
+let globalSettingsCache: CachedSettingsData | null = null;
+let globalSettingsLoaded = false;
+let globalSettingsPromise: Promise<CachedSettingsData> | null = null;
+const settingsListeners = new Set<(data: CachedSettingsData) => void>();
 
 let saveTimeout: NodeJS.Timeout;
 
-export function useSettings() {
-  const [categories, setCategories] = useState<string[]>(DEFAULT_CATEGORIES);
-  const [seasons, setSeasons] = useState<string[]>(DEFAULT_SEASONS);
-  const [featuredSeason, setFeaturedSeason] = useState<string | null>(null);
-  const [homeSettings, setHomeSettings] = useState<HomeSettings>(DEFAULT_HOME_SETTINGS);
-  const [isLoaded, setIsLoaded] = useState(false);
+export function useSettings(initialCategories?: string[], initialSeasons?: string[]) {
+  const [categories, setCategories] = useState<string[]>(globalSettingsCache?.categories || initialCategories || DEFAULT_CATEGORIES);
+  const [seasons, setSeasons] = useState<string[]>(globalSettingsCache?.seasons || initialSeasons || DEFAULT_SEASONS);
+  const [featuredSeason, setFeaturedSeason] = useState<string | null>(globalSettingsCache?.featuredSeason || null);
+  const [homeSettings, setHomeSettings] = useState<HomeSettings>(globalSettingsCache?.homeSettings || DEFAULT_HOME_SETTINGS);
+  const [isLoaded, setIsLoaded] = useState(globalSettingsLoaded);
 
-  const fetchSettings = async () => {
-    try {
-      const { data, error } = await supabase.from('settings').select('*').eq('id', 1).single();
-      
-      if (!error && data) {
-        setCategories(data.categories || DEFAULT_CATEGORIES);
-        setSeasons(data.seasons || DEFAULT_SEASONS);
-        setFeaturedSeason(data.featured_season || null);
-        setHomeSettings({
-          ...DEFAULT_HOME_SETTINGS,
-          ...(data.home_settings || {}),
-          cta: {
-            ...DEFAULT_HOME_SETTINGS.cta,
-            ...(data.home_settings?.cta || {})
-          }
-        });
-        setIsLoaded(true);
-        return;
-      }
-    } catch (err) {
-      console.warn("Could not fetch settings from DB, falling back to defaults", err);
-    }
-    
-    // Fallback if DB is empty or fails
-    setIsLoaded(true);
-  };
+  // Prime cache with server-rendered initial data if cache is empty
+  if (!globalSettingsCache && (initialCategories || initialSeasons)) {
+    globalSettingsCache = {
+      categories: initialCategories || DEFAULT_CATEGORIES,
+      seasons: initialSeasons || DEFAULT_SEASONS,
+      featuredSeason: null,
+      homeSettings: DEFAULT_HOME_SETTINGS
+    };
+    globalSettingsLoaded = true;
+  }
 
+  // Sync state with listeners
   useEffect(() => {
-    fetchSettings();
+    const listener = (newData: CachedSettingsData) => {
+      setCategories(newData.categories);
+      setSeasons(newData.seasons);
+      setFeaturedSeason(newData.featuredSeason);
+      setHomeSettings(newData.homeSettings);
+      setIsLoaded(true);
+    };
+    settingsListeners.add(listener);
+    return () => {
+      settingsListeners.delete(listener);
+    };
   }, []);
 
-  const saveToDb = (newSettings: any) => {
+  const fetchSettings = useCallback(async (force = false): Promise<CachedSettingsData> => {
+    if (globalSettingsPromise && !force) {
+      return globalSettingsPromise;
+    }
+
+    const fetchPromise = (async () => {
+      try {
+        const { data, error } = await supabase.from('settings').select('*').eq('id', 1).single();
+        
+        let resolvedData: CachedSettingsData;
+        if (!error && data) {
+          resolvedData = {
+            categories: data.categories || DEFAULT_CATEGORIES,
+            seasons: data.seasons || DEFAULT_SEASONS,
+            featuredSeason: data.featured_season || null,
+            homeSettings: {
+              ...DEFAULT_HOME_SETTINGS,
+              ...(data.home_settings || {}),
+              cta: {
+                ...DEFAULT_HOME_SETTINGS.cta,
+                ...(data.home_settings?.cta || {})
+              },
+              promotions: {
+                ...DEFAULT_HOME_SETTINGS.promotions,
+                ...(data.home_settings?.promotions || {})
+              }
+            }
+          };
+        } else {
+          resolvedData = globalSettingsCache || {
+            categories: DEFAULT_CATEGORIES,
+            seasons: DEFAULT_SEASONS,
+            featuredSeason: null,
+            homeSettings: DEFAULT_HOME_SETTINGS
+          };
+        }
+
+        globalSettingsCache = resolvedData;
+        globalSettingsLoaded = true;
+
+        if (typeof window !== "undefined") {
+          try {
+            localStorage.setItem("b2b_settings_cache", JSON.stringify(resolvedData));
+          } catch (e) {
+            console.warn("Failed to write settings to localStorage:", e);
+          }
+        }
+
+        settingsListeners.forEach(listener => listener(resolvedData));
+        return resolvedData;
+      } catch (err) {
+        console.warn("Could not fetch settings from DB, falling back to defaults", err);
+        const resolvedData = globalSettingsCache || {
+          categories: DEFAULT_CATEGORIES,
+          seasons: DEFAULT_SEASONS,
+          featuredSeason: null,
+          homeSettings: DEFAULT_HOME_SETTINGS
+        };
+        return resolvedData;
+      } finally {
+        globalSettingsPromise = null;
+      }
+    })();
+
+    globalSettingsPromise = fetchPromise;
+    return fetchPromise;
+  }, []);
+
+  useEffect(() => {
+    if (globalSettingsCache) {
+      setCategories(globalSettingsCache.categories);
+      setSeasons(globalSettingsCache.seasons);
+      setFeaturedSeason(globalSettingsCache.featuredSeason);
+      setHomeSettings(globalSettingsCache.homeSettings);
+      setIsLoaded(true);
+    } else {
+      if (typeof window !== "undefined") {
+        try {
+          const stored = localStorage.getItem("b2b_settings_cache");
+          if (stored) {
+            const parsed = JSON.parse(stored) as CachedSettingsData;
+            globalSettingsCache = parsed;
+            globalSettingsLoaded = true;
+            setCategories(parsed.categories);
+            setSeasons(parsed.seasons);
+            setFeaturedSeason(parsed.featuredSeason);
+            setHomeSettings(parsed.homeSettings);
+            setIsLoaded(true);
+          }
+        } catch (e) {
+          console.warn("Failed to read settings from localStorage:", e);
+        }
+      }
+    }
+
+    fetchSettings();
+  }, [fetchSettings]);
+
+  const saveToDb = (newSettings: any, immediate = false) => {
     clearTimeout(saveTimeout);
-    saveTimeout = setTimeout(async () => {
+    const performSave = async () => {
       try {
         await supabase.from('settings').upsert({ id: 1, ...newSettings });
       } catch (err) {
         console.error("Error saving settings to DB", err);
       }
-    }, 1000);
+    };
+
+    if (immediate) {
+      performSave();
+    } else {
+      saveTimeout = setTimeout(performSave, 1000);
+    }
+  };
+
+  const notifyUpdate = (updatedCache: CachedSettingsData) => {
+    globalSettingsCache = updatedCache;
+    if (typeof window !== "undefined") {
+      localStorage.setItem("b2b_settings_cache", JSON.stringify(updatedCache));
+    }
+    settingsListeners.forEach(listener => listener(updatedCache));
   };
 
   const updateCategories = (newCategories: string[]) => {
+    const updated = {
+      categories: newCategories,
+      seasons: seasons,
+      featuredSeason: featuredSeason,
+      homeSettings: homeSettings
+    };
     setCategories(newCategories);
+    notifyUpdate(updated);
     saveToDb({ categories: newCategories });
   };
 
   const updateSeasons = (newSeasons: string[]) => {
-    setSeasons(newSeasons);
+    let fSeason = featuredSeason;
     if (featuredSeason && !newSeasons.includes(featuredSeason)) {
+      fSeason = null;
       setFeaturedSeason(null);
       saveToDb({ seasons: newSeasons, featured_season: null });
     } else {
       saveToDb({ seasons: newSeasons });
     }
+
+    const updated = {
+      categories: categories,
+      seasons: newSeasons,
+      featuredSeason: fSeason,
+      homeSettings: homeSettings
+    };
+    setSeasons(newSeasons);
+    notifyUpdate(updated);
   };
 
   const updateFeaturedSeason = (season: string | null) => {
+    const updated = {
+      categories: categories,
+      seasons: seasons,
+      featuredSeason: season,
+      homeSettings: homeSettings
+    };
     setFeaturedSeason(season);
+    notifyUpdate(updated);
     saveToDb({ featured_season: season });
   };
 
-  const updateHomeSettings = (newSettings: HomeSettings) => {
+  const updateHomeSettings = (newSettings: HomeSettings, immediate = false) => {
+    const updated = {
+      categories: categories,
+      seasons: seasons,
+      featuredSeason: featuredSeason,
+      homeSettings: newSettings
+    };
     setHomeSettings(newSettings);
-    saveToDb({ home_settings: newSettings });
+    notifyUpdate(updated);
+    saveToDb({ home_settings: newSettings }, immediate);
   };
 
   const addCategory = (category: string) => {
@@ -157,7 +349,7 @@ export function useSettings() {
   return {
     categories,
     seasons,
-    isLoaded,
+    isLoaded: isLoaded || globalSettingsLoaded,
     homeSettings,
     featuredSeason,
     addCategory,

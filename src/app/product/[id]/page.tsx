@@ -3,6 +3,24 @@ import { ProductDetailView } from "@/components/ProductDetailView";
 import { notFound } from "next/navigation";
 import { Product } from "@/types";
 
+export const revalidate = 60; // Next.js ISR: Revalidate dynamic pages every 60 seconds
+
+// Generate static params for all existing products at build time
+export async function generateStaticParams() {
+  try {
+    const { data: products } = await supabase
+      .from("products")
+      .select("id");
+      
+    return (products || []).map((product) => ({
+      id: product.id.toString(),
+    }));
+  } catch (error) {
+    console.error("Error generating static params for products:", error);
+    return [];
+  }
+}
+
 export default async function ProductPage({ params }: { params: Promise<{ id: string }> }) {
   const resolvedParams = await params;
   

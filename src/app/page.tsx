@@ -1,4 +1,6 @@
 import Link from "next/link";
+
+export const revalidate = 60; // Next.js ISR: Revalidate homepage every 60 seconds
 import { ArrowRight, Star, TrendingUp, ShieldCheck, Clock } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { ProductCard } from "@/components/ProductCard";
@@ -27,19 +29,24 @@ const DEFAULT_HOME_SETTINGS = {
 };
 
 export default async function Home() {
-  // Fetch products directly on the server
-  const { data: productsData } = await supabase
-    .from("products")
-    .select("*")
-    .order("created_at", { ascending: false });
-  const products = (productsData || []) as Product[];
+  // Fetch only active, featured products and settings in parallel on the server
+  const [settingsRes, featuredRes] = await Promise.all([
+    supabase
+      .from('settings')
+      .select('*')
+      .eq('id', 1)
+      .single(),
+    supabase
+      .from("products")
+      .select("*")
+      .eq("featured", true)
+      .eq("published", true)
+      .order("created_at", { ascending: false })
+      .limit(8)
+  ]);
 
-  // Fetch settings directly on the server
-  const { data: settingsData } = await supabase
-    .from('settings')
-    .select('*')
-    .eq('id', 1)
-    .single();
+  const settingsData = settingsRes.data;
+  const featuredProducts = (featuredRes.data || []) as Product[];
 
   const seasons = settingsData?.seasons || DEFAULT_SEASONS;
   const homeSettings = {
@@ -50,10 +57,6 @@ export default async function Home() {
       ...(settingsData?.home_settings?.cta || {})
     }
   };
-
-  const featuredProducts = products
-    .filter(p => p.featured && p.published !== false)
-    .slice(0, 8);
 
   // Derive campaigns from top 3 active seasons
   const campaigns = (seasons || []).slice(0, 3).map((season: string, idx: number) => {

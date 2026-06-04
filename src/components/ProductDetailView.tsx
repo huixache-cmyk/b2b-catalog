@@ -1,30 +1,71 @@
 "use client";
-
+ 
 import { useState, useRef, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { Product } from "@/types";
 import { ProductCard } from "./ProductCard";
-import { Check, Info, ShieldCheck, Truck, ChevronRight, Upload, Download, X, AlertCircle, ShoppingCart } from "lucide-react";
+import { Check, Info, ShieldCheck, Truck, ChevronRight, ChevronLeft, Upload, Download, X, AlertCircle, ShoppingCart, MapPin } from "lucide-react";
 import Link from "next/link";
 import { useCart } from "@/hooks/useCart";
 import html2canvas from "html2canvas";
 import { useSettings } from "@/hooks/useSettings";
 import { formatCurrency } from "@/utils/formatters";
 import Image from "next/image";
-
+ 
 export function ProductDetailView({ product, relatedProducts }: { product: Product, relatedProducts: Product[] }) {
   const firstNonEmptyIndex = product.images.findIndex(img => !!img);
   const [selectedImage, setSelectedImage] = useState(firstNonEmptyIndex !== -1 ? firstNonEmptyIndex : 0);
   const [printOption, setPrintOption] = useState("Impresión 1 tinta");
   const [showMockup, setShowMockup] = useState(false);
   const [isPersonalized, setIsPersonalized] = useState(false);
-
+ 
   const [selectedColor, setSelectedColor] = useState(product.colors?.[0] || "Único");
   const [quantity, setQuantity] = useState<number | "">("");
-
+ 
   const { addToCart } = useCart();
   const [showToast, setShowToast] = useState(false);
-
+  const [showSidePromo, setShowSidePromo] = useState(false);
+ 
+  // Save viewed product to recent views in localStorage
+  useEffect(() => {
+    if (typeof window !== "undefined" && product) {
+      try {
+        const stored = localStorage.getItem("b2b_recent_views");
+        let list: Product[] = stored ? JSON.parse(stored) : [];
+        list = list.filter(p => p.id !== product.id);
+        list.unshift(product);
+        list = list.slice(0, 5);
+        localStorage.setItem("b2b_recent_views", JSON.stringify(list));
+      } catch (e) {
+        console.warn("Failed to save recent view", e);
+      }
+    }
+  }, [product]);
+ 
+  const [shippingDestination, setShippingDestination] = useState<{ name: string; city: string; state: string; zip: string } | null>(null);
+ 
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const saved = localStorage.getItem("geekystore_quotes");
+        if (saved) {
+          const quotes = JSON.parse(saved);
+          if (Array.isArray(quotes) && quotes.length > 0) {
+            const lastQuote = quotes[0];
+            if (lastQuote && lastQuote.client) {
+              const { name, city, state, zip } = lastQuote.client;
+              if (name || city || state || zip) {
+                setShippingDestination({ name, city, state, zip });
+              }
+            }
+          }
+        }
+      } catch (e) {
+        console.warn("Failed to load last shipping destination", e);
+      }
+    }
+  }, []);
+ 
   // Mockup Editor States
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const [logoPos, setLogoPos] = useState({ x: 50, y: 50 });
@@ -340,6 +381,14 @@ export function ProductDetailView({ product, relatedProducts }: { product: Produ
 
   return (
     <div className="space-y-16">
+      {/* Toast Notification */}
+      {showToast && (
+        <div className="fixed top-24 left-1/2 transform -translate-x-1/2 bg-green-600 text-white py-3 px-6 rounded-full shadow-lg flex items-center gap-2 font-bold text-sm z-50 animate-in fade-in slide-in-from-top duration-300">
+          <Check className="w-5 h-5 shrink-0" />
+          <span>¡Agregado a tu lista de cotización con éxito!</span>
+        </div>
+      )}
+
       {/* Breadcrumb */}
       <nav className="flex text-sm text-gray-500">
         <Link href="/" className="hover:text-primary-600">Inicio</Link>
@@ -352,11 +401,11 @@ export function ProductDetailView({ product, relatedProducts }: { product: Produ
       </nav>
 
       {/* Main Product Area */}
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 md:p-8 lg:p-12">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 md:p-8 lg:p-10">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
           
           {/* Gallery */}
-          <div className="space-y-4">
+          <div className="lg:col-span-5 space-y-4">
             <div className="aspect-square bg-white rounded-xl overflow-hidden border border-gray-100 relative">
               <Image 
                 src={product.images[selectedImage]} 
@@ -389,7 +438,8 @@ export function ProductDetailView({ product, relatedProducts }: { product: Produ
                   <button 
                     key={idx} 
                     onClick={() => setSelectedImage(idx)}
-                    className={`aspect-square rounded-lg overflow-hidden border-2 transition-all ${selectedImage === idx ? 'border-primary-500 ring-2 ring-primary-200' : 'border-transparent hover:border-gray-200'}`}
+                    onMouseEnter={() => setSelectedImage(idx)}
+                    className={`aspect-square rounded-lg overflow-hidden border-2 transition-all ${selectedImage === idx ? 'border-[#11a98c] ring-2 ring-[#11a98c]/20' : 'border-transparent hover:border-gray-200'}`}
                   >
                     <Image src={img} alt="" width={80} height={80} className="w-full h-full object-contain p-1" />
                   </button>
@@ -405,7 +455,7 @@ export function ProductDetailView({ product, relatedProducts }: { product: Produ
                   {savedMockups.map((mockup) => (
                     <div key={mockup.bgIndex} className="rounded-lg overflow-hidden border border-gray-200 shadow-sm">
                       <img src={mockup.imgData} alt={`Mockup ${mockup.bgIndex}`} className="w-full h-auto object-contain bg-gray-50 aspect-square" />
-                      <div className="bg-white p-2 text-center text-xs font-bold text-gray-500">
+                      <div className="bg-white p-2 text-center text-xs font-bold text-gray-550">
                         {mockup.bgIndex === getTechImageIndex() ? "Plano Mecánico" : `Vista ${mockup.bgIndex}`}
                       </div>
                     </div>
@@ -416,38 +466,51 @@ export function ProductDetailView({ product, relatedProducts }: { product: Produ
           </div>
 
           {/* Details */}
-          <div>
-            <div className="mb-6">
-              <div className="flex justify-between items-start mb-2">
-                <h1 className="text-3xl font-extrabold text-gray-900">{product.name}</h1>
-                <span className="bg-gray-100 text-gray-600 px-3 py-1 rounded-full text-sm font-medium">
+          <div className="lg:col-span-4 space-y-5">
+            <div>
+              <div className="flex justify-between items-start mb-2 gap-2">
+                <h1 className="text-2xl font-extrabold text-gray-900 leading-tight">{product.name}</h1>
+                <span className="bg-gray-100 text-gray-655 px-3 py-1 rounded-full text-xs font-medium shrink-0">
                   SKU: {product.sku}
                 </span>
               </div>
-              <p className="text-gray-500 text-lg leading-relaxed">{product.description}</p>
+              <p className="text-gray-500 text-sm leading-relaxed mb-3">{product.description}</p>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="bg-gray-50 p-2.5 rounded-lg">
+                  <span className="text-[10px] text-gray-550 block mb-0.5">Categoría</span>
+                  <span className="font-semibold text-gray-900 text-xs">{product.category}</span>
+                </div>
+                <div className="bg-gray-50 p-2.5 rounded-lg">
+                  <span className="text-[10px] text-gray-555 block mb-0.5">Material</span>
+                  <span className="font-semibold text-gray-900 text-xs">{product.material}</span>
+                </div>
+              </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4 mb-8">
-              <div className="bg-gray-50 p-4 rounded-lg">
-                <span className="text-sm text-gray-500 block mb-1">Categoría</span>
-                <span className="font-semibold text-gray-900">{product.category}</span>
+            <div className="border-t border-gray-100 pt-5 space-y-5">
+              {/* Volume scale */}
+              <div>
+                <h4 className="font-semibold text-gray-900 mb-2.5 text-xs uppercase tracking-wider">Precio por Volumen (Producto)</h4>
+                <div className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
+                  <div className="grid grid-cols-3 bg-gray-50 text-center text-[10px] font-bold text-gray-550 uppercase tracking-wider border-b border-gray-200">
+                    <div className="py-2 border-r border-gray-200">DE {minPurchase} A {discountQty1 - 1} PZ</div>
+                    <div className="py-2 border-r border-gray-200">DE {discountQty1} A {discountQty2} PZ</div>
+                    <div className="py-2">MÁS DE {discountQty2} PZ</div>
+                  </div>
+                  <div className="grid grid-cols-3 text-center text-xs">
+                    <div className="py-2.5 border-r border-gray-200 font-bold text-gray-900">{formatCurrency(basePrice)}</div>
+                    <div className="py-2.5 border-r border-gray-200 font-bold text-gray-900">{formatCurrency(tier2Price)}</div>
+                    <div className="py-2.5 font-bold text-gray-900">{formatCurrency(tier3Price)}</div>
+                  </div>
+                </div>
               </div>
-              <div className="bg-gray-50 p-4 rounded-lg">
-                <span className="text-sm text-gray-500 block mb-1">Material</span>
-                <span className="font-semibold text-gray-900">{product.material}</span>
-              </div>
-            </div>
 
-            <div className="border-t border-gray-100 pt-8">
-              <h3 className="text-xl font-bold text-gray-900 mb-6 flex items-center">
-                Calculadora de Cotización (B2B)
-              </h3>
-              
               {/* Color Selection */}
               {product.colors && product.colors.length > 0 && (
-                <div className="mb-8">
-                  <h4 className="font-semibold text-gray-900 mb-3 text-sm uppercase tracking-wider">Colores sujetos a disponibilidad</h4>
-                  <div className="flex flex-wrap gap-3">
+                <div>
+                  <h4 className="font-semibold text-gray-900 mb-2.5 text-xs uppercase tracking-wider">Colores sujetos a disponibilidad</h4>
+                  <div className="flex flex-wrap gap-2">
                     {product.colors.map(color => {
                       const isHex = color.startsWith('#');
                       return (
@@ -455,188 +518,169 @@ export function ProductDetailView({ product, relatedProducts }: { product: Produ
                         key={color}
                         onClick={() => setSelectedColor(color)}
                         title={color}
-                        className={`w-8 h-8 rounded-full border-2 transition-all flex items-center justify-center ${selectedColor === color ? 'border-primary-600 ring-2 ring-primary-200 ring-offset-2' : 'border-gray-200 hover:border-gray-300'}`}
+                        className={`w-7 h-7 rounded-full border-2 transition-all flex items-center justify-center ${selectedColor === color ? 'border-[#11a98c] ring-2 ring-[#11a98c]/20 ring-offset-2' : 'border-gray-200 hover:border-gray-300'}`}
                         style={{ backgroundColor: isHex ? color : '#e5e7eb' }}
                       >
-                        {!isHex && <span className="text-[8px] text-gray-500 overflow-hidden font-bold">{color.substring(0,3)}</span>}
+                        {!isHex && <span className="text-[7px] text-gray-500 overflow-hidden font-bold">{color.substring(0,3)}</span>}
                       </button>
                     )})}
                   </div>
                 </div>
               )}
 
-              {/* Volume scale */}
-              <div className="mb-8">
-                <h4 className="font-semibold text-gray-900 mb-3">Precio por Volumen (Producto)</h4>
-                <div className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
-                  <div className="grid grid-cols-3 bg-gray-50 text-center text-xs font-bold text-gray-500 uppercase tracking-wider border-b border-gray-200">
-                    <div className="py-3 border-r border-gray-200">DE {minPurchase} A {discountQty1 - 1} PIEZAS</div>
-                    <div className="py-3 border-r border-gray-200">DE {discountQty1} A {discountQty2} PIEZAS</div>
-                    <div className="py-3">MÁS DE {discountQty2} PIEZAS</div>
-                  </div>
-                  <div className="grid grid-cols-3 text-center">
-                    <div className="py-4 border-r border-gray-200 font-bold text-gray-900">{formatCurrency(basePrice)} MXN</div>
-                    <div className="py-4 border-r border-gray-200 font-bold text-gray-900">{formatCurrency(tier2Price)} MXN</div>
-                    <div className="py-4 font-bold text-gray-900">{formatCurrency(tier3Price)} MXN</div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Quantity */}
-              <div className="mb-8">
-                <h4 className="font-semibold text-gray-900 mb-3">Cantidad a Cotizar</h4>
-                <div className="flex items-center bg-gray-50 p-4 rounded-xl border border-gray-100">
-                  <div className="flex-1">
-                    <label className="text-xs text-gray-500 font-bold uppercase block mb-1">CANTIDAD</label>
-                    <div className="relative">
-                      <input 
-                        type="number" 
-                        min="0"
-                        value={quantity}
-                        onChange={(e) => setQuantity(parseInt(e.target.value) || "")}
-                        onBlur={() => {
-                          if (typeof quantity === 'number' && quantity > 0 && quantity < minPurchase) {
-                            setQuantity(minPurchase);
-                          }
-                        }}
-                        placeholder={`Mín: ${minPurchase}`}
-                        className="w-full bg-white border border-gray-300 text-gray-900 text-lg rounded-lg focus:ring-primary-500 focus:border-primary-500 block p-2.5 font-bold"
-                      />
-                    </div>
-                  </div>
-                  <div className="flex items-center justify-center px-4">
-                    <X className="w-5 h-5 text-gray-400" />
-                  </div>
-                  <div className="flex-1">
-                    <label className="text-xs text-gray-500 font-bold uppercase block mb-1">COSTO UNITARIO</label>
-                    <div className="bg-white border border-gray-300 rounded-lg p-2.5 flex items-center justify-center">
-                      <span className="font-bold text-gray-900 text-lg">{formatCurrency(unitProductPrice)}</span>
-                    </div>
-                  </div>
-                  <div className="flex items-center justify-center px-4 text-gray-400 font-bold">=</div>
-                  <div className="flex-1">
-                    <label className="text-xs text-gray-500 font-bold uppercase block mb-1">TOTAL</label>
-                    <div className="bg-primary-50 border border-primary-200 rounded-lg p-2.5 flex items-center justify-center">
-                      <span className="font-bold text-primary-700 text-lg">{formatCurrency(unitProductPrice * totalQuantity)}</span>
-                    </div>
-                  </div>
-                </div>
-                {quantity === "" && (
-                  <p className="text-red-500 text-sm mt-2 flex items-center">
-                    <AlertCircle className="w-4 h-4 mr-1" />
-                    El pedido mínimo es de {minPurchase} piezas.
-                  </p>
-                )}
-              </div>
-
               {/* Mockup Generator Link */}
-              <div className="mb-8 p-4 bg-primary-50 rounded-lg flex justify-center border border-primary-100">
+              <div className="p-4 bg-primary-50 rounded-lg flex justify-center border border-primary-100">
                 <button 
                   onClick={() => setShowMockup(true)}
-                  className="w-full bg-primary-600 hover:bg-primary-700 text-white text-lg font-bold py-3 px-4 rounded transition-colors flex items-center justify-center"
+                  className="w-full bg-[#11a98c] hover:bg-[#0b8a7b] text-white text-sm font-bold py-2.5 px-4 rounded transition-colors flex items-center justify-center cursor-pointer"
                 >
                   Visualiza el producto con tu logo AQUÍ
                 </button>
               </div>
 
               {/* Personalization Options */}
-              <div className="mb-8">
-                <h4 className="font-semibold text-gray-900 mb-3 text-sm uppercase tracking-wider">Opciones de Personalización</h4>
-                <div className="grid grid-cols-2 gap-4">
+              <div>
+                <h4 className="font-semibold text-gray-900 mb-3 text-xs uppercase tracking-wider">Opciones de Personalización</h4>
+                <div className="grid grid-cols-2 gap-3">
                   <button 
                     onClick={() => setIsPersonalized(false)}
-                    className={`p-4 rounded-xl border text-left transition-all ${!isPersonalized ? 'border-primary-500 bg-primary-50 ring-1 ring-primary-500' : 'border-gray-200 bg-white hover:border-gray-300'}`}
+                    className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${!isPersonalized ? 'border-[#11a98c] bg-[#11a98c]/5 ring-1 ring-[#11a98c]' : 'border-gray-200 bg-white hover:border-gray-300'}`}
                   >
-                    <div className="font-bold text-gray-900">Sin Impresión</div>
-                    <div className="text-xs text-gray-500 mt-1">Producto en blanco</div>
+                    <div className="font-bold text-gray-900 text-sm">Sin Impresión</div>
+                    <div className="text-[10px] text-gray-550 mt-0.5">Producto en blanco</div>
                   </button>
                   <button 
                     onClick={() => setIsPersonalized(true)}
-                    className={`p-4 rounded-xl border text-left transition-all ${isPersonalized ? 'border-primary-500 bg-primary-50 ring-1 ring-primary-500' : 'border-gray-200 bg-white hover:border-gray-300'}`}
+                    className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${isPersonalized ? 'border-[#11a98c] bg-[#11a98c]/5 ring-1 ring-[#11a98c]' : 'border-gray-200 bg-white hover:border-gray-300'}`}
                   >
-                    <div className="font-bold text-gray-900">Con Impresión</div>
-                    <div className="text-xs text-gray-500 mt-1">Logotipo u otra técnica (Desde +$10 MXN)</div>
+                    <div className="font-bold text-gray-900 text-sm">Con Impresión</div>
+                    <div className="text-[10px] text-gray-550 mt-0.5">Logotipo u otra técnica</div>
                   </button>
                 </div>
               </div>
 
-              <div className="space-y-6">
-                {isPersonalized && (
-                  <div>
-                    <h4 className="font-semibold text-gray-900 mb-3 text-sm uppercase tracking-wider">Técnica de Impresión</h4>
-                    <select 
-                      value={printOption}
-                      onChange={(e) => setPrintOption(e.target.value)}
-                      className="w-full bg-white border border-gray-300 text-gray-900 rounded-lg focus:ring-primary-500 focus:border-primary-500 block p-3 font-medium"
-                    >
-                      {Object.entries(printPrices).filter(([tech]) => tech !== "Sin Impresión").map(([tech, price]) => (
-                        <option key={tech} value={tech}>{tech} (+{formatCurrency(price)} c/u)</option>
-                      ))}
-                    </select>
-                  </div>
-                )}
-
-                <div className="bg-gray-900 text-white p-6 rounded-xl">
-                  <div className="flex justify-between items-center mb-4 pb-4 border-b border-gray-700">
-                    <span className="text-gray-300">Precio Escala (Producto)</span>
-                    <span className="font-medium">{formatCurrency(unitProductPrice)} c/u</span>
-                  </div>
-                  <div className="flex justify-between items-center mb-4 pb-4 border-b border-gray-700">
-                    <span className="text-gray-300">Costo Impresión</span>
-                    <span className="font-medium">+ {formatCurrency(unitDecoratedPrice)} c/u</span>
-                  </div>
-                  <div className="flex justify-between items-center mb-2">
-                    <span className="text-gray-300">Precio Final Unitario</span>
-                    <span className="font-bold text-xl text-primary-400">{formatCurrency(finalPricePerUnit)}</span>
-                  </div>
-                  <div className="flex justify-between items-end mt-6">
-                    <span className="text-sm text-gray-400">Total Estimado ({totalQuantity} pz)</span>
-                    <span className="text-3xl font-black">{formatCurrency(total)}</span>
-                  </div>
-                  <p className="text-xs text-gray-500 mt-4 text-center">* Precios no incluyen IVA. Sujetos a disponibilidad de stock.</p>
+              {isPersonalized && (
+                <div>
+                  <h4 className="font-semibold text-gray-900 mb-2 text-xs uppercase tracking-wider">Técnica de Impresión</h4>
+                  <select 
+                    value={printOption}
+                    onChange={(e) => setPrintOption(e.target.value)}
+                    className="w-full bg-white border border-gray-300 text-gray-900 rounded-lg focus:ring-[#11a98c] focus:border-[#11a98c] block p-2.5 text-sm font-medium"
+                  >
+                    {Object.entries(printPrices).filter(([tech]) => tech !== "Sin Impresión").map(([tech, price]) => (
+                      <option key={tech} value={tech}>{tech} (+{formatCurrency(price)} c/u)</option>
+                    ))}
+                  </select>
                 </div>
-              </div>
-
+              )}
             </div>
           </div>
-        </div>
-      </div>
 
-      {/* Add to Cart Area */}
-      <div id="add-to-cart-section" className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 md:p-8 max-w-4xl mx-auto flex flex-col items-center justify-center text-center relative overflow-hidden">
-        {showToast && (
-          <div className="absolute top-0 left-0 right-0 bg-green-500 text-white py-3 px-4 flex items-center justify-center font-bold text-sm animate-in slide-in-from-top fade-in duration-300 z-10">
-            <Check className="w-5 h-5 mr-2" />
-            Agregado a tu lista de cotización exitosamente.
+          {/* Column 3: Buy Box */}
+          <div className="lg:col-span-3 bg-gray-50 border border-gray-200 rounded-2xl p-5 space-y-4 self-start shadow-sm">
+            <h3 className="font-extrabold text-gray-900 text-sm uppercase tracking-wider border-b pb-2">Desglose de Cotización</h3>
+            
+            {/* Destino de Envío */}
+            <div className="bg-white rounded-xl p-3 border border-gray-200 flex items-center gap-2 text-xs text-gray-600">
+              <MapPin className="w-4 h-4 text-[#11a98c] shrink-0" />
+              <span className="font-bold text-gray-800">Enviar a:</span>
+            </div>
+
+            {/* Quantity Input */}
+            <div className="space-y-2">
+              <label className="text-xs font-bold text-gray-500 uppercase tracking-wider block">Cantidad a Cotizar</label>
+              <input 
+                type="number" 
+                min="0"
+                value={quantity}
+                onChange={(e) => setQuantity(parseInt(e.target.value) || "")}
+                onBlur={() => {
+                  if (typeof quantity === 'number' && quantity > 0 && quantity < minPurchase) {
+                    setQuantity(minPurchase);
+                  }
+                }}
+                placeholder={`Mín: ${minPurchase}`}
+                className="w-full bg-white border border-gray-300 text-gray-900 text-base rounded-lg focus:ring-[#11a98c] focus:border-[#11a98c] block p-2 font-bold text-center"
+              />
+              {quantity === "" && (
+                <p className="text-red-500 text-[10px] mt-1 flex items-center">
+                  <AlertCircle className="w-3.5 h-3.5 mr-1 shrink-0" />
+                  Mínimo {minPurchase} piezas.
+                </p>
+              )}
+            </div>
+
+            {/* Pricing breakdown */}
+            <div className="bg-gray-900 text-white p-4 rounded-xl space-y-3 font-normal">
+              <div className="flex justify-between items-center text-xs pb-2 border-b border-gray-700">
+                <span className="text-gray-300 font-normal">Precio Escala (Pz)</span>
+                <span className="font-normal">{formatCurrency(unitProductPrice)} c/u</span>
+              </div>
+              <div className="flex justify-between items-center text-xs pb-2 border-b border-gray-700">
+                <span className="text-gray-300 font-normal">Costo Impresión</span>
+                <span className="font-normal">+ {formatCurrency(unitDecoratedPrice)} c/u</span>
+              </div>
+              <div className="flex justify-between items-center text-xs font-normal">
+                <span className="text-gray-300 font-normal">Final Unitario</span>
+                <span className="font-normal text-primary-400">{formatCurrency(finalPricePerUnit)}</span>
+              </div>
+              <div className="flex justify-between items-center pt-3 border-t border-gray-700 gap-2 font-normal">
+                <div className="flex flex-col text-left font-normal">
+                  <span className="text-[9px] text-gray-450 uppercase tracking-wider font-normal">Total Estimado</span>
+                  <span className="text-[9px] text-gray-455 font-normal">({totalQuantity} pz)</span>
+                </div>
+                <span className="text-lg font-normal text-white text-right">{formatCurrency(total)}</span>
+              </div>
+              <p className="text-[9px] text-gray-455 mt-2 text-center font-normal">* Precios no incluyen IVA y están sujetos a existencias.</p>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="space-y-2 pt-2">
+              <button 
+                onClick={handleAddToCart} 
+                disabled={totalQuantity < minPurchase}
+                className={`w-full py-3 px-4 rounded-xl font-bold text-sm transition-colors flex items-center justify-center focus:ring-4 focus:ring-primary-300 focus:outline-none ${
+                  totalQuantity >= minPurchase 
+                    ? 'bg-[#11a98c] hover:bg-[#0b8a7b] text-white shadow-sm cursor-pointer' 
+                    : 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                }`}
+              >
+                <ShoppingCart className="w-4 h-4 mr-2" />
+                Agregar al carrito
+              </button>
+              
+              <Link 
+                href="/cart"
+                className="w-full py-3 px-4 rounded-xl font-bold text-sm transition-colors flex items-center justify-center border border-gray-300 text-gray-700 hover:border-gray-400 hover:bg-gray-100 bg-white"
+              >
+                Ver carrito
+              </Link>
+
+              {/* Promotion Tag */}
+              {homeSettings?.promotions?.tagPublished !== false && (
+                <div className="bg-[#eefcf7] border border-[#cbf2e3] text-[#0a6644] rounded-lg p-2.5 flex items-center gap-2 text-xs font-semibold mt-2">
+                  <Truck className="w-4 h-4 text-[#0a6644] shrink-0" />
+                  <span>{homeSettings?.promotions?.tagText || "Oferta especial de envío gratis"}</span>
+                </div>
+              )}
+            </div>
+
+            {/* Remitente GeekyStore */}
+            <div className="border-t border-gray-200 pt-3 mt-3 text-[11px] text-gray-500 space-y-1">
+              <div className="flex justify-between">
+                <span>Remitente:</span>
+                <span className="font-bold text-gray-800">GeekyStore</span>
+              </div>
+              <div className="flex justify-between">
+                <span>Código Postal:</span>
+                <span className="font-bold text-gray-800">20196</span>
+              </div>
+              <div className="flex justify-between">
+                <span>Envío:</span>
+                <span className="text-green-600 font-bold">Por acordar</span>
+              </div>
+            </div>
           </div>
-        )}
-        
-        <h2 className="text-xl font-bold text-gray-900 mb-2 mt-4">¿Todo listo?</h2>
-        <p className="text-gray-500 mb-8 max-w-md">
-          Agrega este producto a tu carrito de cotización. Podrás seguir explorando o solicitar el presupuesto formal por todo tu pedido.
-        </p>
-        
-        <div className="flex flex-col sm:flex-row gap-4 w-full justify-center">
-          <button 
-            id="add-to-cart-btn"
-            onClick={handleAddToCart} 
-            disabled={totalQuantity < minPurchase}
-            className={`px-8 py-4 rounded-full font-bold text-lg transition-colors flex items-center justify-center focus:ring-4 focus:ring-primary-300 focus:outline-none ${
-              totalQuantity >= minPurchase 
-                ? 'bg-primary-600 text-white hover:bg-primary-700 shadow-md hover:-translate-y-0.5' 
-                : 'bg-gray-300 text-gray-500 cursor-not-allowed'
-            }`}
-          >
-            <ShoppingCart className="w-5 h-5 mr-2" />
-            Agregar a Cotización
-          </button>
-          
-          <Link 
-            href="/cart"
-            className="px-8 py-4 rounded-full font-bold text-lg transition-colors flex items-center justify-center border-2 border-gray-200 text-gray-700 hover:border-gray-300 hover:bg-gray-50"
-          >
-            Ver Carrito
-          </Link>
         </div>
       </div>
 
@@ -825,7 +869,7 @@ export function ProductDetailView({ product, relatedProducts }: { product: Produ
 
       {/* Related Products */}
       {relatedProducts.length > 0 && (
-        <div className="pt-8 border-t border-gray-100">
+        <div className="pt-8 border-t border-gray-100 mt-12">
           <h2 className="text-2xl font-bold text-gray-900 mb-8">Productos Similares</h2>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
             {relatedProducts.map(rp => (
@@ -833,6 +877,114 @@ export function ProductDetailView({ product, relatedProducts }: { product: Produ
             ))}
           </div>
         </div>
+      )}
+
+      {/* Side Promotion Drawer */}
+      {homeSettings?.promotions?.sidePublished !== false && (
+        <>
+          {/* Drawer Overlay */}
+          {showSidePromo && (
+            <div 
+              onClick={() => setShowSidePromo(false)} 
+              className="fixed inset-0 bg-black/40 z-40 transition-opacity"
+            />
+          )}
+
+          {/* Side Drawer Panel */}
+          <div 
+            className={`fixed right-0 top-0 h-full w-[90vw] sm:w-[420px] bg-[#fdebea] text-gray-850 shadow-2xl z-50 transform transition-transform duration-300 flex flex-col ${
+              showSidePromo ? 'translate-x-0' : 'translate-x-full'
+            }`}
+          >
+            {/* Vertical Toggle Trigger Button */}
+            <button 
+              onClick={() => setShowSidePromo(!showSidePromo)}
+              className="absolute left-0 top-1/3 -translate-x-full z-45 bg-black text-white hover:bg-gray-800 transition-colors flex items-center justify-between py-8 px-1.5 rounded-l-md shadow-md focus:outline-none cursor-pointer group"
+              style={{ writingMode: 'vertical-lr', textTransform: 'uppercase' }}
+            >
+              <span className="text-[10px] tracking-wider font-extrabold rotate-180 uppercase select-none">
+                {homeSettings?.promotions?.sideTextTrigger || "CONSIGUE 30% DE DTO."}
+              </span>
+              {showSidePromo ? (
+                <ChevronRight className="w-4 h-4 text-white mt-1 transform group-hover:translate-x-0.5 transition-transform" />
+              ) : (
+                <ChevronLeft className="w-4 h-4 text-white mt-1 transform group-hover:-translate-x-0.5 transition-transform" />
+              )}
+            </button>
+            {/* Header / Close button */}
+            <div className="p-4 flex justify-between items-center bg-[#fdebea] shrink-0 border-b border-gray-200">
+              <span className="text-xs font-bold uppercase tracking-wider text-gray-500 font-sans">Oferta Especial</span>
+              <button 
+                onClick={() => setShowSidePromo(false)} 
+                className="p-1 rounded-full hover:bg-black/5 transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5 text-gray-700" />
+              </button>
+            </div>
+
+            {/* Content Area */}
+            <div className="flex-1 overflow-y-auto p-6 flex flex-col justify-center space-y-6">
+              
+              {/* Promo Header Text */}
+              <h3 className="text-center font-bold text-gray-800 leading-snug text-sm uppercase tracking-wide px-4">
+                {homeSettings?.promotions?.sideTitle || "Suscribirse para disfrutar los precios de VIP y Ventas Flash"}
+              </h3>
+
+              {/* Promo Offer Boxes */}
+              <div className="grid grid-cols-2 gap-4 border-y border-red-200 py-6 items-center relative">
+                {/* Box 1 (Left) */}
+                <div className="text-center pr-2">
+                  <span className="block text-4xl font-extrabold text-red-700 mb-1">-30%</span>
+                  <span className="block text-[10px] font-bold text-red-650 uppercase leading-snug">
+                    {homeSettings?.promotions?.sideTextLeft || "Suscribirse y obtén en Primer Pedido"}
+                  </span>
+                </div>
+
+                {/* Box 2 (Right) */}
+                <div className="text-center pl-2 border-l border-red-200">
+                  <span className="block text-3xl font-extrabold text-red-700 uppercase leading-none">ENVÍO GRATIS</span>
+                  <span className="block text-[9px] font-semibold text-gray-650 uppercase mt-2">
+                    {homeSettings?.promotions?.sideTextRight || "en su primer pedido +$MXN99"}
+                  </span>
+                </div>
+              </div>
+
+              {/* Registration Form */}
+              <div className="space-y-4 pt-2">
+                <div>
+                  <input 
+                    type="email" 
+                    placeholder="INTRODUCE TU CORREO ELECTRÓNICO"
+                    className="w-full bg-white border border-gray-300 rounded p-3 text-xs focus:ring-[#11a98c] focus:border-[#11a98c] text-center font-semibold placeholder-gray-400"
+                  />
+                </div>
+                <button 
+                  onClick={() => {
+                    alert("¡Gracias por registrarte! Tu código de descuento ha sido enviado a tu correo.");
+                    setShowSidePromo(false);
+                  }}
+                  className="w-full bg-black hover:bg-gray-900 text-white font-extrabold py-3 px-4 rounded text-xs tracking-wider transition-colors uppercase cursor-pointer"
+                >
+                  REGÍSTRATE
+                </button>
+              </div>
+
+              {/* Disclaimers & Checkboxes */}
+              <div className="text-[10px] text-gray-500 space-y-3 leading-relaxed pt-2">
+                <p>
+                  Al registrarse, acepta nuestra <span className="underline cursor-pointer hover:text-black">Política de privacidad y cookies</span> y nuestros <span className="underline cursor-pointer hover:text-black">Términos y condiciones</span>.
+                </p>
+                <label className="flex items-start gap-2 cursor-pointer">
+                  <input type="checkbox" defaultChecked className="mt-0.5 rounded text-[#11a98c] focus:ring-[#11a98c]" />
+                  <span>
+                    Me gustaría recibir ofertas exclusivas y las últimas noticias de SHEIN por correo electrónico. Entiendo que puedo comunicarme con SHEIN para cancelar la suscripción en cualquier momento.
+                  </span>
+                </label>
+              </div>
+
+            </div>
+          </div>
+        </>
       )}
     </div>
   );

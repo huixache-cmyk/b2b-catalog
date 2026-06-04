@@ -3,7 +3,7 @@
 import { useState, useMemo, useEffect } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { useProducts } from "@/hooks/useProducts";
-import { MATERIALS } from "@/types";
+import { MATERIALS, Product } from "@/types";
 import { useSettings } from "@/hooks/useSettings";
 import { ProductCard } from "./ProductCard";
 import { Filter, X, ChevronDown } from "lucide-react";
@@ -46,11 +46,19 @@ function getSearchSimilarity(text: string, query: string): number {
   return 0;
 }
 
-export function CatalogView() {
+export function CatalogView({ 
+  initialProducts, 
+  initialCategories, 
+  initialSeasons 
+}: { 
+  initialProducts?: Product[];
+  initialCategories?: string[];
+  initialSeasons?: string[];
+}) {
   const searchParams = useSearchParams();
   const router = useRouter();
-  const { products, isLoaded: productsLoaded } = useProducts();
-  const { categories, seasons, isLoaded: settingsLoaded } = useSettings();
+  const { products, isLoaded: productsLoaded } = useProducts(initialProducts);
+  const { categories, seasons, homeSettings, isLoaded: settingsLoaded } = useSettings(initialCategories, initialSeasons);
   const isLoaded = productsLoaded && settingsLoaded;
   
   // States
@@ -62,6 +70,9 @@ export function CatalogView() {
   const [isMobileFiltersOpen, setIsMobileFiltersOpen] = useState(false);
   const [page, setPage] = useState(1);
   const itemsPerPage = 24;
+  
+  // Promotion Popup State
+  const [showPromoPopup, setShowPromoPopup] = useState(false);
 
   // Sync state when URL params change
   useEffect(() => {
@@ -85,6 +96,33 @@ export function CatalogView() {
       setSearchQuery(searchParams.get("q"));
     }
   }, [searchParams, categories, seasons, settingsLoaded]);
+
+  // Trigger catalog promotion popup for new users
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const dismissed = localStorage.getItem("b2b_catalog_promo_dismissed") === "true";
+      const isPublished = homeSettings?.promotions?.catalogPromoPublished ?? true;
+      if (!dismissed && isPublished && isLoaded) {
+        const delaySeconds = homeSettings?.promotions?.catalogPromoDelay ?? 3;
+        const timer = setTimeout(() => {
+          setShowPromoPopup(true);
+        }, delaySeconds * 1000);
+        return () => clearTimeout(timer);
+      }
+    }
+  }, [homeSettings, isLoaded]);
+
+  const handleClosePromoPopup = () => {
+    setShowPromoPopup(false);
+    if (typeof window !== "undefined") {
+      localStorage.setItem("b2b_catalog_promo_dismissed", "true");
+    }
+  };
+
+  const handleClaimCoupons = () => {
+    alert("¡Felicidades! Cupones aplicados correctamente. Inicia sesión o regístrate para disfrutarlos.");
+    handleClosePromoPopup();
+  };
 
   const filteredProducts = useMemo(() => {
     if (!isLoaded) return [];
@@ -212,20 +250,55 @@ export function CatalogView() {
           </div>
 
           {/* Price Range */}
-          <div>
+          <div className="bg-gray-50/50 p-4 rounded-xl border border-gray-100">
             <div className="flex justify-between items-center mb-3">
-              <h4 className="font-semibold text-gray-900 text-sm uppercase tracking-wider">Precio Max</h4>
-              <span className="text-sm font-bold text-primary-600">${maxPrice}</span>
+              <h4 className="font-semibold text-gray-700 text-xs uppercase tracking-wider">Precio Max</h4>
+              <div className="flex items-center gap-1 bg-white border border-gray-200 rounded-lg px-2.5 py-1 w-24 shadow-sm focus-within:ring-2 focus-within:ring-primary-500 focus-within:border-primary-500 transition-all">
+                <span className="text-sm text-gray-400 font-medium">$</span>
+                <input 
+                  type="number"
+                  min="0"
+                  max="10000" 
+                  value={maxPrice}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setMaxPrice(val === "" ? 0 : Math.max(0, Number(val)));
+                  }}
+                  className="w-full text-sm font-bold text-gray-900 bg-transparent border-none outline-none p-0 focus:ring-0 text-right [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                />
+              </div>
             </div>
+            
             <input 
               type="range" 
               min="10" 
               max="500" 
               step="10"
-              value={maxPrice}
+              value={maxPrice > 500 ? 500 : maxPrice}
               onChange={(e) => setMaxPrice(Number(e.target.value))}
-              className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-primary-600"
+              style={{
+                background: `linear-gradient(to right, var(--color-primary-600) 0%, var(--color-primary-600) ${((Math.min(500, maxPrice) - 10) / 490) * 100}%, var(--color-gray-200) ${((Math.min(500, maxPrice) - 10) / 490) * 100}%, var(--color-gray-200) 100%)`
+              }}
+              className="w-full h-2 rounded-lg appearance-none cursor-pointer accent-primary-600 mb-4"
             />
+
+            {/* Quick Filter Presets */}
+            <div className="grid grid-cols-2 gap-1.5 mt-2">
+              {[50, 100, 200, 500].map((preset) => (
+                <button
+                  key={preset}
+                  type="button"
+                  onClick={() => setMaxPrice(preset)}
+                  className={`text-xs px-2.5 py-1.5 rounded-lg border font-medium transition-all cursor-pointer ${
+                    maxPrice === preset
+                      ? 'bg-primary-600 border-primary-600 text-white shadow-sm font-bold'
+                      : 'bg-white border-gray-200 text-gray-650 hover:bg-gray-50 hover:text-gray-900'
+                  }`}
+                >
+                  Hasta ${preset}
+                </button>
+              ))}
+            </div>
           </div>
 
           {isMobileFiltersOpen && (
@@ -286,6 +359,160 @@ export function CatalogView() {
           </>
         )}
       </main>
+
+      {/* Floating Catalog Promotion Popup (New Users) */}
+      {showPromoPopup && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-xs z-50 flex items-center justify-center p-4">
+          {/* Modal Container */}
+          <div className="relative w-full max-w-[390px] flex flex-col items-center">
+            {/* Close Button above the card */}
+            <button 
+              onClick={handleClosePromoPopup} 
+              className="absolute -top-10 right-2 p-1.5 rounded-full border border-white/50 hover:border-white text-white hover:bg-white/10 transition-colors z-50 cursor-pointer"
+              title="Cerrar"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            {/* Main White Promo Card */}
+            <div className="bg-gradient-to-b from-[#fff6ee] to-white rounded-3xl w-full p-5 pt-7 pb-6 relative shadow-2xl flex flex-col items-center border border-[#ffeadd]">
+              
+              {/* Gift Bow SVG Header */}
+              <div className="absolute -top-9 flex justify-center z-10 w-full">
+                <svg className="w-24 h-12 text-[#f39c12] fill-current drop-shadow-md" viewBox="0 0 100 50">
+                  {/* Left Loop */}
+                  <path d="M50 30 C20 10, 10 30, 50 30 Z" fill="url(#goldGradient)" stroke="#d35400" strokeWidth="1" />
+                  {/* Right Loop */}
+                  <path d="M50 30 C80 10, 90 30, 50 30 Z" fill="url(#goldGradient)" stroke="#d35400" strokeWidth="1" />
+                  {/* Left Ribbon Tail */}
+                  <path d="M50 30 L35 50 L42 35 Z" fill="url(#goldGradient)" />
+                  {/* Right Ribbon Tail */}
+                  <path d="M50 30 L65 50 L58 35 Z" fill="url(#goldGradient)" />
+                  {/* Center Knot */}
+                  <circle cx="50" cy="30" r="7" fill="#d35400" />
+                  <circle cx="50" cy="30" r="5" fill="url(#goldGradient)" />
+                  <defs>
+                    <linearGradient id="goldGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                      <stop offset="0%" stopColor="#fff2cc" />
+                      <stop offset="30%" stopColor="#ffb834" />
+                      <stop offset="70%" stopColor="#f39c12" />
+                      <stop offset="100%" stopColor="#d35400" />
+                    </linearGradient>
+                  </defs>
+                </svg>
+              </div>
+
+              {/* Title Section */}
+              <h2 className="text-[#a0522d] font-bold text-center text-lg mt-1 mb-5">
+                Ofertas especiales solo para ti
+              </h2>
+
+              {/* Coupon List Container */}
+              <div className="w-full space-y-4 mb-6">
+                
+                {/* Coupon 1 */}
+                <div className="relative flex bg-[#fff7f6] border border-[#ffd2cc] rounded-2xl overflow-hidden p-4 min-h-[92px] shadow-sm">
+                  {/* Left tag */}
+                  <div className="absolute top-0 left-0 bg-[#ff4a5a] text-white text-[8px] font-extrabold px-2 py-0.5 rounded-br-xl shadow-xs tracking-wider uppercase">
+                    Nuevo usuario
+                  </div>
+                  
+                  {/* Left content */}
+                  <div className="w-[38%] flex flex-col justify-center items-center pr-2 pt-2 text-center">
+                    <span className="text-xl sm:text-2xl font-black text-[#ff4a5a] leading-none tracking-tight">
+                      {homeSettings?.promotions?.coupon1Discount?.split(' ')[0] || "30%"}
+                    </span>
+                    <span className="text-[7.5px] text-[#ff4a5a] font-bold mt-1 uppercase tracking-tight">
+                      {homeSettings?.promotions?.coupon1Discount?.split(' ').slice(1).join(' ') || "DE DESCUENTO"}
+                    </span>
+                    <span className="text-[8px] text-gray-455 mt-1 font-medium">
+                      {homeSettings?.promotions?.coupon1LeftNote || "Sin mín. de compra"}
+                    </span>
+                  </div>
+
+                  {/* Dashed border separator */}
+                  <div className="border-r border-dashed border-[#ffd2cc] my-1" />
+
+                  {/* Right content */}
+                  <div className="flex-1 pl-4 flex flex-col justify-center text-left">
+                    <span className="text-xs sm:text-sm font-extrabold text-[#ff4a5a] leading-snug">
+                      {homeSettings?.promotions?.coupon1RightTitle || "Cupón válido en todo el sitio"}
+                    </span>
+                    <span className="text-[9px] text-gray-500 mt-1">
+                      {homeSettings?.promotions?.coupon1RightLimit || "Límite de $MXN3,000"}
+                    </span>
+                    <div className="flex items-center justify-between mt-2 text-[8px] text-gray-400">
+                      <span>Por tiempo limitado</span>
+                      <ChevronDown className="w-3 h-3 text-gray-450 shrink-0" />
+                    </div>
+                  </div>
+
+                  {/* Scalloped circle cutouts */}
+                  <div className="absolute top-0 left-[38%] -translate-y-1/2 -translate-x-1/2 w-4 h-4 bg-[#fff6ee] rounded-full border-b border-[#ffd2cc]" />
+                  <div className="absolute bottom-0 left-[38%] translate-y-1/2 -translate-x-1/2 w-4 h-4 bg-white rounded-full border-t border-[#ffd2cc]" />
+                </div>
+
+                {/* Coupon 2 */}
+                <div className="relative flex bg-[#fff7f6] border border-[#ffd2cc] rounded-2xl overflow-hidden p-4 min-h-[92px] shadow-sm">
+                  {/* Left tag */}
+                  <div className="absolute top-0 left-0 bg-[#ff4a5a] text-white text-[8px] font-extrabold px-2 py-0.5 rounded-br-xl shadow-xs tracking-wider uppercase">
+                    Nuevo usuario
+                  </div>
+                  
+                  {/* Left content */}
+                  <div className="w-[38%] flex flex-col justify-center items-center pr-2 pt-2 text-center">
+                    <span className="text-xl sm:text-2xl font-black text-[#ff4a5a] leading-none tracking-tight">
+                      {homeSettings?.promotions?.coupon2Discount?.split(' ')[0] || "65%"}
+                    </span>
+                    <span className="text-[7.5px] text-[#ff4a5a] font-bold mt-1 uppercase tracking-tight">
+                      {homeSettings?.promotions?.coupon2Discount?.split(' ').slice(1).join(' ') || "DE DESCUENTO"}
+                    </span>
+                    <span className="text-[8px] text-gray-455 mt-1 font-medium">
+                      {homeSettings?.promotions?.coupon2LeftNote || "Sin mín. de compra"}
+                    </span>
+                  </div>
+
+                  {/* Dashed border separator */}
+                  <div className="border-r border-dashed border-[#ffd2cc] my-1" />
+
+                  {/* Right content */}
+                  <div className="flex-1 pl-4 flex flex-col justify-center text-left">
+                    <span className="text-xs sm:text-sm font-extrabold text-[#ff4a5a] leading-snug">
+                      {homeSettings?.promotions?.coupon2RightTitle || "Cupón válido en todo el sitio"}
+                    </span>
+                    <span className="text-[9px] text-gray-500 mt-1">
+                      {homeSettings?.promotions?.coupon2RightLimit || "Límite de $MXN240"}
+                    </span>
+                    <div className="flex items-center justify-between mt-2 text-[8px] text-gray-400">
+                      <span>Por tiempo limitado</span>
+                      <ChevronDown className="w-3 h-3 text-gray-450 shrink-0" />
+                    </div>
+                  </div>
+
+                  {/* Scalloped circle cutouts */}
+                  <div className="absolute top-0 left-[38%] -translate-y-1/2 -translate-x-1/2 w-4 h-4 bg-[#fff6ee] rounded-full border-b border-[#ffd2cc]" />
+                  <div className="absolute bottom-0 left-[38%] translate-y-1/2 -translate-x-1/2 w-4 h-4 bg-white rounded-full border-t border-[#ffd2cc]" />
+                </div>
+
+              </div>
+
+              {/* Action Claim Button */}
+              <button 
+                onClick={handleClaimCoupons}
+                className="w-full bg-[#222222] hover:bg-[#111111] text-white text-sm font-extrabold py-3 px-6 rounded-full shadow-lg hover:shadow-xl transition-all uppercase tracking-wider cursor-pointer"
+              >
+                {homeSettings?.promotions?.catalogPromoButtonText || "¡Consíguelos Todos!"}
+              </button>
+
+            </div>
+
+            {/* Under-card Footer Disclaimer Text */}
+            <p className="text-[10px] text-white/95 text-center mt-3 tracking-wide drop-shadow-xs">
+              {homeSettings?.promotions?.catalogPromoFooterNote || "Cupones confirmados después de iniciar sesión"}
+            </p>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
