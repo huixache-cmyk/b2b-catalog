@@ -63,6 +63,12 @@ export type HomeSettings = {
     catalogPromoButtonBgColor?: string;
     catalogPromoButtonTextColor?: string;
     catalogPromoIcon?: string;
+    // Tag Promo Customizer
+    tagBgColor?: string;
+    tagBorderColor?: string;
+    tagTextColor?: string;
+    tagTextSize?: string;
+    tagIcon?: string;
   };
 };
 
@@ -135,7 +141,12 @@ const DEFAULT_HOME_SETTINGS: HomeSettings = {
     catalogPromoCouponTextColor: "#ff4a5a",
     catalogPromoButtonBgColor: "#222222",
     catalogPromoButtonTextColor: "#ffffff",
-    catalogPromoIcon: "GiftBow"
+    catalogPromoIcon: "GiftBow",
+    tagBgColor: "#eefcf7",
+    tagBorderColor: "#cbf2e3",
+    tagTextColor: "#0a6644",
+    tagTextSize: "text-xs",
+    tagIcon: "Truck"
   }
 };
 

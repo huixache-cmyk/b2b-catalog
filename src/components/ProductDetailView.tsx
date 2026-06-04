@@ -4,7 +4,7 @@ import { useState, useRef, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { Product } from "@/types";
 import { ProductCard } from "./ProductCard";
-import { Check, Info, ShieldCheck, Truck, ChevronRight, ChevronLeft, Upload, Download, X, AlertCircle, ShoppingCart, MapPin, Gift, Tag, Percent } from "lucide-react";
+import { Check, Info, ShieldCheck, Truck, ChevronRight, ChevronLeft, Upload, Download, X, AlertCircle, ShoppingCart, MapPin, Gift, Tag, Percent, Star } from "lucide-react";
 import Link from "next/link";
 import { useCart } from "@/hooks/useCart";
 import html2canvas from "html2canvas";
@@ -20,6 +20,24 @@ const renderTriggerIcon = (iconName?: string) => {
       return <Tag className="w-5 h-5 mb-2" />;
     case "Percent":
       return <Percent className="w-5 h-5 mb-2" />;
+    default:
+      return null;
+  }
+};
+
+const renderTagIcon = (iconName?: string, textColor?: string) => {
+  const iconColor = textColor || "#0a6644";
+  switch (iconName) {
+    case "Truck":
+      return <Truck className="w-4 h-4 shrink-0" style={{ color: iconColor }} />;
+    case "Tag":
+      return <Tag className="w-4 h-4 shrink-0" style={{ color: iconColor }} />;
+    case "Gift":
+      return <Gift className="w-4 h-4 shrink-0" style={{ color: iconColor }} />;
+    case "Percent":
+      return <Percent className="w-4 h-4 shrink-0" style={{ color: iconColor }} />;
+    case "Star":
+      return <Star className="w-4 h-4 shrink-0" style={{ color: iconColor }} />;
     default:
       return null;
   }
@@ -776,8 +794,16 @@ export function ProductDetailView({ product, relatedProducts }: { product: Produ
 
               {/* Promotion Tag */}
               {homeSettings?.promotions?.tagPublished !== false && (
-                <div className="bg-[#eefcf7] border border-[#cbf2e3] text-[#0a6644] rounded-lg p-2.5 flex items-center gap-2 text-xs font-semibold mt-2">
-                  <Truck className="w-4 h-4 text-[#0a6644] shrink-0" />
+                <div 
+                  className={`rounded-lg p-2.5 flex items-center gap-2 font-semibold mt-2 ${homeSettings?.promotions?.tagTextSize || "text-xs"}`}
+                  style={{
+                    backgroundColor: homeSettings?.promotions?.tagBgColor || "#eefcf7",
+                    borderColor: homeSettings?.promotions?.tagBorderColor || "#cbf2e3",
+                    color: homeSettings?.promotions?.tagTextColor || "#0a6644",
+                    borderWidth: "1px"
+                  }}
+                >
+                  {renderTagIcon(homeSettings?.promotions?.tagIcon, homeSettings?.promotions?.tagTextColor)}
                   <span>{homeSettings?.promotions?.tagText || "Oferta especial de envío gratis"}</span>
                 </div>
               )}

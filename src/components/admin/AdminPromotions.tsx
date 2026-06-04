@@ -22,6 +22,13 @@ export function AdminPromotions({ homeSettings, updateHomeSettings }: AdminPromo
 
   const [tagText, setTagText] = useState(currentPromo.tagText);
   const [tagPublished, setTagPublished] = useState(currentPromo.tagPublished);
+
+  // Styling states for Special Offer Tag
+  const [tagBgColor, setTagBgColor] = useState(currentPromo.tagBgColor ?? "#eefcf7");
+  const [tagBorderColor, setTagBorderColor] = useState(currentPromo.tagBorderColor ?? "#cbf2e3");
+  const [tagTextColor, setTagTextColor] = useState(currentPromo.tagTextColor ?? "#0a6644");
+  const [tagTextSize, setTagTextSize] = useState(currentPromo.tagTextSize ?? "text-xs");
+  const [tagIcon, setTagIcon] = useState(currentPromo.tagIcon ?? "Truck");
   const [sideTextTrigger, setSideTextTrigger] = useState(currentPromo.sideTextTrigger);
   const [sideTitle, setSideTitle] = useState(currentPromo.sideTitle);
   const [sideTextLeft, setSideTextLeft] = useState(currentPromo.sideTextLeft);
@@ -112,7 +119,13 @@ export function AdminPromotions({ homeSettings, updateHomeSettings }: AdminPromo
         catalogPromoCouponTextColor,
         catalogPromoButtonBgColor,
         catalogPromoButtonTextColor,
-        catalogPromoIcon
+        catalogPromoIcon,
+        // Tag promo styles
+        tagBgColor,
+        tagBorderColor,
+        tagTextColor,
+        tagTextSize,
+        tagIcon
       }
     };
 
@@ -140,9 +153,19 @@ export function AdminPromotions({ homeSettings, updateHomeSettings }: AdminPromo
       <form onSubmit={handleSave} className="space-y-6">
         {/* Section 1: Special Offer Tag */}
         <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6 space-y-4">
-          <div className="flex items-center gap-2 text-primary-700 font-bold border-b pb-2">
-            <Tag className="w-5 h-5" />
-            <h3>Etiqueta de Oferta Especial (Abajo de Ver Carrito)</h3>
+          <div className="flex justify-between items-center border-b pb-2">
+            <div className="flex items-center gap-2 text-primary-700 font-bold">
+              <Tag className="w-5 h-5" />
+              <h3>Etiqueta de Oferta Especial (Abajo de Ver Carrito)</h3>
+            </div>
+            <button
+              type="submit"
+              disabled={isSaving}
+              className="bg-primary-705 hover:bg-primary-800 text-white font-bold py-1.5 px-4 rounded-lg text-xs transition-all flex items-center gap-1.5 cursor-pointer shadow-sm"
+            >
+              <Save className="w-3.5 h-3.5" />
+              {isSaving ? "Guardando..." : "Actualizar"}
+            </button>
           </div>
 
           <div className="flex items-center gap-2">
@@ -170,13 +193,123 @@ export function AdminPromotions({ homeSettings, updateHomeSettings }: AdminPromo
               required
             />
           </div>
+
+          {/* Customizer Sub-section for Section 1 */}
+          <div className="border-t border-gray-150 pt-4 mt-4 space-y-4">
+            <div className="flex items-center gap-1.5 text-gray-700 font-bold text-xs uppercase tracking-wider">
+              <Palette className="w-4 h-4 text-primary-600" />
+              <h4>Diseño, Colores e Iconos (Etiqueta Especial)</h4>
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+              <div className="space-y-1">
+                <label className="block text-[10px] font-bold text-gray-550 uppercase">Color de Fondo</label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="color"
+                    value={tagBgColor}
+                    onChange={(e) => setTagBgColor(e.target.value)}
+                    disabled={!tagPublished}
+                    className="w-10 h-10 border border-gray-300 rounded cursor-pointer shrink-0"
+                  />
+                  <input
+                    type="text"
+                    value={tagBgColor}
+                    onChange={(e) => setTagBgColor(e.target.value)}
+                    disabled={!tagPublished}
+                    className="w-full border border-gray-300 rounded p-1.5 text-xs font-mono uppercase"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <label className="block text-[10px] font-bold text-gray-550 uppercase">Color de Borde</label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="color"
+                    value={tagBorderColor}
+                    onChange={(e) => setTagBorderColor(e.target.value)}
+                    disabled={!tagPublished}
+                    className="w-10 h-10 border border-gray-300 rounded cursor-pointer shrink-0"
+                  />
+                  <input
+                    type="text"
+                    value={tagBorderColor}
+                    onChange={(e) => setTagBorderColor(e.target.value)}
+                    disabled={!tagPublished}
+                    className="w-full border border-gray-300 rounded p-1.5 text-xs font-mono uppercase"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <label className="block text-[10px] font-bold text-gray-550 uppercase">Color Texto/Icono</label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="color"
+                    value={tagTextColor}
+                    onChange={(e) => setTagTextColor(e.target.value)}
+                    disabled={!tagPublished}
+                    className="w-10 h-10 border border-gray-300 rounded cursor-pointer shrink-0"
+                  />
+                  <input
+                    type="text"
+                    value={tagTextColor}
+                    onChange={(e) => setTagTextColor(e.target.value)}
+                    disabled={!tagPublished}
+                    className="w-full border border-gray-300 rounded p-1.5 text-xs font-mono uppercase"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <label className="block text-[10px] font-bold text-gray-550 uppercase">Tamaño del Texto</label>
+                <select
+                  value={tagTextSize}
+                  onChange={(e) => setTagTextSize(e.target.value)}
+                  disabled={!tagPublished}
+                  className="w-full bg-white border border-gray-300 rounded-lg p-2 text-xs font-semibold focus:ring-primary-500"
+                >
+                  <option value="text-xs">Pequeño (12px)</option>
+                  <option value="text-sm">Mediano (14px)</option>
+                  <option value="text-base">Grande (16px)</option>
+                </select>
+              </div>
+
+              <div className="space-y-1">
+                <label className="block text-[10px] font-bold text-gray-550 uppercase">Icono de la Etiqueta</label>
+                <select
+                  value={tagIcon}
+                  onChange={(e) => setTagIcon(e.target.value)}
+                  disabled={!tagPublished}
+                  className="w-full bg-white border border-gray-300 rounded-lg p-2 text-xs font-semibold focus:ring-primary-500"
+                >
+                  <option value="None">Ninguno</option>
+                  <option value="Truck">Camión (Truck)</option>
+                  <option value="Tag">Etiqueta (Tag)</option>
+                  <option value="Gift">Regalo (Gift)</option>
+                  <option value="Percent">Porcentaje (%)</option>
+                  <option value="Star">Estrella (Star)</option>
+                </select>
+              </div>
+            </div>
+          </div>
         </div>
 
         {/* Section 2: Side Drawer Discount Panel */}
         <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6 space-y-4">
-          <div className="flex items-center gap-2 text-primary-700 font-bold border-b pb-2">
-            <PanelLeft className="w-5 h-5" />
-            <h3>Panel Promocional Lateral (Desplegable Izquierdo)</h3>
+          <div className="flex justify-between items-center border-b pb-2">
+            <div className="flex items-center gap-2 text-primary-700 font-bold">
+              <PanelLeft className="w-5 h-5" />
+              <h3>Panel Promocional Lateral (Desplegable Derecho)</h3>
+            </div>
+            <button
+              type="submit"
+              disabled={isSaving}
+              className="bg-primary-750 hover:bg-primary-800 text-white font-bold py-1.5 px-4 rounded-lg text-xs transition-all flex items-center gap-1.5 cursor-pointer shadow-sm"
+            >
+              <Save className="w-3.5 h-3.5" />
+              {isSaving ? "Guardando..." : "Actualizar"}
+            </button>
           </div>
 
           <div className="flex items-center gap-2">
@@ -401,9 +534,19 @@ export function AdminPromotions({ homeSettings, updateHomeSettings }: AdminPromo
 
         {/* Section 3: Floating Catalog Promo Modal */}
         <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6 space-y-4">
-          <div className="flex items-center gap-2 text-primary-700 font-bold border-b pb-2">
-            <Gift className="w-5 h-5" />
-            <h3>Ventana Flotante de Promociones (Catálogo - Nuevos Usuarios)</h3>
+          <div className="flex justify-between items-center border-b pb-2">
+            <div className="flex items-center gap-2 text-primary-700 font-bold">
+              <Gift className="w-5 h-5" />
+              <h3>Ventana Flotante de Promociones (Catálogo - Nuevos Usuarios)</h3>
+            </div>
+            <button
+              type="submit"
+              disabled={isSaving}
+              className="bg-primary-705 hover:bg-primary-800 text-white font-bold py-1.5 px-4 rounded-lg text-xs transition-all flex items-center gap-1.5 cursor-pointer shadow-sm"
+            >
+              <Save className="w-3.5 h-3.5" />
+              {isSaving ? "Guardando..." : "Actualizar"}
+            </button>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -734,10 +877,11 @@ export function AdminPromotions({ homeSettings, updateHomeSettings }: AdminPromo
                     disabled={!catalogPromoPublished}
                     className="w-full bg-white border border-gray-300 rounded-lg p-2 text-xs font-semibold focus:ring-primary-500"
                   >
-                    <option value="GiftBow">Moño Dorado (Regalo)</option>
-                    <option value="Truck">Camión de Envío</option>
-                    <option value="Tag">Etiqueta de Descuento</option>
-                    <option value="Star">Estrella Brillante</option>
+                    <option value="Coins">Monedas de Oro (Acumulación)</option>
+                    <option value="GiftBow">Moño Dorado</option>
+                    <option value="Truck">Camión de Envío Gratis</option>
+                    <option value="Tag">Etiqueta de Descuentos Exclusivos</option>
+                    <option value="Star">Estrella Dorada</option>
                   </select>
                 </div>
               </div>
