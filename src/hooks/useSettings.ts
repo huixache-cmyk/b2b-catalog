@@ -44,6 +44,25 @@ export type HomeSettings = {
     coupon2RightLimit?: string;
     catalogPromoButtonText?: string;
     catalogPromoFooterNote?: string;
+    // Side Promo Customizer
+    sideBgColor?: string;
+    sideTextColor?: string;
+    sidePromoTextColor?: string;
+    sideButtonBgColor?: string;
+    sideButtonTextColor?: string;
+    sideTextSizeTitle?: string;
+    sideTextSizePromo?: string;
+    sideTriggerIcon?: string;
+    // Catalog Promo Customizer
+    catalogPromoBgColorStart?: string;
+    catalogPromoBgColorEnd?: string;
+    catalogPromoTextColor?: string;
+    catalogPromoCouponBgColor?: string;
+    catalogPromoCouponBorderColor?: string;
+    catalogPromoCouponTextColor?: string;
+    catalogPromoButtonBgColor?: string;
+    catalogPromoButtonTextColor?: string;
+    catalogPromoIcon?: string;
   };
 };
 
@@ -99,7 +118,24 @@ const DEFAULT_HOME_SETTINGS: HomeSettings = {
     coupon2RightTitle: "Cupón válido en todo el sitio",
     coupon2RightLimit: "Límite de $MXN240",
     catalogPromoButtonText: "¡Consíguelos Todos!",
-    catalogPromoFooterNote: "Cupones confirmados después de iniciar sesión"
+    catalogPromoFooterNote: "Cupones confirmados después de iniciar sesión",
+    sideBgColor: "#ffeceb",
+    sideTextColor: "#222222",
+    sidePromoTextColor: "#e1251b",
+    sideButtonBgColor: "#000000",
+    sideButtonTextColor: "#ffffff",
+    sideTextSizeTitle: "Mediano",
+    sideTextSizePromo: "Normal",
+    sideTriggerIcon: "Arrow",
+    catalogPromoBgColorStart: "#fff6ee",
+    catalogPromoBgColorEnd: "#ffffff",
+    catalogPromoTextColor: "#a0522d",
+    catalogPromoCouponBgColor: "#fff7f6",
+    catalogPromoCouponBorderColor: "#ffd2cc",
+    catalogPromoCouponTextColor: "#ff4a5a",
+    catalogPromoButtonBgColor: "#222222",
+    catalogPromoButtonTextColor: "#ffffff",
+    catalogPromoIcon: "GiftBow"
   }
 };
 

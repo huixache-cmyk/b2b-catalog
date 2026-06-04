@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { HomeSettings } from "@/hooks/useSettings";
-import { Save, Tag, PanelLeft, Check, Gift } from "lucide-react";
+import { Save, Tag, PanelLeft, Check, Gift, Palette, Sliders } from "lucide-react";
 
 interface AdminPromotionsProps {
   homeSettings: HomeSettings;
@@ -42,6 +42,27 @@ export function AdminPromotions({ homeSettings, updateHomeSettings }: AdminPromo
   const [catalogPromoButtonText, setCatalogPromoButtonText] = useState(currentPromo.catalogPromoButtonText ?? "¡Consíguelos Todos!");
   const [catalogPromoFooterNote, setCatalogPromoFooterNote] = useState(currentPromo.catalogPromoFooterNote ?? "Cupones confirmados después de iniciar sesión");
 
+  // Styling states for Side Drawer Promo
+  const [sideBgColor, setSideBgColor] = useState(currentPromo.sideBgColor ?? "#ffeceb");
+  const [sideTextColor, setSideTextColor] = useState(currentPromo.sideTextColor ?? "#222222");
+  const [sidePromoTextColor, setSidePromoTextColor] = useState(currentPromo.sidePromoTextColor ?? "#e1251b");
+  const [sideButtonBgColor, setSideButtonBgColor] = useState(currentPromo.sideButtonBgColor ?? "#000000");
+  const [sideButtonTextColor, setSideButtonTextColor] = useState(currentPromo.sideButtonTextColor ?? "#ffffff");
+  const [sideTextSizeTitle, setSideTextSizeTitle] = useState(currentPromo.sideTextSizeTitle ?? "Mediano");
+  const [sideTextSizePromo, setSideTextSizePromo] = useState(currentPromo.sideTextSizePromo ?? "Normal");
+  const [sideTriggerIcon, setSideTriggerIcon] = useState(currentPromo.sideTriggerIcon ?? "Arrow");
+
+  // Styling states for Catalog Promo
+  const [catalogPromoBgColorStart, setCatalogPromoBgColorStart] = useState(currentPromo.catalogPromoBgColorStart ?? "#fff6ee");
+  const [catalogPromoBgColorEnd, setCatalogPromoBgColorEnd] = useState(currentPromo.catalogPromoBgColorEnd ?? "#ffffff");
+  const [catalogPromoTextColor, setCatalogPromoTextColor] = useState(currentPromo.catalogPromoTextColor ?? "#a0522d");
+  const [catalogPromoCouponBgColor, setCatalogPromoCouponBgColor] = useState(currentPromo.catalogPromoCouponBgColor ?? "#fff7f6");
+  const [catalogPromoCouponBorderColor, setCatalogPromoCouponBorderColor] = useState(currentPromo.catalogPromoCouponBorderColor ?? "#ffd2cc");
+  const [catalogPromoCouponTextColor, setCatalogPromoCouponTextColor] = useState(currentPromo.catalogPromoCouponTextColor ?? "#ff4a5a");
+  const [catalogPromoButtonBgColor, setCatalogPromoButtonBgColor] = useState(currentPromo.catalogPromoButtonBgColor ?? "#222222");
+  const [catalogPromoButtonTextColor, setCatalogPromoButtonTextColor] = useState(currentPromo.catalogPromoButtonTextColor ?? "#ffffff");
+  const [catalogPromoIcon, setCatalogPromoIcon] = useState(currentPromo.catalogPromoIcon ?? "GiftBow");
+
   const [isSaving, setIsSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
 
@@ -72,7 +93,26 @@ export function AdminPromotions({ homeSettings, updateHomeSettings }: AdminPromo
         coupon2RightTitle,
         coupon2RightLimit,
         catalogPromoButtonText,
-        catalogPromoFooterNote
+        catalogPromoFooterNote,
+        // Side promo styles
+        sideBgColor,
+        sideTextColor,
+        sidePromoTextColor,
+        sideButtonBgColor,
+        sideButtonTextColor,
+        sideTextSizeTitle,
+        sideTextSizePromo,
+        sideTriggerIcon,
+        // Catalog promo styles
+        catalogPromoBgColorStart,
+        catalogPromoBgColorEnd,
+        catalogPromoTextColor,
+        catalogPromoCouponBgColor,
+        catalogPromoCouponBorderColor,
+        catalogPromoCouponTextColor,
+        catalogPromoButtonBgColor,
+        catalogPromoButtonTextColor,
+        catalogPromoIcon
       }
     };
 
@@ -203,6 +243,158 @@ export function AdminPromotions({ homeSettings, updateHomeSettings }: AdminPromo
                 className="w-full border border-gray-300 rounded-lg p-2.5 text-sm focus:ring-primary-500 focus:border-primary-500 disabled:bg-gray-100"
                 required
               />
+            </div>
+          </div>
+
+          {/* Customizer Sub-section for Section 2 */}
+          <div className="border-t border-gray-150 pt-4 mt-4 space-y-4">
+            <div className="flex items-center gap-1.5 text-gray-700 font-bold text-xs uppercase tracking-wider">
+              <Palette className="w-4 h-4 text-primary-600" />
+              <h4>Diseño y Colores (Panel Lateral)</h4>
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="space-y-1">
+                <label className="block text-[10px] font-bold text-gray-550 uppercase">Color de Fondo (Panel)</label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="color"
+                    value={sideBgColor}
+                    onChange={(e) => setSideBgColor(e.target.value)}
+                    disabled={!sidePublished}
+                    className="w-10 h-10 border border-gray-300 rounded cursor-pointer shrink-0"
+                  />
+                  <input
+                    type="text"
+                    value={sideBgColor}
+                    onChange={(e) => setSideBgColor(e.target.value)}
+                    disabled={!sidePublished}
+                    className="w-full border border-gray-300 rounded p-1.5 text-xs font-mono uppercase"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <label className="block text-[10px] font-bold text-gray-550 uppercase">Color de Texto (Base)</label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="color"
+                    value={sideTextColor}
+                    onChange={(e) => setSideTextColor(e.target.value)}
+                    disabled={!sidePublished}
+                    className="w-10 h-10 border border-gray-300 rounded cursor-pointer shrink-0"
+                  />
+                  <input
+                    type="text"
+                    value={sideTextColor}
+                    onChange={(e) => setSideTextColor(e.target.value)}
+                    disabled={!sidePublished}
+                    className="w-full border border-gray-300 rounded p-1.5 text-xs font-mono uppercase"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <label className="block text-[10px] font-bold text-gray-550 uppercase">Color Texto Promocional</label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="color"
+                    value={sidePromoTextColor}
+                    onChange={(e) => setSidePromoTextColor(e.target.value)}
+                    disabled={!sidePublished}
+                    className="w-10 h-10 border border-gray-300 rounded cursor-pointer shrink-0"
+                  />
+                  <input
+                    type="text"
+                    value={sidePromoTextColor}
+                    onChange={(e) => setSidePromoTextColor(e.target.value)}
+                    disabled={!sidePublished}
+                    className="w-full border border-gray-300 rounded p-1.5 text-xs font-mono uppercase"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <label className="block text-[10px] font-bold text-gray-550 uppercase">Fondo Tirador / Botón</label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="color"
+                    value={sideButtonBgColor}
+                    onChange={(e) => setSideButtonBgColor(e.target.value)}
+                    disabled={!sidePublished}
+                    className="w-10 h-10 border border-gray-300 rounded cursor-pointer shrink-0"
+                  />
+                  <input
+                    type="text"
+                    value={sideButtonBgColor}
+                    onChange={(e) => setSideButtonBgColor(e.target.value)}
+                    disabled={!sidePublished}
+                    className="w-full border border-gray-300 rounded p-1.5 text-xs font-mono uppercase"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <label className="block text-[10px] font-bold text-gray-550 uppercase">Texto Tirador / Botón</label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="color"
+                    value={sideButtonTextColor}
+                    onChange={(e) => setSideButtonTextColor(e.target.value)}
+                    disabled={!sidePublished}
+                    className="w-10 h-10 border border-gray-300 rounded cursor-pointer shrink-0"
+                  />
+                  <input
+                    type="text"
+                    value={sideButtonTextColor}
+                    onChange={(e) => setSideButtonTextColor(e.target.value)}
+                    disabled={!sidePublished}
+                    className="w-full border border-gray-300 rounded p-1.5 text-xs font-mono uppercase"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <label className="block text-[10px] font-bold text-gray-550 uppercase">Tamaño Texto Título</label>
+                <select
+                  value={sideTextSizeTitle}
+                  onChange={(e) => setSideTextSizeTitle(e.target.value)}
+                  disabled={!sidePublished}
+                  className="w-full bg-white border border-gray-300 rounded-lg p-2 text-xs font-semibold focus:ring-primary-500"
+                >
+                  <option value="text-xs">Pequeño (12px)</option>
+                  <option value="text-sm">Mediano (14px)</option>
+                  <option value="text-base">Grande (16px)</option>
+                </select>
+              </div>
+
+              <div className="space-y-1">
+                <label className="block text-[10px] font-bold text-gray-550 uppercase">Tamaño Texto Descuentos</label>
+                <select
+                  value={sideTextSizePromo}
+                  onChange={(e) => setSideTextSizePromo(e.target.value)}
+                  disabled={!sidePublished}
+                  className="w-full bg-white border border-gray-300 rounded-lg p-2 text-xs font-semibold focus:ring-primary-500"
+                >
+                  <option value="Normal">Normal</option>
+                  <option value="Grande">Grande</option>
+                  <option value="Muy Grande">Muy Grande</option>
+                </select>
+              </div>
+
+              <div className="space-y-1">
+                <label className="block text-[10px] font-bold text-gray-550 uppercase">Icono del Tirador</label>
+                <select
+                  value={sideTriggerIcon}
+                  onChange={(e) => setSideTriggerIcon(e.target.value)}
+                  disabled={!sidePublished}
+                  className="w-full bg-white border border-gray-300 rounded-lg p-2 text-xs font-semibold focus:ring-primary-500"
+                >
+                  <option value="Arrow">Flecha (◀/▶)</option>
+                  <option value="Gift">Regalo (Gift)</option>
+                  <option value="Tag">Etiqueta (Tag)</option>
+                  <option value="Percent">Porcentaje (%)</option>
+                </select>
+              </div>
             </div>
           </div>
         </div>
@@ -363,6 +555,190 @@ export function AdminPromotions({ homeSettings, updateHomeSettings }: AdminPromo
                     className="w-full bg-white border border-gray-300 rounded-lg p-2 text-xs focus:ring-primary-500"
                     required
                   />
+                </div>
+              </div>
+            </div>
+
+            {/* Customizer Sub-section for Section 3 */}
+            <div className="border-t border-gray-150 pt-4 mt-4 space-y-4 col-span-1 md:col-span-2">
+              <div className="flex items-center gap-1.5 text-gray-700 font-bold text-xs uppercase tracking-wider">
+                <Sliders className="w-4 h-4 text-primary-600" />
+                <h4>Diseño, Colores e Iconos (Modal Catálogo)</h4>
+              </div>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="space-y-1">
+                  <label className="block text-[10px] font-bold text-gray-550 uppercase">Fondo Gradiente Inicio</label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="color"
+                      value={catalogPromoBgColorStart}
+                      onChange={(e) => setCatalogPromoBgColorStart(e.target.value)}
+                      disabled={!catalogPromoPublished}
+                      className="w-10 h-10 border border-gray-300 rounded cursor-pointer shrink-0"
+                    />
+                    <input
+                      type="text"
+                      value={catalogPromoBgColorStart}
+                      onChange={(e) => setCatalogPromoBgColorStart(e.target.value)}
+                      disabled={!catalogPromoPublished}
+                      className="w-full border border-gray-300 rounded p-1.5 text-xs font-mono uppercase"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="block text-[10px] font-bold text-gray-550 uppercase">Fondo Gradiente Fin</label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="color"
+                      value={catalogPromoBgColorEnd}
+                      onChange={(e) => setCatalogPromoBgColorEnd(e.target.value)}
+                      disabled={!catalogPromoPublished}
+                      className="w-10 h-10 border border-gray-300 rounded cursor-pointer shrink-0"
+                    />
+                    <input
+                      type="text"
+                      value={catalogPromoBgColorEnd}
+                      onChange={(e) => setCatalogPromoBgColorEnd(e.target.value)}
+                      disabled={!catalogPromoPublished}
+                      className="w-full border border-gray-300 rounded p-1.5 text-xs font-mono uppercase"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="block text-[10px] font-bold text-gray-550 uppercase">Color Texto Título</label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="color"
+                      value={catalogPromoTextColor}
+                      onChange={(e) => setCatalogPromoTextColor(e.target.value)}
+                      disabled={!catalogPromoPublished}
+                      className="w-10 h-10 border border-gray-300 rounded cursor-pointer shrink-0"
+                    />
+                    <input
+                      type="text"
+                      value={catalogPromoTextColor}
+                      onChange={(e) => setCatalogPromoTextColor(e.target.value)}
+                      disabled={!catalogPromoPublished}
+                      className="w-full border border-gray-300 rounded p-1.5 text-xs font-mono uppercase"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="block text-[10px] font-bold text-gray-550 uppercase">Fondo del Cupón</label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="color"
+                      value={catalogPromoCouponBgColor}
+                      onChange={(e) => setCatalogPromoCouponBgColor(e.target.value)}
+                      disabled={!catalogPromoPublished}
+                      className="w-10 h-10 border border-gray-300 rounded cursor-pointer shrink-0"
+                    />
+                    <input
+                      type="text"
+                      value={catalogPromoCouponBgColor}
+                      onChange={(e) => setCatalogPromoCouponBgColor(e.target.value)}
+                      disabled={!catalogPromoPublished}
+                      className="w-full border border-gray-300 rounded p-1.5 text-xs font-mono uppercase"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="block text-[10px] font-bold text-gray-550 uppercase">Borde del Cupón</label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="color"
+                      value={catalogPromoCouponBorderColor}
+                      onChange={(e) => setCatalogPromoCouponBorderColor(e.target.value)}
+                      disabled={!catalogPromoPublished}
+                      className="w-10 h-10 border border-gray-300 rounded cursor-pointer shrink-0"
+                    />
+                    <input
+                      type="text"
+                      value={catalogPromoCouponBorderColor}
+                      onChange={(e) => setCatalogPromoCouponBorderColor(e.target.value)}
+                      disabled={!catalogPromoPublished}
+                      className="w-full border border-gray-300 rounded p-1.5 text-xs font-mono uppercase"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="block text-[10px] font-bold text-gray-550 uppercase">Color Descuento Cupón</label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="color"
+                      value={catalogPromoCouponTextColor}
+                      onChange={(e) => setCatalogPromoCouponTextColor(e.target.value)}
+                      disabled={!catalogPromoPublished}
+                      className="w-10 h-10 border border-gray-300 rounded cursor-pointer shrink-0"
+                    />
+                    <input
+                      type="text"
+                      value={catalogPromoCouponTextColor}
+                      onChange={(e) => setCatalogPromoCouponTextColor(e.target.value)}
+                      disabled={!catalogPromoPublished}
+                      className="w-full border border-gray-300 rounded p-1.5 text-xs font-mono uppercase"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="block text-[10px] font-bold text-gray-550 uppercase">Fondo Botón Acción</label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="color"
+                      value={catalogPromoButtonBgColor}
+                      onChange={(e) => setCatalogPromoButtonBgColor(e.target.value)}
+                      disabled={!catalogPromoPublished}
+                      className="w-10 h-10 border border-gray-300 rounded cursor-pointer shrink-0"
+                    />
+                    <input
+                      type="text"
+                      value={catalogPromoButtonBgColor}
+                      onChange={(e) => setCatalogPromoButtonBgColor(e.target.value)}
+                      disabled={!catalogPromoPublished}
+                      className="w-full border border-gray-300 rounded p-1.5 text-xs font-mono uppercase"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="block text-[10px] font-bold text-gray-550 uppercase">Texto Botón Acción</label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="color"
+                      value={catalogPromoButtonTextColor}
+                      onChange={(e) => setCatalogPromoButtonTextColor(e.target.value)}
+                      disabled={!catalogPromoPublished}
+                      className="w-10 h-10 border border-gray-300 rounded cursor-pointer shrink-0"
+                    />
+                    <input
+                      type="text"
+                      value={catalogPromoButtonTextColor}
+                      onChange={(e) => setCatalogPromoButtonTextColor(e.target.value)}
+                      disabled={!catalogPromoPublished}
+                      className="w-full border border-gray-300 rounded p-1.5 text-xs font-mono uppercase"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="block text-[10px] font-bold text-gray-550 uppercase">Ilustración Superior</label>
+                  <select
+                    value={catalogPromoIcon}
+                    onChange={(e) => setCatalogPromoIcon(e.target.value)}
+                    disabled={!catalogPromoPublished}
+                    className="w-full bg-white border border-gray-300 rounded-lg p-2 text-xs font-semibold focus:ring-primary-500"
+                  >
+                    <option value="GiftBow">Moño Dorado (Regalo)</option>
+                    <option value="Truck">Camión de Envío</option>
+                    <option value="Tag">Etiqueta de Descuento</option>
+                    <option value="Star">Estrella Brillante</option>
+                  </select>
                 </div>
               </div>
             </div>

@@ -6,7 +6,7 @@ import { useProducts } from "@/hooks/useProducts";
 import { MATERIALS, Product } from "@/types";
 import { useSettings } from "@/hooks/useSettings";
 import { ProductCard } from "./ProductCard";
-import { Filter, X, ChevronDown } from "lucide-react";
+import { Filter, X, ChevronDown, Gift, Truck, Tag, Star } from "lucide-react";
 
 function getSearchSimilarity(text: string, query: string): number {
   const textLower = text.toLowerCase();
@@ -45,6 +45,71 @@ function getSearchSimilarity(text: string, query: string): number {
 
   return 0;
 }
+
+const renderCatalogPromoIllustration = (iconType?: string, couponColor?: string, borderColor?: string) => {
+  const badgeColor = couponColor || "#ff4a5a";
+  const borderBg = borderColor || "#ffffff";
+  
+  if (iconType === "Truck") {
+    return (
+      <div className="absolute -top-7 flex justify-center z-10 w-full">
+        <div 
+          className="w-14 h-14 rounded-full flex items-center justify-center shadow-lg border-2 text-white transition-all hover:scale-105"
+          style={{ backgroundColor: badgeColor, borderColor: borderBg }}
+        >
+          <Truck className="w-7 h-7" />
+        </div>
+      </div>
+    );
+  }
+  
+  if (iconType === "Tag") {
+    return (
+      <div className="absolute -top-7 flex justify-center z-10 w-full">
+        <div 
+          className="w-14 h-14 rounded-full flex items-center justify-center shadow-lg border-2 text-white transition-all hover:scale-105"
+          style={{ backgroundColor: badgeColor, borderColor: borderBg }}
+        >
+          <Tag className="w-7 h-7" />
+        </div>
+      </div>
+    );
+  }
+  
+  if (iconType === "Star") {
+    return (
+      <div className="absolute -top-7 flex justify-center z-10 w-full">
+        <div 
+          className="w-14 h-14 rounded-full flex items-center justify-center shadow-lg border-2 text-white transition-all hover:scale-105"
+          style={{ backgroundColor: badgeColor, borderColor: borderBg }}
+        >
+          <Star className="w-7 h-7" />
+        </div>
+      </div>
+    );
+  }
+  
+  return (
+    <div className="absolute -top-9 flex justify-center z-10 w-full">
+      <svg className="w-24 h-12 text-[#f39c12] fill-current drop-shadow-md" viewBox="0 0 100 50">
+        <path d="M50 30 C20 10, 10 30, 50 30 Z" fill="url(#goldGoldGradient)" stroke="#d35400" strokeWidth="1" />
+        <path d="M50 30 C80 10, 90 30, 50 30 Z" fill="url(#goldGoldGradient)" stroke="#d35400" strokeWidth="1" />
+        <path d="M50 30 L35 50 L42 35 Z" fill="url(#goldGoldGradient)" />
+        <path d="M50 30 L65 50 L58 35 Z" fill="url(#goldGoldGradient)" />
+        <circle cx="50" cy="30" r="7" fill="#d35400" />
+        <circle cx="50" cy="30" r="5" fill="url(#goldGoldGradient)" />
+        <defs>
+          <linearGradient id="goldGoldGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stopColor="#fff2cc" />
+            <stop offset="30%" stopColor="#ffb834" />
+            <stop offset="70%" stopColor="#f39c12" />
+            <stop offset="100%" stopColor="#d35400" />
+          </linearGradient>
+        </defs>
+      </svg>
+    </div>
+  );
+};
 
 export function CatalogView({ 
   initialProducts, 
@@ -375,35 +440,26 @@ export function CatalogView({
             </button>
 
             {/* Main White Promo Card */}
-            <div className="bg-gradient-to-b from-[#fff6ee] to-white rounded-3xl w-full p-5 pt-7 pb-6 relative shadow-2xl flex flex-col items-center border border-[#ffeadd]">
+            <div 
+              className="rounded-3xl w-full p-5 pt-7 pb-6 relative shadow-2xl flex flex-col items-center border"
+              style={{
+                background: `linear-gradient(to bottom, ${homeSettings?.promotions?.catalogPromoBgColorStart || "#fff6ee"}, ${homeSettings?.promotions?.catalogPromoBgColorEnd || "#ffffff"})`,
+                borderColor: homeSettings?.promotions?.catalogPromoCouponBorderColor || "#ffeadd"
+              }}
+            >
               
-              {/* Gift Bow SVG Header */}
-              <div className="absolute -top-9 flex justify-center z-10 w-full">
-                <svg className="w-24 h-12 text-[#f39c12] fill-current drop-shadow-md" viewBox="0 0 100 50">
-                  {/* Left Loop */}
-                  <path d="M50 30 C20 10, 10 30, 50 30 Z" fill="url(#goldGradient)" stroke="#d35400" strokeWidth="1" />
-                  {/* Right Loop */}
-                  <path d="M50 30 C80 10, 90 30, 50 30 Z" fill="url(#goldGradient)" stroke="#d35400" strokeWidth="1" />
-                  {/* Left Ribbon Tail */}
-                  <path d="M50 30 L35 50 L42 35 Z" fill="url(#goldGradient)" />
-                  {/* Right Ribbon Tail */}
-                  <path d="M50 30 L65 50 L58 35 Z" fill="url(#goldGradient)" />
-                  {/* Center Knot */}
-                  <circle cx="50" cy="30" r="7" fill="#d35400" />
-                  <circle cx="50" cy="30" r="5" fill="url(#goldGradient)" />
-                  <defs>
-                    <linearGradient id="goldGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                      <stop offset="0%" stopColor="#fff2cc" />
-                      <stop offset="30%" stopColor="#ffb834" />
-                      <stop offset="70%" stopColor="#f39c12" />
-                      <stop offset="100%" stopColor="#d35400" />
-                    </linearGradient>
-                  </defs>
-                </svg>
-              </div>
+              {/* Illustration Icon Header */}
+              {renderCatalogPromoIllustration(
+                homeSettings?.promotions?.catalogPromoIcon,
+                homeSettings?.promotions?.catalogPromoCouponTextColor,
+                homeSettings?.promotions?.catalogPromoCouponBorderColor
+              )}
 
               {/* Title Section */}
-              <h2 className="text-[#a0522d] font-bold text-center text-lg mt-1 mb-5">
+              <h2 
+                className="font-bold text-center text-lg mt-1 mb-5"
+                style={{ color: homeSettings?.promotions?.catalogPromoTextColor || "#a0522d" }}
+              >
                 Ofertas especiales solo para ti
               </h2>
 
@@ -411,18 +467,33 @@ export function CatalogView({
               <div className="w-full space-y-4 mb-6">
                 
                 {/* Coupon 1 */}
-                <div className="relative flex bg-[#fff7f6] border border-[#ffd2cc] rounded-2xl overflow-hidden p-4 min-h-[92px] shadow-sm">
+                <div 
+                  className="relative flex rounded-2xl overflow-hidden p-4 min-h-[92px] shadow-sm border"
+                  style={{
+                    backgroundColor: homeSettings?.promotions?.catalogPromoCouponBgColor || "#fff7f6",
+                    borderColor: homeSettings?.promotions?.catalogPromoCouponBorderColor || "#ffd2cc"
+                  }}
+                >
                   {/* Left tag */}
-                  <div className="absolute top-0 left-0 bg-[#ff4a5a] text-white text-[8px] font-extrabold px-2 py-0.5 rounded-br-xl shadow-xs tracking-wider uppercase">
+                  <div 
+                    className="absolute top-0 left-0 text-white text-[8px] font-extrabold px-2 py-0.5 rounded-br-xl tracking-wider uppercase"
+                    style={{ backgroundColor: homeSettings?.promotions?.catalogPromoCouponTextColor || "#ff4a5a" }}
+                  >
                     Nuevo usuario
                   </div>
                   
                   {/* Left content */}
                   <div className="w-[38%] flex flex-col justify-center items-center pr-2 pt-2 text-center">
-                    <span className="text-xl sm:text-2xl font-black text-[#ff4a5a] leading-none tracking-tight">
+                    <span 
+                      className="text-xl sm:text-2xl font-black leading-none tracking-tight"
+                      style={{ color: homeSettings?.promotions?.catalogPromoCouponTextColor || "#ff4a5a" }}
+                    >
                       {homeSettings?.promotions?.coupon1Discount?.split(' ')[0] || "30%"}
                     </span>
-                    <span className="text-[7.5px] text-[#ff4a5a] font-bold mt-1 uppercase tracking-tight">
+                    <span 
+                      className="text-[7.5px] font-bold mt-1 uppercase tracking-tight"
+                      style={{ color: homeSettings?.promotions?.catalogPromoCouponTextColor || "#ff4a5a" }}
+                    >
                       {homeSettings?.promotions?.coupon1Discount?.split(' ').slice(1).join(' ') || "DE DESCUENTO"}
                     </span>
                     <span className="text-[8px] text-gray-455 mt-1 font-medium">
@@ -431,11 +502,17 @@ export function CatalogView({
                   </div>
 
                   {/* Dashed border separator */}
-                  <div className="border-r border-dashed border-[#ffd2cc] my-1" />
+                  <div 
+                    className="border-r border-dashed my-1" 
+                    style={{ borderColor: homeSettings?.promotions?.catalogPromoCouponBorderColor || "#ffd2cc" }}
+                  />
 
                   {/* Right content */}
                   <div className="flex-1 pl-4 flex flex-col justify-center text-left">
-                    <span className="text-xs sm:text-sm font-extrabold text-[#ff4a5a] leading-snug">
+                    <span 
+                      className="text-xs sm:text-sm font-extrabold leading-snug"
+                      style={{ color: homeSettings?.promotions?.catalogPromoCouponTextColor || "#ff4a5a" }}
+                    >
                       {homeSettings?.promotions?.coupon1RightTitle || "Cupón válido en todo el sitio"}
                     </span>
                     <span className="text-[9px] text-gray-500 mt-1">
@@ -448,23 +525,50 @@ export function CatalogView({
                   </div>
 
                   {/* Scalloped circle cutouts */}
-                  <div className="absolute top-0 left-[38%] -translate-y-1/2 -translate-x-1/2 w-4 h-4 bg-[#fff6ee] rounded-full border-b border-[#ffd2cc]" />
-                  <div className="absolute bottom-0 left-[38%] translate-y-1/2 -translate-x-1/2 w-4 h-4 bg-white rounded-full border-t border-[#ffd2cc]" />
+                  <div 
+                    className="absolute top-0 left-[38%] -translate-y-1/2 -translate-x-1/2 w-4 h-4 rounded-full border-b"
+                    style={{ 
+                      backgroundColor: homeSettings?.promotions?.catalogPromoBgColorStart || "#fff6ee",
+                      borderColor: homeSettings?.promotions?.catalogPromoCouponBorderColor || "#ffd2cc"
+                    }}
+                  />
+                  <div 
+                    className="absolute bottom-0 left-[38%] translate-y-1/2 -translate-x-1/2 w-4 h-4 rounded-full border-t"
+                    style={{ 
+                      backgroundColor: homeSettings?.promotions?.catalogPromoBgColorEnd || "#ffffff",
+                      borderColor: homeSettings?.promotions?.catalogPromoCouponBorderColor || "#ffd2cc"
+                    }}
+                  />
                 </div>
 
                 {/* Coupon 2 */}
-                <div className="relative flex bg-[#fff7f6] border border-[#ffd2cc] rounded-2xl overflow-hidden p-4 min-h-[92px] shadow-sm">
+                <div 
+                  className="relative flex rounded-2xl overflow-hidden p-4 min-h-[92px] shadow-sm border"
+                  style={{
+                    backgroundColor: homeSettings?.promotions?.catalogPromoCouponBgColor || "#fff7f6",
+                    borderColor: homeSettings?.promotions?.catalogPromoCouponBorderColor || "#ffd2cc"
+                  }}
+                >
                   {/* Left tag */}
-                  <div className="absolute top-0 left-0 bg-[#ff4a5a] text-white text-[8px] font-extrabold px-2 py-0.5 rounded-br-xl shadow-xs tracking-wider uppercase">
+                  <div 
+                    className="absolute top-0 left-0 text-white text-[8px] font-extrabold px-2 py-0.5 rounded-br-xl tracking-wider uppercase"
+                    style={{ backgroundColor: homeSettings?.promotions?.catalogPromoCouponTextColor || "#ff4a5a" }}
+                  >
                     Nuevo usuario
                   </div>
                   
                   {/* Left content */}
                   <div className="w-[38%] flex flex-col justify-center items-center pr-2 pt-2 text-center">
-                    <span className="text-xl sm:text-2xl font-black text-[#ff4a5a] leading-none tracking-tight">
+                    <span 
+                      className="text-xl sm:text-2xl font-black leading-none tracking-tight"
+                      style={{ color: homeSettings?.promotions?.catalogPromoCouponTextColor || "#ff4a5a" }}
+                    >
                       {homeSettings?.promotions?.coupon2Discount?.split(' ')[0] || "65%"}
                     </span>
-                    <span className="text-[7.5px] text-[#ff4a5a] font-bold mt-1 uppercase tracking-tight">
+                    <span 
+                      className="text-[7.5px] font-bold mt-1 uppercase tracking-tight"
+                      style={{ color: homeSettings?.promotions?.catalogPromoCouponTextColor || "#ff4a5a" }}
+                    >
                       {homeSettings?.promotions?.coupon2Discount?.split(' ').slice(1).join(' ') || "DE DESCUENTO"}
                     </span>
                     <span className="text-[8px] text-gray-455 mt-1 font-medium">
@@ -473,11 +577,17 @@ export function CatalogView({
                   </div>
 
                   {/* Dashed border separator */}
-                  <div className="border-r border-dashed border-[#ffd2cc] my-1" />
+                  <div 
+                    className="border-r border-dashed my-1" 
+                    style={{ borderColor: homeSettings?.promotions?.catalogPromoCouponBorderColor || "#ffd2cc" }}
+                  />
 
                   {/* Right content */}
                   <div className="flex-1 pl-4 flex flex-col justify-center text-left">
-                    <span className="text-xs sm:text-sm font-extrabold text-[#ff4a5a] leading-snug">
+                    <span 
+                      className="text-xs sm:text-sm font-extrabold leading-snug"
+                      style={{ color: homeSettings?.promotions?.catalogPromoCouponTextColor || "#ff4a5a" }}
+                    >
                       {homeSettings?.promotions?.coupon2RightTitle || "Cupón válido en todo el sitio"}
                     </span>
                     <span className="text-[9px] text-gray-500 mt-1">
@@ -490,8 +600,20 @@ export function CatalogView({
                   </div>
 
                   {/* Scalloped circle cutouts */}
-                  <div className="absolute top-0 left-[38%] -translate-y-1/2 -translate-x-1/2 w-4 h-4 bg-[#fff6ee] rounded-full border-b border-[#ffd2cc]" />
-                  <div className="absolute bottom-0 left-[38%] translate-y-1/2 -translate-x-1/2 w-4 h-4 bg-white rounded-full border-t border-[#ffd2cc]" />
+                  <div 
+                    className="absolute top-0 left-[38%] -translate-y-1/2 -translate-x-1/2 w-4 h-4 rounded-full border-b"
+                    style={{ 
+                      backgroundColor: homeSettings?.promotions?.catalogPromoBgColorStart || "#fff6ee",
+                      borderColor: homeSettings?.promotions?.catalogPromoCouponBorderColor || "#ffd2cc"
+                    }}
+                  />
+                  <div 
+                    className="absolute bottom-0 left-[38%] translate-y-1/2 -translate-x-1/2 w-4 h-4 rounded-full border-t"
+                    style={{ 
+                      backgroundColor: homeSettings?.promotions?.catalogPromoBgColorEnd || "#ffffff",
+                      borderColor: homeSettings?.promotions?.catalogPromoCouponBorderColor || "#ffd2cc"
+                    }}
+                  />
                 </div>
 
               </div>
@@ -499,7 +621,11 @@ export function CatalogView({
               {/* Action Claim Button */}
               <button 
                 onClick={handleClaimCoupons}
-                className="w-full bg-[#222222] hover:bg-[#111111] text-white text-sm font-extrabold py-3 px-6 rounded-full shadow-lg hover:shadow-xl transition-all uppercase tracking-wider cursor-pointer"
+                className="w-full text-sm font-extrabold py-3 px-6 rounded-full shadow-lg hover:shadow-xl hover:brightness-110 active:scale-[0.98] transition-all uppercase tracking-wider cursor-pointer"
+                style={{
+                  backgroundColor: homeSettings?.promotions?.catalogPromoButtonBgColor || "#222222",
+                  color: homeSettings?.promotions?.catalogPromoButtonTextColor || "#ffffff"
+                }}
               >
                 {homeSettings?.promotions?.catalogPromoButtonText || "¡Consíguelos Todos!"}
               </button>

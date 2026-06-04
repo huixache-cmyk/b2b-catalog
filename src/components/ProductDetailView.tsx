@@ -4,13 +4,117 @@ import { useState, useRef, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { Product } from "@/types";
 import { ProductCard } from "./ProductCard";
-import { Check, Info, ShieldCheck, Truck, ChevronRight, ChevronLeft, Upload, Download, X, AlertCircle, ShoppingCart, MapPin } from "lucide-react";
+import { Check, Info, ShieldCheck, Truck, ChevronRight, ChevronLeft, Upload, Download, X, AlertCircle, ShoppingCart, MapPin, Gift, Tag, Percent } from "lucide-react";
 import Link from "next/link";
 import { useCart } from "@/hooks/useCart";
 import html2canvas from "html2canvas";
 import { useSettings } from "@/hooks/useSettings";
 import { formatCurrency } from "@/utils/formatters";
 import Image from "next/image";
+
+const renderTriggerIcon = (iconName?: string) => {
+  switch (iconName) {
+    case "Gift":
+      return <Gift className="w-5 h-5 mb-2" />;
+    case "Tag":
+      return <Tag className="w-5 h-5 mb-2" />;
+    case "Percent":
+      return <Percent className="w-5 h-5 mb-2" />;
+    default:
+      return null;
+  }
+};
+
+const parseSideTextLeft = (fullText: string, promoColor: string, promoSize: string) => {
+  const match = fullText.match(/(-\d+%|\d+%\s*DTO\.?|\d+%\s*OFF)/i);
+  if (match) {
+    const promoPart = match[0];
+    const index = fullText.indexOf(promoPart);
+    const before = fullText.substring(0, index).trim();
+    const after = fullText.substring(index + promoPart.length).trim();
+    
+    const fontSize = promoSize === "Grande" ? "48px" : promoSize === "Muy Grande" ? "56px" : "40px";
+    
+    return (
+      <div className="text-center flex flex-col justify-center items-center">
+        {before && (
+          <span className="text-[9px] sm:text-[10px] uppercase tracking-wide opacity-90">
+            {before}
+          </span>
+        )}
+        <span 
+          className="font-black my-0.5 leading-none"
+          style={{ color: promoColor, fontSize }}
+        >
+          {promoPart}
+        </span>
+        {after && (
+          <span className="text-[10px] sm:text-xs font-bold uppercase tracking-wide">
+            {after}
+          </span>
+        )}
+      </div>
+    );
+  }
+  
+  return (
+    <div className="text-center flex flex-col justify-center items-center px-2">
+      <span className="text-xs font-bold text-center leading-tight">{fullText}</span>
+    </div>
+  );
+};
+
+const parseSideTextRight = (fullText: string, promoColor: string, promoSize: string) => {
+  const matchEnvio = fullText.match(/(ENVÍO\s+GRATIS|ENVIO\s+GRATIS|FREE\s+SHIPPING)/i);
+  if (matchEnvio) {
+    const promoPart = matchEnvio[0];
+    const index = fullText.indexOf(promoPart);
+    const after = fullText.substring(index + promoPart.length).trim();
+    
+    let line1 = after;
+    let line2 = "";
+    
+    const plusIndex = after.search(/\+\$|\+MXN|en\s+su/i);
+    if (plusIndex !== -1) {
+      line1 = after.substring(0, plusIndex).trim();
+      line2 = after.substring(plusIndex).trim();
+    }
+    
+    const fontSize = promoSize === "Grande" ? "30px" : promoSize === "Muy Grande" ? "36px" : "24px";
+    
+    return (
+      <div className="text-center flex flex-col justify-center items-center pl-3">
+        <span 
+          className="font-black leading-none uppercase"
+          style={{ color: promoColor, fontSize }}
+        >
+          {promoPart.includes(" ") ? (
+            <>
+              <div>{promoPart.split(/\s+/)[0]}</div>
+              <div className="mt-0.5">{promoPart.split(/\s+/)[1]}</div>
+            </>
+          ) : promoPart}
+        </span>
+        {line1 && (
+          <span className="text-[9px] sm:text-[10px] uppercase tracking-wide mt-1.5 opacity-90">
+            {line1}
+          </span>
+        )}
+        {line2 && (
+          <span className="text-[10px] sm:text-xs font-bold mt-0.5">
+            {line2}
+          </span>
+        )}
+      </div>
+    );
+  }
+  
+  return (
+    <div className="text-center flex flex-col justify-center items-center pl-3 px-2">
+      <span className="text-xs font-bold text-center leading-tight">{fullText}</span>
+    </div>
+  );
+};
  
 export function ProductDetailView({ product, relatedProducts }: { product: Product, relatedProducts: Product[] }) {
   const firstNonEmptyIndex = product.images.findIndex(img => !!img);
@@ -917,12 +1021,17 @@ export function ProductDetailView({ product, relatedProducts }: { product: Produ
             {/* Vertical Toggle Trigger Button (Sized to exact height of drawer) */}
             <button 
               onClick={() => setShowSidePromo(!showSidePromo)}
-              className="w-12 bg-black text-white hover:bg-gray-800 transition-colors flex flex-col items-center py-6 px-1 rounded-l-2xl shadow-md focus:outline-none cursor-pointer select-none"
-              style={{ height: '420px' }}
+              className="w-12 transition-all duration-200 hover:brightness-110 active:scale-95 flex flex-col items-center py-6 px-1 rounded-l-2xl shadow-md focus:outline-none cursor-pointer select-none"
+              style={{ 
+                height: '420px',
+                backgroundColor: homeSettings?.promotions?.sideButtonBgColor || "#000000",
+                color: homeSettings?.promotions?.sideButtonTextColor || "#ffffff"
+              }}
             >
               {/* Arrow icon pointing to close (▶) or open (◀) */}
-              <div className="mb-4 text-xs font-bold">
-                {showSidePromo ? '▶' : '◀'}
+              <div className="mb-4 text-xs font-bold flex flex-col items-center gap-1.5">
+                <span>{showSidePromo ? '▶' : '◀'}</span>
+                {renderTriggerIcon(homeSettings?.promotions?.sideTriggerIcon)}
               </div>
               
               {/* Vertical text (Larger and proportional to the tab) */}
@@ -936,47 +1045,54 @@ export function ProductDetailView({ product, relatedProducts }: { product: Produ
 
             {/* Pink Drawer Panel (Matching height of W-12 trigger) */}
             <div 
-              className="bg-[#ffeceb] text-[#222222] flex flex-col font-sans border-y border-r border-[#ffd2cc] rounded-r-2xl overflow-hidden shadow-inner"
+              className="flex flex-col font-sans border-y border-r rounded-r-2xl overflow-hidden shadow-inner"
               style={{ 
                 width: `${panelWidth}px`, 
-                height: '420px' 
+                height: '420px',
+                backgroundColor: homeSettings?.promotions?.sideBgColor || "#ffeceb",
+                color: homeSettings?.promotions?.sideTextColor || "#222222",
+                borderColor: homeSettings?.promotions?.sidePromoTextColor || "#ffd2cc"
               }}
             >
               {/* Content Area (Sized and padded to fit cleanly inside 420px height) */}
               <div className="flex-1 p-6 flex flex-col justify-center space-y-5">
                 
                 {/* Promo Header Text */}
-                <h3 className="text-center font-bold text-gray-900 leading-snug text-xs sm:text-[13px] px-1 uppercase tracking-wide">
+                <h3 
+                  className="text-center font-bold leading-snug px-1 uppercase tracking-wide"
+                  style={{
+                    color: homeSettings?.promotions?.sideTextColor || "#222222",
+                    fontSize: homeSettings?.promotions?.sideTextSizeTitle === "text-xs" 
+                      ? "12px" 
+                      : homeSettings?.promotions?.sideTextSizeTitle === "text-base" 
+                        ? "16px" 
+                        : "14px"
+                  }}
+                >
                   {homeSettings?.promotions?.sideTitle || "Suscribirse para disfrutar los precios de VIP y Ventas Flash"}
                 </h3>
 
                 {/* Promo Offer Columns */}
                 <div className="grid grid-cols-2 gap-2 items-center relative py-1">
                   {/* Box 1 (Left) */}
-                  <div className="text-center flex flex-col justify-center items-center">
-                    <span className="text-[9px] sm:text-[10px] text-gray-800 uppercase tracking-wide">
-                      Suscribirse y obtén
-                    </span>
-                    <span className="text-4xl sm:text-5xl font-black text-[#e1251b] my-0.5 leading-none">-30%</span>
-                    <span className="text-[10px] sm:text-xs font-bold text-black uppercase tracking-wide">
-                      En Primer Pedido
-                    </span>
-                  </div>
+                  {parseSideTextLeft(
+                    homeSettings?.promotions?.sideTextLeft || "Suscribirse y obtén -30% En Primer Pedido",
+                    homeSettings?.promotions?.sidePromoTextColor || "#e1251b",
+                    homeSettings?.promotions?.sideTextSizePromo || "Normal"
+                  )}
 
                   {/* Vertical Divider */}
-                  <div className="absolute left-1/2 top-1 bottom-1 border-l border-red-200" />
+                  <div 
+                    className="absolute left-1/2 top-1 bottom-1 border-l" 
+                    style={{ borderColor: homeSettings?.promotions?.sidePromoTextColor ? `${homeSettings.promotions.sidePromoTextColor}44` : "#fecaca" }}
+                  />
 
                   {/* Box 2 (Right) */}
-                  <div className="text-center flex flex-col justify-center items-center pl-3">
-                    <span className="text-2xl sm:text-3xl font-black text-[#e1251b] leading-none uppercase">ENVÍO</span>
-                    <span className="text-2xl sm:text-3xl font-black text-[#e1251b] leading-none uppercase mt-0.5">GRATIS</span>
-                    <span className="text-[9px] sm:text-[10px] text-gray-800 uppercase tracking-wide mt-1.5">
-                      en su primer pedido
-                    </span>
-                    <span className="text-[10px] sm:text-xs font-bold text-black mt-0.5">
-                      +$MXN99
-                    </span>
-                  </div>
+                  {parseSideTextRight(
+                    homeSettings?.promotions?.sideTextRight || "ENVÍO GRATIS en su primer pedido +$MXN99",
+                    homeSettings?.promotions?.sidePromoTextColor || "#e1251b",
+                    homeSettings?.promotions?.sideTextSizePromo || "Normal"
+                  )}
                 </div>
 
                 {/* Registration Form (Side-by-side) */}
@@ -991,21 +1107,25 @@ export function ProductDetailView({ product, relatedProducts }: { product: Produ
                       alert("¡Gracias por registrarte! Tu código de descuento ha sido enviado a tu correo.");
                       setShowSidePromo(false);
                     }}
-                    className="w-24 sm:w-28 bg-black hover:bg-gray-900 text-white font-extrabold py-2.5 px-2 rounded text-[10px] sm:text-xs tracking-wider transition-colors uppercase cursor-pointer"
+                    className="w-24 sm:w-28 font-extrabold py-2.5 px-2 rounded text-[10px] sm:text-xs tracking-wider transition-all hover:brightness-110 active:scale-95 uppercase cursor-pointer"
+                    style={{
+                      backgroundColor: homeSettings?.promotions?.sideButtonBgColor || "#000000",
+                      color: homeSettings?.promotions?.sideButtonTextColor || "#ffffff"
+                    }}
                   >
                     REGÍSTRATE
                   </button>
                 </div>
 
                 {/* Disclaimers & Checkboxes */}
-                <div className="text-[9px] sm:text-[10px] text-gray-550 space-y-2.5 leading-relaxed pt-1">
+                <div className="text-[9px] sm:text-[10px] space-y-2.5 leading-relaxed pt-1" style={{ color: homeSettings?.promotions?.sideTextColor ? `${homeSettings.promotions.sideTextColor}cc` : "#6b7280" }}>
                   <p>
                     Al registrarse, acepta nuestra <span className="underline cursor-pointer hover:text-black">Política de privacidad y cookies</span> y nuestros <span className="underline cursor-pointer hover:text-black">Términos y condiciones</span>.
                   </p>
                   <label className="flex items-start gap-2 cursor-pointer">
                     <input type="checkbox" className="mt-0.5 rounded text-black focus:ring-black h-3 w-3 border-gray-300 shrink-0" />
-                    <span className="text-gray-500 leading-normal">
-                      Me gustaría recibir ofertas exclusivas y las últimas noticias de SHEIN por correo electrónico. Entiendo que puedo comunicarme con SHEIN para cancelar la suscripción en cualquier momento.
+                    <span className="leading-normal">
+                      Me gustaría recibir ofertas exclusivas y las últimas noticias de geekystore por correo electrónico. Entiendo que puedo comunicarme con geekystore para cancelar la suscripción en cualquier momento.
                     </span>
                   </label>
                 </div>
