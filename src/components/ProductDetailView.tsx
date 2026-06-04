@@ -25,6 +25,20 @@ export function ProductDetailView({ product, relatedProducts }: { product: Produ
   const { addToCart } = useCart();
   const [showToast, setShowToast] = useState(false);
   const [showSidePromo, setShowSidePromo] = useState(false);
+  
+  // Custom height/width calculation for side promotion to center it and match reference sizing
+  const [panelWidth, setPanelWidth] = useState(440);
+
+  useEffect(() => {
+    const handleResize = () => {
+      if (typeof window !== "undefined") {
+        setPanelWidth(window.innerWidth < 640 ? window.innerWidth - 48 : 440);
+      }
+    };
+    handleResize();
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
  
   // Save viewed product to recent views in localStorage
   useEffect(() => {
@@ -890,104 +904,113 @@ export function ProductDetailView({ product, relatedProducts }: { product: Produ
             />
           )}
 
-          {/* Side Drawer Panel */}
+          {/* Side Drawer Panel Wrapper (Floating Centered on Right Side) */}
           <div 
-            className={`fixed right-0 top-0 h-full w-[90vw] sm:w-[500px] bg-[#ffeceb] text-[#222222] shadow-2xl z-50 transform transition-transform duration-300 flex flex-col font-sans ${
-              showSidePromo ? 'translate-x-0' : 'translate-x-full'
-            }`}
+            className="fixed right-0 top-1/2 z-50 flex shadow-2xl transition-transform duration-300"
+            style={{
+              height: '420px',
+              transform: showSidePromo 
+                ? 'translate(0, -50%)' 
+                : `translate(${panelWidth}px, -50%)`,
+            }}
           >
-            {/* Vertical Toggle Trigger Button */}
+            {/* Vertical Toggle Trigger Button (Sized to exact height of drawer) */}
             <button 
               onClick={() => setShowSidePromo(!showSidePromo)}
-              className="absolute left-0 top-1/4 -translate-x-full z-45 bg-black text-white hover:bg-gray-800 transition-colors flex flex-col items-center py-6 px-1.5 rounded-l-md shadow-md focus:outline-none cursor-pointer"
-              style={{ height: '260px' }}
+              className="w-12 bg-black text-white hover:bg-gray-800 transition-colors flex flex-col items-center py-6 px-1 rounded-l-2xl shadow-md focus:outline-none cursor-pointer select-none"
+              style={{ height: '420px' }}
             >
               {/* Arrow icon pointing to close (▶) or open (◀) */}
-              <div className="mb-4">
-                {showSidePromo ? (
-                  <span className="text-[10px] text-white">▶</span>
-                ) : (
-                  <span className="text-[10px] text-white">◀</span>
-                )}
+              <div className="mb-4 text-xs font-bold">
+                {showSidePromo ? '▶' : '◀'}
               </div>
               
-              {/* Vertical text */}
+              {/* Vertical text (Larger and proportional to the tab) */}
               <span 
-                className="text-[10px] tracking-widest font-extrabold uppercase select-none flex-1" 
+                className="text-xs tracking-[0.22em] font-extrabold uppercase select-none flex-1 text-center" 
                 style={{ writingMode: 'vertical-lr', transform: 'rotate(180deg)' }}
               >
                 {homeSettings?.promotions?.sideTextTrigger || "CONSIGUE 30% DE DTO."}
               </span>
             </button>
 
-            {/* Content Area */}
-            <div className="flex-1 overflow-y-auto p-8 sm:p-10 flex flex-col justify-center space-y-8">
-              
-              {/* Promo Header Text */}
-              <h3 className="text-center font-bold text-gray-900 leading-snug text-sm sm:text-base px-2">
-                {homeSettings?.promotions?.sideTitle || "Suscribirse para disfrutar los precios de VIP y Ventas Flash"}
-              </h3>
+            {/* Pink Drawer Panel (Matching height of W-12 trigger) */}
+            <div 
+              className="bg-[#ffeceb] text-[#222222] flex flex-col font-sans border-y border-r border-[#ffd2cc] rounded-r-2xl overflow-hidden shadow-inner"
+              style={{ 
+                width: `${panelWidth}px`, 
+                height: '420px' 
+              }}
+            >
+              {/* Content Area (Sized and padded to fit cleanly inside 420px height) */}
+              <div className="flex-1 p-6 flex flex-col justify-center space-y-5">
+                
+                {/* Promo Header Text */}
+                <h3 className="text-center font-bold text-gray-900 leading-snug text-xs sm:text-[13px] px-1 uppercase tracking-wide">
+                  {homeSettings?.promotions?.sideTitle || "Suscribirse para disfrutar los precios de VIP y Ventas Flash"}
+                </h3>
 
-              {/* Promo Offer Columns */}
-              <div className="grid grid-cols-2 gap-4 items-center relative py-2">
-                {/* Box 1 (Left) */}
-                <div className="text-center flex flex-col justify-center items-center">
-                  <span className="text-[10px] sm:text-xs text-gray-800 uppercase tracking-wide">
-                    Suscribirse y obtén
-                  </span>
-                  <span className="text-5xl sm:text-6xl font-black text-[#e1251b] my-1 leading-none">-30%</span>
-                  <span className="text-xs sm:text-sm font-bold text-black uppercase tracking-wide">
-                    En Primer Pedido
-                  </span>
+                {/* Promo Offer Columns */}
+                <div className="grid grid-cols-2 gap-2 items-center relative py-1">
+                  {/* Box 1 (Left) */}
+                  <div className="text-center flex flex-col justify-center items-center">
+                    <span className="text-[9px] sm:text-[10px] text-gray-800 uppercase tracking-wide">
+                      Suscribirse y obtén
+                    </span>
+                    <span className="text-4xl sm:text-5xl font-black text-[#e1251b] my-0.5 leading-none">-30%</span>
+                    <span className="text-[10px] sm:text-xs font-bold text-black uppercase tracking-wide">
+                      En Primer Pedido
+                    </span>
+                  </div>
+
+                  {/* Vertical Divider */}
+                  <div className="absolute left-1/2 top-1 bottom-1 border-l border-red-200" />
+
+                  {/* Box 2 (Right) */}
+                  <div className="text-center flex flex-col justify-center items-center pl-3">
+                    <span className="text-2xl sm:text-3xl font-black text-[#e1251b] leading-none uppercase">ENVÍO</span>
+                    <span className="text-2xl sm:text-3xl font-black text-[#e1251b] leading-none uppercase mt-0.5">GRATIS</span>
+                    <span className="text-[9px] sm:text-[10px] text-gray-800 uppercase tracking-wide mt-1.5">
+                      en su primer pedido
+                    </span>
+                    <span className="text-[10px] sm:text-xs font-bold text-black mt-0.5">
+                      +$MXN99
+                    </span>
+                  </div>
                 </div>
 
-                {/* Vertical Divider */}
-                <div className="absolute left-1/2 top-2 bottom-2 border-l border-red-200" />
-
-                {/* Box 2 (Right) */}
-                <div className="text-center flex flex-col justify-center items-center pl-4">
-                  <span className="text-3xl sm:text-4xl font-black text-[#e1251b] leading-none uppercase">ENVÍO</span>
-                  <span className="text-3xl sm:text-4xl font-black text-[#e1251b] leading-none uppercase mt-1">GRATIS</span>
-                  <span className="text-[10px] sm:text-[11px] text-gray-800 uppercase tracking-wide mt-2">
-                    en su primer pedido
-                  </span>
-                  <span className="text-xs sm:text-sm font-bold text-black mt-0.5">
-                    +$MXN99
-                  </span>
+                {/* Registration Form (Side-by-side) */}
+                <div className="flex gap-2 w-full pt-1">
+                  <input 
+                    type="email" 
+                    placeholder="INTRODUCE TU CORREO ELECTRÓNICO"
+                    className="flex-1 bg-white border border-gray-300 rounded p-2.5 text-[10px] sm:text-xs focus:ring-[#e1251b] focus:border-[#e1251b] text-center font-semibold placeholder-gray-400 italic"
+                  />
+                  <button 
+                    onClick={() => {
+                      alert("¡Gracias por registrarte! Tu código de descuento ha sido enviado a tu correo.");
+                      setShowSidePromo(false);
+                    }}
+                    className="w-24 sm:w-28 bg-black hover:bg-gray-900 text-white font-extrabold py-2.5 px-2 rounded text-[10px] sm:text-xs tracking-wider transition-colors uppercase cursor-pointer"
+                  >
+                    REGÍSTRATE
+                  </button>
                 </div>
-              </div>
 
-              {/* Registration Form (Side-by-side) */}
-              <div className="flex gap-2 w-full pt-2">
-                <input 
-                  type="email" 
-                  placeholder="INTRODUCE TU CORREO ELECTRÓNICO"
-                  className="flex-1 bg-white border border-gray-300 rounded p-3 text-xs sm:text-sm focus:ring-[#e1251b] focus:border-[#e1251b] text-center font-semibold placeholder-gray-400 italic"
-                />
-                <button 
-                  onClick={() => {
-                    alert("¡Gracias por registrarte! Tu código de descuento ha sido enviado a tu correo.");
-                    setShowSidePromo(false);
-                  }}
-                  className="w-28 sm:w-32 bg-black hover:bg-gray-900 text-white font-extrabold py-3 px-2 rounded text-xs sm:text-sm tracking-wider transition-colors uppercase cursor-pointer"
-                >
-                  REGÍSTRATE
-                </button>
-              </div>
+                {/* Disclaimers & Checkboxes */}
+                <div className="text-[9px] sm:text-[10px] text-gray-550 space-y-2.5 leading-relaxed pt-1">
+                  <p>
+                    Al registrarse, acepta nuestra <span className="underline cursor-pointer hover:text-black">Política de privacidad y cookies</span> y nuestros <span className="underline cursor-pointer hover:text-black">Términos y condiciones</span>.
+                  </p>
+                  <label className="flex items-start gap-2 cursor-pointer">
+                    <input type="checkbox" className="mt-0.5 rounded text-black focus:ring-black h-3 w-3 border-gray-300 shrink-0" />
+                    <span className="text-gray-500 leading-normal">
+                      Me gustaría recibir ofertas exclusivas y las últimas noticias de SHEIN por correo electrónico. Entiendo que puedo comunicarme con SHEIN para cancelar la suscripción en cualquier momento.
+                    </span>
+                  </label>
+                </div>
 
-              {/* Disclaimers & Checkboxes */}
-              <div className="text-[10px] sm:text-[11px] text-gray-500 space-y-4 leading-relaxed pt-2">
-                <p>
-                  Al registrarse, acepta nuestra <span className="underline cursor-pointer hover:text-black">Política de privacidad y cookies</span> y nuestros <span className="underline cursor-pointer hover:text-black">Términos y condiciones</span>.
-                </p>
-                <label className="flex items-start gap-2.5 cursor-pointer">
-                  <input type="checkbox" className="mt-0.5 rounded text-black focus:ring-black h-3.5 w-3.5 border-gray-300" />
-                  <span className="text-gray-500">
-                    Me gustaría recibir ofertas exclusivas y las últimas noticias de SHEIN por correo electrónico. Entiendo que puedo comunicarme con SHEIN para cancelar la suscripción en cualquier momento.
-                  </span>
-                </label>
               </div>
-
             </div>
           </div>
         </>
