@@ -71,6 +71,8 @@ export function AdminPromotions({ homeSettings, updateHomeSettings }: AdminPromo
   const [catalogPromoIcon, setCatalogPromoIcon] = useState(currentPromo.catalogPromoIcon ?? "GiftBow");
   const [catalogPromoAlwaysShow, setCatalogPromoAlwaysShow] = useState(currentPromo.catalogPromoAlwaysShow ?? false);
   const [catalogPromoPage, setCatalogPromoPage] = useState(currentPromo.catalogPromoPage ?? "Catálogo");
+  const [catalogPromoTitle, setCatalogPromoTitle] = useState(currentPromo.catalogPromoTitle ?? "Ofertas especiales solo para ti");
+  const [catalogPromoBadge, setCatalogPromoBadge] = useState(currentPromo.catalogPromoBadge ?? "Nuevo usuario");
   const [sideTextSizeTrigger, setSideTextSizeTrigger] = useState(currentPromo.sideTextSizeTrigger ?? "Mediano");
   const [sidePromoPage, setSidePromoPage] = useState(currentPromo.sidePromoPage ?? "Detalle de Producto");
 
@@ -126,6 +128,8 @@ export function AdminPromotions({ homeSettings, updateHomeSettings }: AdminPromo
         catalogPromoIcon,
         catalogPromoAlwaysShow,
         catalogPromoPage,
+        catalogPromoTitle,
+        catalogPromoBadge,
         sideTextSizeTrigger,
         sidePromoPage,
         // Tag promo styles
@@ -643,6 +647,32 @@ export function AdminPromotions({ homeSettings, updateHomeSettings }: AdminPromo
                 <option value="Detalle de Producto">Solo Detalle de Producto</option>
                 <option value="Ambos">Ambos (Catálogo y Detalle de Producto)</option>
               </select>
+            </div>
+
+            <div className="space-y-1">
+              <label className="block text-xs font-bold text-gray-700 uppercase">Título de la Ventana Flotante</label>
+              <input
+                type="text"
+                value={catalogPromoTitle}
+                onChange={(e) => setCatalogPromoTitle(e.target.value)}
+                disabled={!catalogPromoPublished}
+                placeholder="Ej. Ofertas especiales solo para ti"
+                className="w-full border border-gray-300 rounded-lg p-2.5 text-sm focus:ring-primary-500 focus:border-primary-500 disabled:bg-gray-100"
+                required
+              />
+            </div>
+
+            <div className="space-y-1">
+              <label className="block text-xs font-bold text-gray-700 uppercase">Etiqueta de Cupón (Badge)</label>
+              <input
+                type="text"
+                value={catalogPromoBadge}
+                onChange={(e) => setCatalogPromoBadge(e.target.value)}
+                disabled={!catalogPromoPublished}
+                placeholder="Ej. Nuevo usuario"
+                className="w-full border border-gray-300 rounded-lg p-2.5 text-sm focus:ring-primary-500 focus:border-primary-500 disabled:bg-gray-100"
+                required
+              />
             </div>
 
             <div className="space-y-1">

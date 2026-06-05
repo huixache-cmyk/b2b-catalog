@@ -65,6 +65,8 @@ export type HomeSettings = {
     catalogPromoIcon?: string;
     catalogPromoAlwaysShow?: boolean;
     catalogPromoPage?: string;
+    catalogPromoTitle?: string;
+    catalogPromoBadge?: string;
     sideTextSizeTrigger?: string;
     sidePromoPage?: string;
     // Tag Promo Customizer
@@ -148,6 +150,8 @@ const DEFAULT_HOME_SETTINGS: HomeSettings = {
     catalogPromoIcon: "GiftBow",
     catalogPromoAlwaysShow: false,
     catalogPromoPage: "Catálogo",
+    catalogPromoTitle: "Ofertas especiales solo para ti",
+    catalogPromoBadge: "Nuevo usuario",
     sideTextSizeTrigger: "Mediano",
     sidePromoPage: "Detalle de Producto",
     tagBgColor: "#eefcf7",

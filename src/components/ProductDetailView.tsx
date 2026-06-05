@@ -1238,7 +1238,7 @@ export function ProductDetailView({ product, relatedProducts }: { product: Produ
                 className="font-bold text-center text-lg mt-1 mb-5"
                 style={{ color: homeSettings?.promotions?.catalogPromoTextColor || "#a0522d" }}
               >
-                Ofertas especiales solo para ti
+                {homeSettings?.promotions?.catalogPromoTitle || "Ofertas especiales solo para ti"}
               </h2>
 
               {/* Coupon List Container */}
@@ -1257,7 +1257,7 @@ export function ProductDetailView({ product, relatedProducts }: { product: Produ
                     className="absolute top-0 left-0 text-white text-[8px] font-extrabold px-2 py-0.5 rounded-br-xl tracking-wider uppercase"
                     style={{ backgroundColor: homeSettings?.promotions?.catalogPromoCouponTextColor || "#ff4a5a" }}
                   >
-                    Nuevo usuario
+                    {homeSettings?.promotions?.catalogPromoBadge || "Nuevo usuario"}
                   </div>
                   
                   {/* Left content */}
@@ -1332,7 +1332,7 @@ export function ProductDetailView({ product, relatedProducts }: { product: Produ
                     className="absolute top-0 left-0 text-white text-[8px] font-extrabold px-2 py-0.5 rounded-br-xl tracking-wider uppercase"
                     style={{ backgroundColor: homeSettings?.promotions?.catalogPromoCouponTextColor || "#ff4a5a" }}
                   >
-                    Nuevo usuario
+                    {homeSettings?.promotions?.catalogPromoBadge || "Nuevo usuario"}
                   </div>
                   
                   {/* Left content */}
