@@ -16,11 +16,12 @@ import { AdminPromotions } from "./admin/AdminPromotions";
 
 const AgentIntegrationView = dynamic(() => import('./AgentIntegrationView').then(mod => mod.AgentIntegrationView), { ssr: false });
 const B2BAgentCRM = dynamic(() => import('./B2BAgentCRM').then(mod => mod.B2BAgentCRM), { ssr: false });
+const AdminCRM = dynamic(() => import('./admin/AdminCRM').then(mod => mod.AdminCRM), { ssr: false });
 
 export function AdminView() {
   const { products, isLoaded, addProduct, updateProduct, deleteProduct } = useProducts();
   const { quotes, isLoaded: quotesLoaded, updateQuoteStatus, deleteQuote, updateQuote } = useQuotes();
-  const [activeTab, setActiveTab] = useState<'products' | 'settings' | 'suppliers' | 'home' | 'quotes' | 'agent' | 'b2b-agent' | 'promotions'>('products');
+  const [activeTab, setActiveTab] = useState<'products' | 'settings' | 'suppliers' | 'home' | 'quotes' | 'agent' | 'b2b-agent' | 'promotions' | 'b2b-crm'>('products');
   const { 
     categories, 
     seasons, 
@@ -251,6 +252,12 @@ export function AdminView() {
           >
             Promociones
           </button>
+          <button 
+            onClick={() => setActiveTab('b2b-crm')}
+            className={`px-6 py-3 font-bold text-sm border-b-2 transition-colors ${activeTab === 'b2b-crm' ? 'border-primary-600 text-primary-700' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}`}
+          >
+            Clientes / CRM
+          </button>
         </div>
         <button
           onClick={async () => {
@@ -344,6 +351,10 @@ export function AdminView() {
           homeSettings={homeSettings}
           updateHomeSettings={updateHomeSettings}
         />
+      )}
+
+      {activeTab === 'b2b-crm' && (
+        <AdminCRM />
       )}
     </div>
   );

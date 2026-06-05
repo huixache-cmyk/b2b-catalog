@@ -13,6 +13,10 @@ import { useProducts } from "@/hooks/useProducts";
 import { ProductCard } from "./ProductCard";
 import { formatCurrency } from "@/utils/formatters";
 import Image from "next/image";
+import { useClientAuth } from "@/hooks/useClientAuth";
+import { useCRM } from "@/hooks/useCRM";
+import { useSettings } from "@/hooks/useSettings";
+import { supabase } from "@/lib/supabase";
 
 const MEXICO_STATES = Object.keys(mexicoData);
 
@@ -218,6 +222,178 @@ export function CartView() {
   const { cartItems, isLoaded, updateQuantity, removeFromCart, cartTotal, clearCart } = useCart();
   const { addQuote } = useQuotes();
   const { products } = useProducts();
+  const { homeSettings } = useSettings();
+  const { getCustomerProfile, customers } = useCRM();
+  const { session: clientSession } = useClientAuth();
+
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [selectedB2BCustomerId, setSelectedB2BCustomerId] = useState<string>("");
+  const [selectedCustomerProfile, setSelectedCustomerProfile] = useState<any>(null);
+
+  // Determine active B2B session
+  const activeB2BSession = clientSession || selectedCustomerProfile;
+
+  // Check if standard admin session exists
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data }) => {
+      setIsAdmin(!!data.session);
+    });
+  }, []);
+
+  // Autofill if B2B client session is active
+  useEffect(() => {
+    if (clientSession) {
+      const primaryContact = clientSession.contact;
+      const defaultAddress = clientSession.addresses.find((a: any) => a.is_default) || clientSession.addresses[0];
+      
+      setFormData(prev => ({
+        ...prev,
+        name: primaryContact ? (primaryContact.name || "") : "",
+        company: clientSession.customer.commercial_name || clientSession.customer.business_name || "",
+        email: (primaryContact && primaryContact.email) ? primaryContact.email : "",
+        phone: (primaryContact && primaryContact.phone) ? primaryContact.phone : "",
+        zip: defaultAddress ? (defaultAddress.postal_code || "") : "",
+        state: defaultAddress ? (defaultAddress.state || "") : "",
+        city: defaultAddress ? (defaultAddress.city || "") : "",
+        address: defaultAddress ? `${defaultAddress.street || ""} ${defaultAddress.exterior_number || ""}${defaultAddress.interior_number ? ' Int ' + defaultAddress.interior_number : ''}, Col. ${defaultAddress.neighborhood || ""}` : ""
+      }));
+      setErrors({});
+    }
+  }, [clientSession]);
+
+  const handleSelectCustomer = async (id: string) => {
+    setSelectedB2BCustomerId(id);
+    if (!id) {
+      setSelectedCustomerProfile(null);
+      // Reset form
+      setFormData({
+        name: "",
+        company: "",
+        email: "",
+        phone: "",
+        zip: "",
+        state: "",
+        city: "",
+        address: "",
+        comments: ""
+      });
+      setErrors({});
+      return;
+    }
+    try {
+      const profile = await getCustomerProfile(id);
+      setSelectedCustomerProfile(profile);
+      
+      const primaryContact = profile.contacts.find((c: any) => c.is_primary) || profile.contacts[0];
+      const defaultAddress = profile.addresses.find((a: any) => a.is_default) || profile.addresses[0];
+      
+      setFormData(prev => ({
+        ...prev,
+        name: primaryContact ? (primaryContact.name || "") : "",
+        company: profile.customer.commercial_name || profile.customer.business_name || "",
+        email: (primaryContact && primaryContact.email) ? primaryContact.email : "",
+        phone: (primaryContact && primaryContact.phone) ? primaryContact.phone : "",
+        zip: defaultAddress ? (defaultAddress.postal_code || "") : "",
+        state: defaultAddress ? (defaultAddress.state || "") : "",
+        city: defaultAddress ? (defaultAddress.city || "") : "",
+        address: defaultAddress ? `${defaultAddress.street || ""} ${defaultAddress.exterior_number || ""}${defaultAddress.interior_number ? ' Int ' + defaultAddress.interior_number : ''}, Col. ${defaultAddress.neighborhood || ""}` : ""
+      }));
+      setErrors({});
+    } catch (e) {
+      console.error("Error loading selected customer profile:", e);
+    }
+  };
+
+  // Recalculate cart items with dynamic B2B pricing scales
+  const recalculatedItems = useMemo(() => {
+    return cartItems.map(item => {
+      const product = products.find(p => p.id === item.productId);
+      if (!product) return { ...item, isB2BApplied: false };
+
+      const printPrices: Record<string, number> = {
+        "Sin Impresión": 0,
+        "Grabado Chico": 15,
+        "Grabado Grande": 25,
+        "DTF": 12,
+        "Impresión 1 tinta": 10,
+        "Impresión 2 tintas": 18,
+        "Impresión 3 tintas": 25,
+        "Impresión 4 tintas": 30,
+        ...(homeSettings?.print_prices || {})
+      };
+      const printPrice = item.isPersonalized ? (printPrices[item.printOption] || 0) : 0;
+
+      const basePrice = product.price || 0;
+      const discountQty1 = product.discountQty1 ?? 100;
+      const discountQty2 = product.discountQty2 ?? 150;
+      const roundToHalf = (num: number) => Math.round(num * 2) / 2;
+      const tier2Price = roundToHalf(basePrice * (1 - (product.discount100 || 0) / 100));
+      const tier3Price = roundToHalf(basePrice * (1 - (product.discount150 || 0) / 100));
+
+      let unitProductPrice = basePrice;
+      if (item.quantity > discountQty2) {
+        unitProductPrice = tier3Price;
+      } else if (item.quantity >= discountQty1) {
+        unitProductPrice = tier2Price;
+      }
+
+      if (activeB2BSession) {
+        let priceAfterLevel = unitProductPrice;
+        const priceLevel = activeB2BSession.customer.price_level;
+        
+        if (priceLevel === "wholesale") {
+          const option1 = tier2Price;
+          const option2 = unitProductPrice * 0.90;
+          priceAfterLevel = Math.min(option1, option2);
+        } else if (priceLevel === "distributor") {
+          const option1 = tier3Price;
+          const option2 = unitProductPrice * 0.80;
+          priceAfterLevel = Math.min(option1, option2);
+        } else if (priceLevel === "special") {
+          priceAfterLevel = unitProductPrice * 0.75;
+        }
+
+        let bestDiscount = 0;
+        const activeDiscounts = activeB2BSession.discounts || [];
+        
+        const prodDisc = activeDiscounts.find((d: any) => d.active && d.discount_type === "product" && d.product_id === product.id);
+        const catDisc = activeDiscounts.find((d: any) => d.active && d.discount_type === "category" && d.category_id?.toLowerCase() === product.category?.toLowerCase());
+        const globDisc = activeDiscounts.find((d: any) => d.active && d.discount_type === "global");
+        
+        if (prodDisc) {
+          bestDiscount = prodDisc.discount_percent;
+        } else if (catDisc) {
+          bestDiscount = catDisc.discount_percent;
+        } else if (globDisc) {
+          bestDiscount = globDisc.discount_percent;
+        } else {
+          bestDiscount = activeB2BSession.customer.assigned_discount_percent || 0;
+        }
+
+        const b2bProductPrice = roundToHalf(priceAfterLevel * (1 - bestDiscount / 100));
+        const finalUnit = b2bProductPrice + printPrice;
+        return {
+          ...item,
+          unitPrice: finalUnit,
+          totalPrice: finalUnit * item.quantity,
+          isB2BApplied: true,
+          originalPrice: basePrice + printPrice
+        };
+      }
+
+      const finalUnit = unitProductPrice + printPrice;
+      return {
+        ...item,
+        unitPrice: finalUnit,
+        totalPrice: finalUnit * item.quantity,
+        isB2BApplied: false
+      };
+    });
+  }, [cartItems, products, activeB2BSession, homeSettings]);
+
+  const recalculatedTotal = useMemo(() => {
+    return recalculatedItems.reduce((sum, item) => sum + item.totalPrice, 0);
+  }, [recalculatedItems]);
 
   const [recentViews, setRecentViews] = useState<Product[]>([]);
   
@@ -588,18 +764,18 @@ export function CartView() {
     }
     
     // Validar compra mínima por producto en todos los items
-    const invalidItem = cartItems.find(i => i.quantity < (i.minPurchase ?? 50));
+    const invalidItem = recalculatedItems.find(i => i.quantity < (i.minPurchase ?? 50));
     if (invalidItem) {
       alert(`Por favor, asegúrate de que el producto "${invalidItem.productName}" tenga al menos ${invalidItem.minPurchase ?? 50} piezas.`);
       return;
     }
 
-    let itemsText = cartItems.map(item => 
-      `- ${item.quantity}x ${item.productName} (SKU: ${item.sku}) | Color: ${item.color} | Impresión: ${item.printOption}`
+    let itemsText = recalculatedItems.map(item => 
+      `- ${item.quantity}x ${item.productName} (SKU: ${item.sku}) | Color: ${item.color} | Impresión: ${item.printOption} | P.U. ${formatCurrency(item.unitPrice)}`
     ).join("\n");
 
     const text = `*SOLICITUD DE COTIZACIÓN B2B*
-
+${activeB2BSession ? `*Nivel B2B:* ${activeB2BSession.customer.price_level.toUpperCase()}\n` : ""}
 *Datos del Cliente:*
 Empresa: ${formData.company}
 Contacto: ${formData.name}
@@ -610,7 +786,7 @@ Destino: ${formData.city}, ${formData.state}
 *Artículos Solicitados:*
 ${itemsText}
 
-*Subtotal Estimado:* ${formatCurrency(cartTotal)} MXN
+*Subtotal Estimado:* ${formatCurrency(recalculatedTotal)} MXN
 *Comentarios:* ${formData.comments || 'Ninguno'}
 
 Quedo en espera de confirmación de existencias.`;
@@ -619,9 +795,16 @@ Quedo en espera de confirmación de existencias.`;
     const newQuote = {
       id: `QUOTE-${Date.now()}`,
       date: new Date().toISOString(),
-      client: { ...formData },
-      items: [...cartItems],
-      total: cartTotal,
+      client: { 
+        ...formData,
+        customerId: activeB2BSession?.customer?.id || null,
+        discountApplied: activeB2BSession ? {
+          priceLevel: activeB2BSession.customer.price_level,
+          assignedDiscountPercent: activeB2BSession.customer.assigned_discount_percent
+        } : null
+      },
+      items: [...recalculatedItems],
+      total: recalculatedTotal,
       status: 'pending' as const
     };
     
@@ -662,7 +845,7 @@ Quedo en espera de confirmación de existencias.`;
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
       {/* Items List */}
       <div className="lg:col-span-2 space-y-4">
-        {cartItems.map((item) => (
+        {recalculatedItems.map((item) => (
           <div key={item.id} className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 flex flex-col sm:flex-row gap-4 relative">
             <button 
               onClick={() => removeFromCart(item.id)}
@@ -736,6 +919,9 @@ Quedo en espera de confirmación de existencias.`;
                   <div className="font-black text-primary-700 text-lg">
                     {formatCurrency(item.totalPrice)}
                   </div>
+                  {item.isB2BApplied && (
+                    <div className="text-[9px] text-green-600 font-bold uppercase tracking-wider mt-0.5">Precio B2B Aplicado</div>
+                  )}
                 </div>
               </div>
             </div>
@@ -759,12 +945,12 @@ Quedo en espera de confirmación de existencias.`;
           <h3 className="text-xl font-bold text-gray-900 mb-6 border-b pb-4">Resumen de Cotización</h3>
           
           <div className="flex justify-between mb-2 text-gray-600">
-            <span>Artículos ({cartItems.length})</span>
+            <span>Artículos ({recalculatedItems.length})</span>
             <span>-</span>
           </div>
           <div className="flex justify-between mb-6 text-xl font-black text-gray-900">
             <span>Total Estimado</span>
-            <span>{formatCurrency(cartTotal)}</span>
+            <span>{formatCurrency(recalculatedTotal)}</span>
           </div>
           <p className="text-xs text-gray-500 mb-6 text-center">
             * Precios sujetos a verificación de stock y volumen final. No incluye IVA.
@@ -775,6 +961,34 @@ Quedo en espera de confirmación de existencias.`;
               <span className="w-6 h-6 rounded-full bg-primary-100 text-primary-700 flex items-center justify-center mr-2 text-xs">1</span>
               DATOS DE CONTACTO PARA COTIZACIÓN FORMAL
             </h4>
+
+            {isAdmin && !clientSession && (
+              <div className="mb-4 bg-primary-50/50 p-3 rounded-lg border border-primary-100 animate-in fade-in duration-200">
+                <label className="block text-xs font-bold text-primary-800 uppercase tracking-wider mb-1.5">
+                  Vincular Cliente B2B (Administrador)
+                </label>
+                <select
+                  value={selectedB2BCustomerId}
+                  onChange={(e) => handleSelectCustomer(e.target.value)}
+                  className="w-full bg-white border border-gray-300 rounded-lg p-2.5 text-sm focus:ring-primary-500 focus:border-primary-500 font-medium text-gray-700 cursor-pointer"
+                >
+                  <option value="">-- Seleccionar Cliente B2B --</option>
+                  {customers.map((c: any) => (
+                    <option key={c.id} value={c.id}>
+                      {c.commercial_name || c.business_name} ({c.price_level})
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            {activeB2BSession && (
+              <div className="mb-4 bg-green-50 border border-green-200 text-green-800 rounded-lg p-3 text-xs flex items-center gap-2 animate-in fade-in duration-200">
+                <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+                <span>Sesión B2B vinculada. Los datos fiscales y de entrega están bloqueados.</span>
+              </div>
+            )}
+
             <form onSubmit={handleSendQuote} className="space-y-4">
               <div>
                 <input 
@@ -785,7 +999,8 @@ Quedo en espera de confirmación de existencias.`;
                   onChange={e => handleInputChange("name", e.target.value)} 
                   onBlur={e => handleInputBlur("name", e.target.value)}
                   onKeyDown={e => handleKeyDown(e, "name")}
-                  className={`w-full rounded-lg p-3 text-sm focus:ring-primary-500 focus:border-primary-500 transition-all ${
+                  disabled={!!activeB2BSession}
+                  className={`w-full rounded-lg p-3 text-sm focus:ring-primary-500 focus:border-primary-500 disabled:bg-gray-100 disabled:text-gray-500 disabled:cursor-not-allowed transition-all ${
                     errors.name ? 'border-red-500 ring-1 ring-red-500 focus:ring-red-500 focus:border-red-500' : 'border-gray-300'
                   }`} 
                 />
@@ -801,7 +1016,8 @@ Quedo en espera de confirmación de existencias.`;
                   onChange={e => handleInputChange("company", e.target.value)} 
                   onBlur={e => handleInputBlur("company", e.target.value)}
                   onKeyDown={e => handleKeyDown(e, "company")}
-                  className={`w-full rounded-lg p-3 text-sm focus:ring-primary-500 focus:border-primary-500 transition-all ${
+                  disabled={!!activeB2BSession}
+                  className={`w-full rounded-lg p-3 text-sm focus:ring-primary-500 focus:border-primary-500 disabled:bg-gray-100 disabled:text-gray-500 disabled:cursor-not-allowed transition-all ${
                     errors.company ? 'border-red-500 ring-1 ring-red-500 focus:ring-red-500 focus:border-red-500' : 'border-gray-300'
                   }`} 
                 />
@@ -817,7 +1033,8 @@ Quedo en espera de confirmación de existencias.`;
                   onChange={e => handleInputChange("email", e.target.value)} 
                   onBlur={e => handleInputBlur("email", e.target.value)}
                   onKeyDown={e => handleKeyDown(e, "email")}
-                  className={`w-full rounded-lg p-3 text-sm focus:ring-primary-500 focus:border-primary-500 transition-all ${
+                  disabled={!!activeB2BSession}
+                  className={`w-full rounded-lg p-3 text-sm focus:ring-primary-500 focus:border-primary-500 disabled:bg-gray-100 disabled:text-gray-500 disabled:cursor-not-allowed transition-all ${
                     errors.email ? 'border-red-500 ring-1 ring-red-500 focus:ring-red-500 focus:border-red-500' : 'border-gray-300'
                   }`} 
                 />
@@ -833,7 +1050,8 @@ Quedo en espera de confirmación de existencias.`;
                   onChange={e => handleInputChange("phone", e.target.value)} 
                   onBlur={e => handleInputBlur("phone", e.target.value)}
                   onKeyDown={e => handleKeyDown(e, "phone")}
-                  className={`w-full rounded-lg p-3 text-sm focus:ring-primary-500 focus:border-primary-500 transition-all ${
+                  disabled={!!activeB2BSession}
+                  className={`w-full rounded-lg p-3 text-sm focus:ring-primary-500 focus:border-primary-500 disabled:bg-gray-100 disabled:text-gray-500 disabled:cursor-not-allowed transition-all ${
                     errors.phone ? 'border-red-500 ring-1 ring-red-500 focus:ring-red-500 focus:border-red-500' : 'border-gray-300'
                   }`} 
                 />
@@ -849,7 +1067,8 @@ Quedo en espera de confirmación de existencias.`;
                   onChange={e => handleInputChange("zip", e.target.value)} 
                   onBlur={e => handleInputBlur("zip", e.target.value)}
                   onKeyDown={e => handleKeyDown(e, "zip")}
-                  className={`w-full rounded-lg p-3 text-sm focus:ring-primary-500 focus:border-primary-500 transition-all ${
+                  disabled={!!activeB2BSession}
+                  className={`w-full rounded-lg p-3 text-sm focus:ring-primary-500 focus:border-primary-500 disabled:bg-gray-100 disabled:text-gray-500 disabled:cursor-not-allowed transition-all ${
                     errors.zip ? 'border-red-500 ring-1 ring-red-500 focus:ring-red-500 focus:border-red-500' : 'border-gray-300'
                   }`} 
                 />
@@ -888,7 +1107,8 @@ Quedo en espera de confirmación de existencias.`;
                       }
                     }} 
                     onKeyDown={e => handleKeyDown(e, "state")}
-                    className={`w-full rounded-lg p-3 text-sm focus:ring-primary-500 focus:border-primary-500 transition-all ${
+                    disabled={!!activeB2BSession}
+                    className={`w-full rounded-lg p-3 text-sm focus:ring-primary-500 focus:border-primary-500 disabled:bg-gray-100 disabled:text-gray-500 disabled:cursor-not-allowed transition-all ${
                       errors.state ? 'border-red-500 ring-1 ring-red-500 focus:ring-red-500 focus:border-red-500' : 'border-gray-300'
                     }`}
                   >
@@ -904,8 +1124,8 @@ Quedo en espera de confirmación de existencias.`;
                     onChange={e => handleInputChange("city", e.target.value)} 
                     onBlur={e => handleInputBlur("city", e.target.value)}
                     onKeyDown={e => handleKeyDown(e, "city")}
-                    disabled={!formData.state} 
-                    className={`w-full rounded-lg p-3 text-sm focus:ring-primary-500 focus:border-primary-500 disabled:bg-gray-100 disabled:text-gray-400 transition-all ${
+                    disabled={!!activeB2BSession || !formData.state} 
+                    className={`w-full rounded-lg p-3 text-sm focus:ring-primary-500 focus:border-primary-500 disabled:bg-gray-100 disabled:text-gray-500 disabled:cursor-not-allowed transition-all ${
                       errors.city ? 'border-red-500 ring-1 ring-red-500 focus:ring-red-500 focus:border-red-500' : 'border-gray-300'
                     }`}
                   >
@@ -925,7 +1145,8 @@ Quedo en espera de confirmación de existencias.`;
                   onChange={e => handleInputChange("address", e.target.value)} 
                   onBlur={e => handleInputBlur("address", e.target.value)}
                   onKeyDown={e => handleKeyDown(e, "address")}
-                  className={`w-full rounded-lg p-3 text-sm focus:ring-primary-500 focus:border-primary-500 transition-all ${
+                  disabled={!!activeB2BSession}
+                  className={`w-full rounded-lg p-3 text-sm focus:ring-primary-500 focus:border-primary-500 disabled:bg-gray-100 disabled:text-gray-500 disabled:cursor-not-allowed transition-all ${
                     errors.address ? 'border-red-500 ring-1 ring-red-500 focus:ring-red-500 focus:border-red-500' : 'border-gray-300'
                   }`} 
                 />

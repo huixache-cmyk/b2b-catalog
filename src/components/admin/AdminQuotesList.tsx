@@ -231,6 +231,29 @@ export function AdminQuotesList({
 
   const handleDownloadQuotePdf = async (quote: QuoteRequest) => {
     try {
+      let rfc = "No especificado";
+      let paymentTerms = "50% de anticipo para iniciar producción y 50% restante contra entrega.";
+      let priceLevel = "";
+      
+      const customerId = (quote.client as any).customerId;
+      if (customerId) {
+        try {
+          const { data: customerData } = await supabase
+            .from("customers")
+            .select("rfc, payment_terms, price_level")
+            .eq("id", customerId)
+            .maybeSingle();
+          
+          if (customerData) {
+            if (customerData.rfc) rfc = customerData.rfc;
+            if (customerData.payment_terms) paymentTerms = customerData.payment_terms;
+            if (customerData.price_level) priceLevel = customerData.price_level;
+          }
+        } catch (e) {
+          console.warn("Failed to fetch customer profile for PDF:", e);
+        }
+      }
+
       const getImageElement = (src: string): Promise<HTMLImageElement | null> => {
         return new Promise((resolve) => {
           if (!src) return resolve(null);
@@ -273,15 +296,16 @@ export function AdminQuotesList({
       doc.setFontSize(9);
       doc.text(`Cliente: ${quote.client.name}`, 14, 41);
       doc.text(`Empresa: ${quote.client.company}`, 14, 46);
-      doc.text(`Email: ${quote.client.email}`, 14, 51);
-      doc.text(`Teléfono: ${quote.client.phone}`, 14, 56);
+      doc.text(`RFC: ${rfc}`, 14, 51);
+      doc.text(`Email: ${quote.client.email}`, 14, 56);
+      doc.text(`Teléfono: ${quote.client.phone}`, 14, 61);
 
-      doc.text(`Destino: ${quote.client.city || ''}, ${quote.client.state || ''}`, 110, 41);
-      doc.text(`Dirección: ${quote.client.address || 'No especificada'}`, 110, 46);
-      doc.text(`Código Postal: ${quote.client.zip || 'No especificado'}`, 110, 51);
-      
-      if (quote.client.deliveryTime) {
-        doc.text(`Tiempo de Entrega: ${quote.client.deliveryTime}`, 110, 56);
+      doc.text(`Dirección: ${quote.client.address || 'No especificada'}`, 110, 41);
+      doc.text(`Destino: ${quote.client.city || ''}, ${quote.client.state || ''} CP: ${quote.client.zip || ''}`, 110, 46);
+      doc.text(`Cond. Pago: ${paymentTerms}`, 110, 51);
+      doc.text(`Tiempo Entrega: ${quote.client.deliveryTime || 'Por confirmar'}`, 110, 56);
+      if (priceLevel) {
+        doc.text(`Nivel de Cliente: B2B ${priceLevel.toUpperCase()}`, 110, 61);
       }
 
       const { subtotal, iva, total } = getQuoteTotals(quote, activePrintPrices);
@@ -314,7 +338,7 @@ export function AdminQuotesList({
       });
 
       autoTable(doc, {
-        startY: 63,
+        startY: 68,
         head: [['', 'SKU', 'Producto', 'Cant.', 'Precio Producto', 'Impresión', 'Envío', 'Subtotal']],
         body: tableData,
         headStyles: { fillColor: primaryColor, textColor: 255, fontStyle: 'bold' },
@@ -400,7 +424,7 @@ export function AdminQuotesList({
       
       const disclaimerLines = [
         "Colores sujetos a disponibilidad al momento de confirmar el pedido.",
-        "Condiciones de pago: 50% de anticipo para iniciar producción y 50% restante contra entrega.",
+        `Condiciones de pago: ${paymentTerms}`,
         "Los tiempos de entrega acordados comenzarán a correr una vez recibido el anticipo correspondiente.",
         "La presente cotización tiene una vigencia de 15 días naturales a partir de la fecha de emisión."
       ];

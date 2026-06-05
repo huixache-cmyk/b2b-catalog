@@ -11,6 +11,7 @@ import html2canvas from "html2canvas";
 import { useSettings } from "@/hooks/useSettings";
 import { formatCurrency } from "@/utils/formatters";
 import Image from "next/image";
+import { useClientAuth } from "@/hooks/useClientAuth";
 
 const renderTriggerIcon = (iconName?: string) => {
   switch (iconName) {
@@ -333,7 +334,11 @@ export function ProductDetailView({ product, relatedProducts }: { product: Produ
   const handleClosePromoPopup = () => {
     setShowPromoPopup(false);
     if (typeof window !== "undefined") {
-      localStorage.setItem("b2b_catalog_promo_dismissed", "true");
+      try {
+        localStorage.setItem("b2b_catalog_promo_dismissed", "true");
+      } catch (e) {
+        console.warn("Could not save promo dismissal", e);
+      }
     }
   };
 
@@ -355,6 +360,8 @@ export function ProductDetailView({ product, relatedProducts }: { product: Produ
   };
   const printPrice = isPersonalized ? (printPrices[printOption] || 0) : 0;
 
+  const { session } = useClientAuth();
+
   const totalQuantity = typeof quantity === 'number' ? quantity : 0;
 
   const minPurchase = product.minPurchase ?? 50;
@@ -366,11 +373,69 @@ export function ProductDetailView({ product, relatedProducts }: { product: Produ
   const tier2Price = roundToHalf(basePrice * (1 - (product.discount100 || 0) / 100));
   const tier3Price = roundToHalf(basePrice * (1 - (product.discount150 || 0) / 100));
 
+  // Helper to calculate B2B price for any quantity
+  const getB2BPriceForQty = (qty: number) => {
+    if (!session) return null;
+    
+    // 1. Determine standard scale price for that quantity
+    let standardScalePrice = basePrice;
+    if (qty > discountQty2) {
+      standardScalePrice = tier3Price;
+    } else if (qty >= discountQty1) {
+      standardScalePrice = tier2Price;
+    }
+    
+    // 2. Apply level pricing rules
+    let priceAfterLevel = standardScalePrice;
+    const priceLevel = session.customer.price_level;
+    
+    if (priceLevel === "wholesale") {
+      const option1 = tier2Price;
+      const option2 = standardScalePrice * 0.90;
+      priceAfterLevel = Math.min(option1, option2);
+    } else if (priceLevel === "distributor") {
+      const option1 = tier3Price;
+      const option2 = standardScalePrice * 0.80;
+      priceAfterLevel = Math.min(option1, option2);
+    } else if (priceLevel === "special") {
+      priceAfterLevel = standardScalePrice * 0.75;
+    } else {
+      // retail
+      priceAfterLevel = standardScalePrice;
+    }
+    
+    // 3. Resolve active client discounts (Priority: Product > Category > Global > Customer general)
+    let bestDiscount = 0;
+    const activeDiscounts = session.discounts || [];
+    
+    const prodDisc = activeDiscounts.find(d => d.active && d.discount_type === "product" && d.product_id === product.id);
+    const catDisc = activeDiscounts.find(d => d.active && d.discount_type === "category" && d.category_id?.toLowerCase() === product.category?.toLowerCase());
+    const globDisc = activeDiscounts.find(d => d.active && d.discount_type === "global");
+    
+    if (prodDisc) {
+      bestDiscount = prodDisc.discount_percent;
+    } else if (catDisc) {
+      bestDiscount = catDisc.discount_percent;
+    } else if (globDisc) {
+      bestDiscount = globDisc.discount_percent;
+    } else {
+      bestDiscount = session.customer.assigned_discount_percent || 0;
+    }
+    
+    return roundToHalf(priceAfterLevel * (1 - bestDiscount / 100));
+  };
+
   let unitProductPrice = basePrice;
   if (totalQuantity > discountQty2) {
     unitProductPrice = tier3Price;
   } else if (totalQuantity >= discountQty1) {
     unitProductPrice = tier2Price;
+  }
+
+  // Override if B2B customer session is active
+  const b2bUnitPrice = getB2BPriceForQty(totalQuantity);
+  if (b2bUnitPrice !== null) {
+    unitProductPrice = b2bUnitPrice;
   }
 
   const unitDecoratedPrice = printPrice;
@@ -672,9 +737,36 @@ export function ProductDetailView({ product, relatedProducts }: { product: Produ
                     <div className="py-2">MÁS DE {discountQty2} PZ</div>
                   </div>
                   <div className="grid grid-cols-3 text-center text-xs">
-                    <div className="py-2.5 border-r border-gray-200 font-bold text-gray-900">{formatCurrency(basePrice)}</div>
-                    <div className="py-2.5 border-r border-gray-200 font-bold text-gray-900">{formatCurrency(tier2Price)}</div>
-                    <div className="py-2.5 font-bold text-gray-900">{formatCurrency(tier3Price)}</div>
+                    <div className="py-2.5 border-r border-gray-200 font-bold">
+                      {session ? (
+                        <div className="flex flex-col items-center">
+                          <span className="text-[10px] text-gray-400 line-through">{formatCurrency(basePrice)}</span>
+                          <span className="text-green-600 font-black">{formatCurrency(getB2BPriceForQty(minPurchase) || basePrice)}</span>
+                        </div>
+                      ) : (
+                        <span className="text-gray-900">{formatCurrency(basePrice)}</span>
+                      )}
+                    </div>
+                    <div className="py-2.5 border-r border-gray-200 font-bold">
+                      {session ? (
+                        <div className="flex flex-col items-center">
+                          <span className="text-[10px] text-gray-400 line-through">{formatCurrency(tier2Price)}</span>
+                          <span className="text-green-600 font-black">{formatCurrency(getB2BPriceForQty(discountQty1) || tier2Price)}</span>
+                        </div>
+                      ) : (
+                        <span className="text-gray-900">{formatCurrency(tier2Price)}</span>
+                      )}
+                    </div>
+                    <div className="py-2.5 font-bold">
+                      {session ? (
+                        <div className="flex flex-col items-center">
+                          <span className="text-[10px] text-gray-400 line-through">{formatCurrency(tier3Price)}</span>
+                          <span className="text-green-600 font-black">{formatCurrency(getB2BPriceForQty(discountQty2 + 1) || tier3Price)}</span>
+                        </div>
+                      ) : (
+                        <span className="text-gray-900">{formatCurrency(tier3Price)}</span>
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>
@@ -784,9 +876,28 @@ export function ProductDetailView({ product, relatedProducts }: { product: Produ
             </div>
 
             {/* Pricing breakdown */}
+            {session && (
+              <div 
+                className="rounded-lg p-2.5 flex items-center justify-between font-semibold mt-2 text-xs border"
+                style={{
+                  backgroundColor: "#eefcf7",
+                  borderColor: "#cbf2e3",
+                  color: "#0a6644"
+                }}
+              >
+                <span>Precios B2B aplicados</span>
+                <span className="opacity-80">Nivel: {
+                  session.customer.price_level === 'retail' ? 'Retail' :
+                  session.customer.price_level === 'wholesale' ? 'Mayorista' :
+                  session.customer.price_level === 'distributor' ? 'Distribuidor' :
+                  session.customer.price_level === 'special' ? 'Especial' :
+                  session.customer.price_level
+                }</span>
+              </div>
+            )}
             <div className="bg-gray-900 text-white p-4 rounded-xl space-y-3 font-normal">
               <div className="flex justify-between items-center text-xs pb-2 border-b border-gray-700">
-                <span className="text-gray-300 font-normal">Precio Escala (Pz)</span>
+                <span className="text-gray-300 font-normal">{session ? "Precio Escala B2B (Pz)" : "Precio Escala (Pz)"}</span>
                 <span className="font-normal">{formatCurrency(unitProductPrice)} c/u</span>
               </div>
               <div className="flex justify-between items-center text-xs pb-2 border-b border-gray-700">

@@ -52,7 +52,21 @@ export function useQuotes() {
     // Guardar en Supabase
     try {
       const { error } = await supabase.from('quotes').insert([quote]);
-      if (error) console.error("Error saving quote to Supabase:", error);
+      if (error) {
+        console.error("Error saving quote to Supabase:", error);
+      } else {
+        const customerId = (quote.client as any).customerId;
+        if (customerId) {
+          await supabase.from('customer_activity').insert([{
+            customer_id: customerId,
+            activity_type: 'quote',
+            title: `Cotización Creada (${quote.id})`,
+            description: `Se registró una nueva cotización por un total de $${quote.total.toLocaleString()}.`,
+            related_quote_id: quote.id,
+            created_by: 'Sistema'
+          }]);
+        }
+      }
     } catch (err) {
       console.error("Supabase insert exception:", err);
     }

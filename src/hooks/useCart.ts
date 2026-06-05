@@ -9,23 +9,37 @@ export function useCart() {
 
   // Load from local storage
   useEffect(() => {
-    const saved = localStorage.getItem("geekystore_cart");
-    if (saved) {
-      try {
-        setCartItems(JSON.parse(saved));
-      } catch (e) {
-        console.error("Error parsing cart", e);
+    try {
+      const saved = localStorage.getItem("geekystore_cart");
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) {
+          setCartItems(parsed);
+        } else {
+          setCartItems([]);
+        }
       }
+    } catch (e) {
+      console.error("Error loading cart from localStorage", e);
     }
     setIsLoaded(true);
 
     // Listen for custom event to sync across components in the same window
     const handleCartUpdate = () => {
-      const updated = localStorage.getItem("geekystore_cart");
-      if (updated) {
-        setCartItems(JSON.parse(updated));
-      } else {
-        setCartItems([]);
+      try {
+        const updated = localStorage.getItem("geekystore_cart");
+        if (updated) {
+          const parsed = JSON.parse(updated);
+          if (Array.isArray(parsed)) {
+            setCartItems(parsed);
+          } else {
+            setCartItems([]);
+          }
+        } else {
+          setCartItems([]);
+        }
+      } catch (e) {
+        console.error("Error syncing cart updates", e);
       }
     };
 
@@ -35,7 +49,11 @@ export function useCart() {
 
   const saveCart = (newCart: CartItem[]) => {
     setCartItems(newCart);
-    localStorage.setItem("geekystore_cart", JSON.stringify(newCart));
+    try {
+      localStorage.setItem("geekystore_cart", JSON.stringify(newCart));
+    } catch (e) {
+      console.warn("Storage quota exceeded. Cart saved in memory only.", e);
+    }
     window.dispatchEvent(new Event("cart_updated"));
   };
 

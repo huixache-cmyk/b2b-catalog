@@ -117,7 +117,11 @@ export function useProducts(initialProducts?: Product[]) {
       const updatedProducts = [newProduct, ...(globalProductsCache || [])];
       globalProductsCache = updatedProducts;
       if (typeof window !== "undefined") {
-        localStorage.setItem("b2b_products_cache", JSON.stringify(updatedProducts));
+        try {
+          localStorage.setItem("b2b_products_cache", JSON.stringify(updatedProducts));
+        } catch (e) {
+          console.warn("Failed to write products to localStorage:", e);
+        }
       }
       productListeners.forEach(listener => listener(updatedProducts));
     } catch (error) {
@@ -138,7 +142,11 @@ export function useProducts(initialProducts?: Product[]) {
       const updatedProducts = (globalProductsCache || []).map(p => (p.id === updated.id ? updated : p));
       globalProductsCache = updatedProducts;
       if (typeof window !== "undefined") {
-        localStorage.setItem("b2b_products_cache", JSON.stringify(updatedProducts));
+        try {
+          localStorage.setItem("b2b_products_cache", JSON.stringify(updatedProducts));
+        } catch (e) {
+          console.warn("Failed to write products to localStorage:", e);
+        }
       }
       productListeners.forEach(listener => listener(updatedProducts));
     } catch (error) {
@@ -155,7 +163,11 @@ export function useProducts(initialProducts?: Product[]) {
       const updatedProducts = (globalProductsCache || []).filter(p => p.id !== id);
       globalProductsCache = updatedProducts;
       if (typeof window !== "undefined") {
-        localStorage.setItem("b2b_products_cache", JSON.stringify(updatedProducts));
+        try {
+          localStorage.setItem("b2b_products_cache", JSON.stringify(updatedProducts));
+        } catch (e) {
+          console.warn("Failed to write products to localStorage:", e);
+        }
       }
       productListeners.forEach(listener => listener(updatedProducts));
     } catch (error) {

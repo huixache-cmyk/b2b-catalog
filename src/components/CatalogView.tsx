@@ -257,7 +257,11 @@ export function CatalogView({
   const handleClosePromoPopup = () => {
     setShowPromoPopup(false);
     if (typeof window !== "undefined") {
-      localStorage.setItem("b2b_catalog_promo_dismissed", "true");
+      try {
+        localStorage.setItem("b2b_catalog_promo_dismissed", "true");
+      } catch (e) {
+        console.warn("Could not save promo dismissal", e);
+      }
     }
   };
 

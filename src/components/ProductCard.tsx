@@ -1,10 +1,46 @@
+"use client";
+
 import Link from "next/link";
 import Image from "next/image";
 import { Star } from "lucide-react";
 import { Product } from "@/types";
 import { formatCurrency } from "@/utils/formatters";
+import { useClientAuth } from "@/hooks/useClientAuth";
 
 export function ProductCard({ product }: { product: Product }) {
+  const { session } = useClientAuth();
+
+  const b2bPrice = (() => {
+    if (!session) return null;
+    const base = product.price;
+    
+    let levelFactor = 1;
+    if (session.customer.price_level === "wholesale") levelFactor = 0.90;
+    else if (session.customer.price_level === "distributor") levelFactor = 0.80;
+    else if (session.customer.price_level === "special") levelFactor = 0.75;
+    
+    const priceAfterLevel = base * levelFactor;
+    
+    let bestDiscount = 0;
+    const activeDiscounts = session.discounts || [];
+    
+    const prodDisc = activeDiscounts.find(d => d.active && d.discount_type === "product" && d.product_id === product.id);
+    const catDisc = activeDiscounts.find(d => d.active && d.discount_type === "category" && d.category_id?.toLowerCase() === product.category?.toLowerCase());
+    const globDisc = activeDiscounts.find(d => d.active && d.discount_type === "global");
+    
+    if (prodDisc) {
+      bestDiscount = prodDisc.discount_percent;
+    } else if (catDisc) {
+      bestDiscount = catDisc.discount_percent;
+    } else if (globDisc) {
+      bestDiscount = globDisc.discount_percent;
+    } else {
+      bestDiscount = session.customer.assigned_discount_percent || 0;
+    }
+    
+    return priceAfterLevel * (1 - bestDiscount / 100);
+  })();
+
   return (
     <div className="group bg-white rounded-xl border border-gray-100 overflow-hidden hover:shadow-xl transition-all duration-300 flex flex-col h-full">
       {/* Image container */}
@@ -46,9 +82,21 @@ export function ProductCard({ product }: { product: Product }) {
         </h3>
         
         <div className="mt-auto pt-4 flex items-end justify-between border-t border-gray-50">
-          <div>
-            <p className="text-xs text-gray-500 mb-1">Precio base aprox.</p>
-            <p className="text-lg font-bold text-gray-900">{formatCurrency(product.price)}</p>
+          <div className="text-left">
+            {b2bPrice !== null ? (
+              <>
+                <p className="text-[9px] text-green-600 font-bold uppercase tracking-wider">Precio B2B Especial</p>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-xs text-gray-400 line-through">{formatCurrency(product.price)}</span>
+                  <span className="text-base font-black text-green-600">{formatCurrency(b2bPrice)}</span>
+                </div>
+              </>
+            ) : (
+              <>
+                <p className="text-xs text-gray-500 mb-1">Precio base aprox.</p>
+                <p className="text-base font-bold text-gray-900">{formatCurrency(product.price)}</p>
+              </>
+            )}
           </div>
           <Link href={`/product/${product.id}`} className="text-sm font-semibold text-primary-600 hover:text-primary-800 bg-primary-50 px-3 py-1.5 rounded-md hover:bg-primary-100 transition-colors">
             Cotizar

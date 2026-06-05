@@ -328,7 +328,11 @@ export function useSettings(initialCategories?: string[], initialSeasons?: strin
   const notifyUpdate = (updatedCache: CachedSettingsData) => {
     globalSettingsCache = updatedCache;
     if (typeof window !== "undefined") {
-      localStorage.setItem("b2b_settings_cache", JSON.stringify(updatedCache));
+      try {
+        localStorage.setItem("b2b_settings_cache", JSON.stringify(updatedCache));
+      } catch (e) {
+        console.warn("Failed to write settings cache to localStorage:", e);
+      }
     }
     settingsListeners.forEach(listener => listener(updatedCache));
   };
