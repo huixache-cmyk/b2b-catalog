@@ -63,6 +63,10 @@ export type HomeSettings = {
     catalogPromoButtonBgColor?: string;
     catalogPromoButtonTextColor?: string;
     catalogPromoIcon?: string;
+    catalogPromoAlwaysShow?: boolean;
+    catalogPromoPage?: string;
+    sideTextSizeTrigger?: string;
+    sidePromoPage?: string;
     // Tag Promo Customizer
     tagBgColor?: string;
     tagBorderColor?: string;
@@ -142,6 +146,10 @@ const DEFAULT_HOME_SETTINGS: HomeSettings = {
     catalogPromoButtonBgColor: "#222222",
     catalogPromoButtonTextColor: "#ffffff",
     catalogPromoIcon: "GiftBow",
+    catalogPromoAlwaysShow: false,
+    catalogPromoPage: "Catálogo",
+    sideTextSizeTrigger: "Mediano",
+    sidePromoPage: "Detalle de Producto",
     tagBgColor: "#eefcf7",
     tagBorderColor: "#cbf2e3",
     tagTextColor: "#0a6644",

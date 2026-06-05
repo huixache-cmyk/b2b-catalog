@@ -4,7 +4,7 @@ import { useState, useRef, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { Product } from "@/types";
 import { ProductCard } from "./ProductCard";
-import { Check, Info, ShieldCheck, Truck, ChevronRight, ChevronLeft, Upload, Download, X, AlertCircle, ShoppingCart, MapPin, Gift, Tag, Percent, Star } from "lucide-react";
+import { Check, Info, ShieldCheck, Truck, ChevronRight, ChevronLeft, Upload, Download, X, AlertCircle, ShoppingCart, MapPin, Gift, Tag, Percent, Star, ChevronDown } from "lucide-react";
 import Link from "next/link";
 import { useCart } from "@/hooks/useCart";
 import html2canvas from "html2canvas";
@@ -304,7 +304,44 @@ export function ProductDetailView({ product, relatedProducts }: { product: Produ
   const isDragging = useRef(false);
   const dragStartPos = useRef({ startX: 0, startY: 0, startPctX: 50, startPctY: 50 });
 
-  const { homeSettings } = useSettings();
+  const { homeSettings, isLoaded } = useSettings();
+
+  // Floating Catalog Promo Modal state
+  const [showPromoPopup, setShowPromoPopup] = useState(false);
+
+  // Trigger catalog promotion popup for new users on product detail page
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const dismissed = localStorage.getItem("b2b_catalog_promo_dismissed") === "true";
+      const isPublished = homeSettings?.promotions?.catalogPromoPublished ?? true;
+      const alwaysShow = homeSettings?.promotions?.catalogPromoAlwaysShow ?? false;
+      const displayPage = homeSettings?.promotions?.catalogPromoPage ?? "Catálogo";
+
+      const shouldShowPage = displayPage === "Detalle de Producto" || displayPage === "Ambos";
+      const shouldShowDismissed = !dismissed || alwaysShow;
+
+      if (shouldShowDismissed && isPublished && shouldShowPage && isLoaded) {
+        const delaySeconds = homeSettings?.promotions?.catalogPromoDelay ?? 3;
+        const timer = setTimeout(() => {
+          setShowPromoPopup(true);
+        }, delaySeconds * 1000);
+        return () => clearTimeout(timer);
+      }
+    }
+  }, [homeSettings, isLoaded]);
+
+  const handleClosePromoPopup = () => {
+    setShowPromoPopup(false);
+    if (typeof window !== "undefined") {
+      localStorage.setItem("b2b_catalog_promo_dismissed", "true");
+    }
+  };
+
+  const handleClaimCoupons = () => {
+    alert("¡Felicidades! Cupones aplicados correctamente. Inicia sesión o regístrate para disfrutarlos.");
+    handleClosePromoPopup();
+  };
+
   const printPrices: Record<string, number> = {
     "Sin Impresión": 0,
     "Grabado Chico": 15,
@@ -1024,7 +1061,10 @@ export function ProductDetailView({ product, relatedProducts }: { product: Produ
       )}
 
       {/* Side Promotion Drawer */}
-      {homeSettings?.promotions?.sidePublished !== false && (
+      {homeSettings?.promotions?.sidePublished !== false && 
+       (homeSettings?.promotions?.sidePromoPage === "Detalle de Producto" || 
+        homeSettings?.promotions?.sidePromoPage === "Ambos" ||
+        homeSettings?.promotions?.sidePromoPage === undefined) && (
         <>
           {/* Drawer Overlay */}
           {showSidePromo && (
@@ -1062,8 +1102,16 @@ export function ProductDetailView({ product, relatedProducts }: { product: Produ
               
               {/* Vertical text (Larger and proportional to the tab) */}
               <span 
-                className="text-xs tracking-[0.22em] font-extrabold uppercase select-none flex-1 text-center" 
-                style={{ writingMode: 'vertical-lr', transform: 'rotate(180deg)' }}
+                className="tracking-[0.22em] font-extrabold uppercase select-none flex-1 text-center" 
+                style={{ 
+                  writingMode: 'vertical-lr', 
+                  transform: 'rotate(180deg)',
+                  fontSize: homeSettings?.promotions?.sideTextSizeTrigger === "Pequeño" 
+                    ? "10px" 
+                    : homeSettings?.promotions?.sideTextSizeTrigger === "Grande" 
+                      ? "14px" 
+                      : "12px"
+                }}
               >
                 {homeSettings?.promotions?.sideTextTrigger || "CONSIGUE 30% DE DTO."}
               </span>
@@ -1160,6 +1208,214 @@ export function ProductDetailView({ product, relatedProducts }: { product: Produ
             </div>
           </div>
         </>
+      )}
+
+      {/* Floating Catalog Promotion Popup (New Users) */}
+      {showPromoPopup && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-xs z-50 flex items-center justify-center p-4">
+          {/* Modal Container */}
+          <div className="relative w-full max-w-[390px] flex flex-col items-center">
+            {/* Close Button above the card */}
+            <button 
+              onClick={handleClosePromoPopup} 
+              className="absolute -top-10 right-2 p-1.5 rounded-full border border-white/50 hover:border-white text-white hover:bg-white/10 transition-colors z-50 cursor-pointer"
+              title="Cerrar"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            {/* Main White Promo Card */}
+            <div 
+              className="rounded-3xl w-full p-5 pt-7 pb-6 relative shadow-2xl flex flex-col items-center border"
+              style={{
+                background: `linear-gradient(to bottom, ${homeSettings?.promotions?.catalogPromoBgColorStart || "#fff6ee"}, ${homeSettings?.promotions?.catalogPromoBgColorEnd || "#ffffff"})`,
+                borderColor: homeSettings?.promotions?.catalogPromoCouponBorderColor || "#ffeadd"
+              }}
+            >
+
+              {/* Title Section */}
+              <h2 
+                className="font-bold text-center text-lg mt-1 mb-5"
+                style={{ color: homeSettings?.promotions?.catalogPromoTextColor || "#a0522d" }}
+              >
+                Ofertas especiales solo para ti
+              </h2>
+
+              {/* Coupon List Container */}
+              <div className="w-full space-y-4 mb-6">
+                
+                {/* Coupon 1 */}
+                <div 
+                  className="relative flex rounded-2xl overflow-hidden p-4 min-h-[92px] shadow-sm border"
+                  style={{
+                    backgroundColor: homeSettings?.promotions?.catalogPromoCouponBgColor || "#fff7f6",
+                    borderColor: homeSettings?.promotions?.catalogPromoCouponBorderColor || "#ffd2cc"
+                  }}
+                >
+                  {/* Left tag */}
+                  <div 
+                    className="absolute top-0 left-0 text-white text-[8px] font-extrabold px-2 py-0.5 rounded-br-xl tracking-wider uppercase"
+                    style={{ backgroundColor: homeSettings?.promotions?.catalogPromoCouponTextColor || "#ff4a5a" }}
+                  >
+                    Nuevo usuario
+                  </div>
+                  
+                  {/* Left content */}
+                  <div className="w-[38%] flex flex-col justify-center items-center pr-2 pt-2 text-center">
+                    <span 
+                      className="text-xl sm:text-2xl font-black leading-none tracking-tight"
+                      style={{ color: homeSettings?.promotions?.catalogPromoCouponTextColor || "#ff4a5a" }}
+                    >
+                      {homeSettings?.promotions?.coupon1Discount?.split(' ')[0] || "30%"}
+                    </span>
+                    <span 
+                      className="text-[7.5px] font-bold mt-1 uppercase tracking-tight"
+                      style={{ color: homeSettings?.promotions?.catalogPromoCouponTextColor || "#ff4a5a" }}
+                    >
+                      {homeSettings?.promotions?.coupon1Discount?.split(' ').slice(1).join(' ') || "DE DESCUENTO"}
+                    </span>
+                    <span className="text-[8px] text-gray-455 mt-1 font-medium">
+                      {homeSettings?.promotions?.coupon1LeftNote || "Sin mín. de compra"}
+                    </span>
+                  </div>
+
+                  {/* Dashed border separator */}
+                  <div 
+                    className="border-r border-dashed my-1" 
+                    style={{ borderColor: homeSettings?.promotions?.catalogPromoCouponBorderColor || "#ffd2cc" }}
+                  />
+
+                  {/* Right content */}
+                  <div className="flex-1 pl-4 flex flex-col justify-center text-left">
+                    <span 
+                      className="text-xs sm:text-sm font-extrabold leading-snug"
+                      style={{ color: homeSettings?.promotions?.catalogPromoCouponTextColor || "#ff4a5a" }}
+                    >
+                      {homeSettings?.promotions?.coupon1RightTitle || "Cupón válido en todo el sitio"}
+                    </span>
+                    <span className="text-[9px] text-gray-500 mt-1">
+                      {homeSettings?.promotions?.coupon1RightLimit || "Límite de $MXN3,000"}
+                    </span>
+                    <div className="flex items-center justify-between mt-2 text-[8px] text-gray-400">
+                      <span>Por tiempo limitado</span>
+                      <ChevronDown className="w-3 h-3 text-gray-455 shrink-0" />
+                    </div>
+                  </div>
+
+                  {/* Scalloped circle cutouts */}
+                  <div 
+                    className="absolute top-0 left-[38%] -translate-y-1/2 -translate-x-1/2 w-4 h-4 rounded-full border-b"
+                    style={{ 
+                      backgroundColor: homeSettings?.promotions?.catalogPromoBgColorStart || "#fff6ee",
+                      borderColor: homeSettings?.promotions?.catalogPromoCouponBorderColor || "#ffd2cc"
+                    }}
+                  />
+                  <div 
+                    className="absolute bottom-0 left-[38%] translate-y-1/2 -translate-x-1/2 w-4 h-4 rounded-full border-t"
+                    style={{ 
+                      backgroundColor: homeSettings?.promotions?.catalogPromoBgColorEnd || "#ffffff",
+                      borderColor: homeSettings?.promotions?.catalogPromoCouponBorderColor || "#ffd2cc"
+                    }}
+                  />
+                </div>
+
+                {/* Coupon 2 */}
+                <div 
+                  className="relative flex rounded-2xl overflow-hidden p-4 min-h-[92px] shadow-sm border"
+                  style={{
+                    backgroundColor: homeSettings?.promotions?.catalogPromoCouponBgColor || "#fff7f6",
+                    borderColor: homeSettings?.promotions?.catalogPromoCouponBorderColor || "#ffd2cc"
+                  }}
+                >
+                  {/* Left tag */}
+                  <div 
+                    className="absolute top-0 left-0 text-white text-[8px] font-extrabold px-2 py-0.5 rounded-br-xl tracking-wider uppercase"
+                    style={{ backgroundColor: homeSettings?.promotions?.catalogPromoCouponTextColor || "#ff4a5a" }}
+                  >
+                    Nuevo usuario
+                  </div>
+                  
+                  {/* Left content */}
+                  <div className="w-[38%] flex flex-col justify-center items-center pr-2 pt-2 text-center">
+                    <span 
+                      className="text-xl sm:text-2xl font-black leading-none tracking-tight"
+                      style={{ color: homeSettings?.promotions?.catalogPromoCouponTextColor || "#ff4a5a" }}
+                    >
+                      {homeSettings?.promotions?.coupon2Discount?.split(' ')[0] || "65%"}
+                    </span>
+                    <span 
+                      className="text-[7.5px] font-bold mt-1 uppercase tracking-tight"
+                      style={{ color: homeSettings?.promotions?.catalogPromoCouponTextColor || "#ff4a5a" }}
+                    >
+                      {homeSettings?.promotions?.coupon2Discount?.split(' ').slice(1).join(' ') || "DE DESCUENTO"}
+                    </span>
+                    <span className="text-[8px] text-gray-455 mt-1 font-medium">
+                      {homeSettings?.promotions?.coupon2LeftNote || "Sin mín. de compra"}
+                    </span>
+                  </div>
+
+                  {/* Dashed border separator */}
+                  <div 
+                    className="border-r border-dashed my-1" 
+                    style={{ borderColor: homeSettings?.promotions?.catalogPromoCouponBorderColor || "#ffd2cc" }}
+                  />
+
+                  {/* Right content */}
+                  <div className="flex-1 pl-4 flex flex-col justify-center text-left">
+                    <span 
+                      className="text-xs sm:text-sm font-extrabold leading-snug"
+                      style={{ color: homeSettings?.promotions?.catalogPromoCouponTextColor || "#ff4a5a" }}
+                    >
+                      {homeSettings?.promotions?.coupon2RightTitle || "Cupón válido en todo el sitio"}
+                    </span>
+                    <span className="text-[9px] text-gray-550 mt-1">
+                      {homeSettings?.promotions?.coupon2RightLimit || "Límite de $MXN240"}
+                    </span>
+                    <div className="flex items-center justify-between mt-2 text-[8px] text-gray-400">
+                      <span>Por tiempo limitado</span>
+                      <ChevronDown className="w-3 h-3 text-gray-455 shrink-0" />
+                    </div>
+                  </div>
+
+                  {/* Scalloped circle cutouts */}
+                  <div 
+                    className="absolute top-0 left-[38%] -translate-y-1/2 -translate-x-1/2 w-4 h-4 rounded-full border-b"
+                    style={{ 
+                      backgroundColor: homeSettings?.promotions?.catalogPromoBgColorStart || "#fff6ee",
+                      borderColor: homeSettings?.promotions?.catalogPromoCouponBorderColor || "#ffd2cc"
+                    }}
+                  />
+                  <div 
+                    className="absolute bottom-0 left-[38%] translate-y-1/2 -translate-x-1/2 w-4 h-4 rounded-full border-t"
+                    style={{ 
+                      backgroundColor: homeSettings?.promotions?.catalogPromoBgColorEnd || "#ffffff",
+                      borderColor: homeSettings?.promotions?.catalogPromoCouponBorderColor || "#ffd2cc"
+                    }}
+                  />
+                </div>
+
+              </div>
+
+              {/* Action Claim Button */}
+              <button 
+                onClick={handleClaimCoupons}
+                className="w-full text-sm font-extrabold py-3 px-6 rounded-full shadow-lg hover:shadow-xl hover:brightness-110 active:scale-[0.98] transition-all uppercase tracking-wider cursor-pointer flex items-center justify-center gap-2"
+                style={{
+                  backgroundColor: homeSettings?.promotions?.catalogPromoButtonBgColor || "#222222",
+                  color: homeSettings?.promotions?.catalogPromoButtonTextColor || "#ffffff"
+                }}
+              >
+                <span>{homeSettings?.promotions?.catalogPromoButtonText || "¡Consíguelos Todos!"}</span>
+              </button>
+
+            </div>
+
+            {/* Under-card Footer Disclaimer Text */}
+            <p className="text-[10px] text-white/95 text-center mt-3 tracking-wide drop-shadow-xs">
+              {homeSettings?.promotions?.catalogPromoFooterNote || "Cupones confirmados después de iniciar sesión"}
+            </p>
+          </div>
+        </div>
       )}
     </div>
   );

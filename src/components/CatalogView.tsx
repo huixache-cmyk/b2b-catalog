@@ -6,7 +6,7 @@ import { useProducts } from "@/hooks/useProducts";
 import { MATERIALS, Product } from "@/types";
 import { useSettings } from "@/hooks/useSettings";
 import { ProductCard } from "./ProductCard";
-import { Filter, X, ChevronDown, Gift } from "lucide-react";
+import { Filter, X, ChevronDown, Gift, Truck, Tag, Percent, Star } from "lucide-react";
 
 function getSearchSimilarity(text: string, query: string): number {
   const textLower = text.toLowerCase();
@@ -46,6 +46,128 @@ function getSearchSimilarity(text: string, query: string): number {
   return 0;
 }
 
+const renderTriggerIcon = (iconName?: string) => {
+  switch (iconName) {
+    case "Gift":
+      return <Gift className="w-5 h-5 mb-2" />;
+    case "Tag":
+      return <Tag className="w-5 h-5 mb-2" />;
+    case "Percent":
+      return <Percent className="w-5 h-5 mb-2" />;
+    default:
+      return null;
+  }
+};
+
+const renderTagIcon = (iconName?: string, textColor?: string) => {
+  const iconColor = textColor || "#0a6644";
+  switch (iconName) {
+    case "Truck":
+      return <Truck className="w-4 h-4 shrink-0" style={{ color: iconColor }} />;
+    case "Tag":
+      return <Tag className="w-4 h-4 shrink-0" style={{ color: iconColor }} />;
+    case "Gift":
+      return <Gift className="w-4 h-4 shrink-0" style={{ color: iconColor }} />;
+    case "Percent":
+      return <Percent className="w-4 h-4 shrink-0" style={{ color: iconColor }} />;
+    case "Star":
+      return <Star className="w-4 h-4 shrink-0" style={{ color: iconColor }} />;
+    default:
+      return null;
+  }
+};
+
+const parseSideTextLeft = (fullText: string, promoColor: string, promoSize: string) => {
+  const match = fullText.match(/(-\d+%|\d+%\s*DTO\.?|\d+%\s*OFF)/i);
+  if (match) {
+    const promoPart = match[0];
+    const index = fullText.indexOf(promoPart);
+    const before = fullText.substring(0, index).trim();
+    const after = fullText.substring(index + promoPart.length).trim();
+    
+    const fontSize = promoSize === "Grande" ? "48px" : promoSize === "Muy Grande" ? "56px" : "40px";
+    
+    return (
+      <div className="text-center flex flex-col justify-center items-center">
+        {before && (
+          <span className="text-[9px] sm:text-[10px] uppercase tracking-wide opacity-90">
+            {before}
+          </span>
+        )}
+        <span 
+          className="font-black my-0.5 leading-none"
+          style={{ color: promoColor, fontSize }}
+        >
+          {promoPart}
+        </span>
+        {after && (
+          <span className="text-[10px] sm:text-xs font-bold uppercase tracking-wide">
+            {after}
+          </span>
+        )}
+      </div>
+    );
+  }
+  
+  return (
+    <div className="text-center flex flex-col justify-center items-center px-2">
+      <span className="text-xs font-bold text-center leading-tight">{fullText}</span>
+    </div>
+  );
+};
+
+const parseSideTextRight = (fullText: string, promoColor: string, promoSize: string) => {
+  const matchEnvio = fullText.match(/(ENVÍO\s+GRATIS|ENVIO\s+GRATIS|FREE\s+SHIPPING)/i);
+  if (matchEnvio) {
+    const promoPart = matchEnvio[0];
+    const index = fullText.indexOf(promoPart);
+    const after = fullText.substring(index + promoPart.length).trim();
+    
+    let line1 = after;
+    let line2 = "";
+    
+    const plusIndex = after.search(/\+\$|\+MXN|en\s+su/i);
+    if (plusIndex !== -1) {
+      line1 = after.substring(0, plusIndex).trim();
+      line2 = after.substring(plusIndex).trim();
+    }
+    
+    const fontSize = promoSize === "Grande" ? "30px" : promoSize === "Muy Grande" ? "36px" : "24px";
+    
+    return (
+      <div className="text-center flex flex-col justify-center items-center pl-3">
+        <span 
+          className="font-black leading-none uppercase"
+          style={{ color: promoColor, fontSize }}
+        >
+          {promoPart.includes(" ") ? (
+            <>
+              <div>{promoPart.split(/\s+/)[0]}</div>
+              <div className="mt-0.5">{promoPart.split(/\s+/)[1]}</div>
+            </>
+          ) : promoPart}
+        </span>
+        {line1 && (
+          <span className="text-[9px] sm:text-[10px] uppercase tracking-wide mt-1.5 opacity-90">
+            {line1}
+          </span>
+        )}
+        {line2 && (
+          <span className="text-[10px] sm:text-xs font-bold mt-0.5">
+            {line2}
+          </span>
+        )}
+      </div>
+    );
+  }
+  
+  return (
+    <div className="text-center flex flex-col justify-center items-center pl-3 px-2">
+      <span className="text-xs font-bold text-center leading-tight">{fullText}</span>
+    </div>
+  );
+};
+
 export function CatalogView({ 
   initialProducts, 
   initialCategories, 
@@ -73,6 +195,20 @@ export function CatalogView({
   
   // Promotion Popup State
   const [showPromoPopup, setShowPromoPopup] = useState(false);
+
+  const [showSidePromo, setShowSidePromo] = useState(false);
+  const [panelWidth, setPanelWidth] = useState(440);
+
+  useEffect(() => {
+    const handleResize = () => {
+      if (typeof window !== "undefined") {
+        setPanelWidth(window.innerWidth < 640 ? window.innerWidth - 48 : 440);
+      }
+    };
+    handleResize();
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
 
   // Sync state when URL params change
   useEffect(() => {
@@ -102,7 +238,13 @@ export function CatalogView({
     if (typeof window !== "undefined") {
       const dismissed = localStorage.getItem("b2b_catalog_promo_dismissed") === "true";
       const isPublished = homeSettings?.promotions?.catalogPromoPublished ?? true;
-      if (!dismissed && isPublished && isLoaded) {
+      const alwaysShow = homeSettings?.promotions?.catalogPromoAlwaysShow ?? false;
+      const displayPage = homeSettings?.promotions?.catalogPromoPage ?? "Catálogo";
+
+      const shouldShowPage = displayPage === "Catálogo" || displayPage === "Ambos";
+      const shouldShowDismissed = !dismissed || alwaysShow;
+
+      if (shouldShowDismissed && isPublished && shouldShowPage && isLoaded) {
         const delaySeconds = homeSettings?.promotions?.catalogPromoDelay ?? 3;
         const timer = setTimeout(() => {
           setShowPromoPopup(true);
@@ -566,6 +708,155 @@ export function CatalogView({
             </p>
           </div>
         </div>
+      )}
+
+      {/* Side Promotion Drawer */}
+      {homeSettings?.promotions?.sidePublished !== false && 
+       (homeSettings?.promotions?.sidePromoPage === "Catálogo" || 
+        homeSettings?.promotions?.sidePromoPage === "Ambos") && (
+        <>
+          {/* Drawer Overlay */}
+          {showSidePromo && (
+            <div 
+              onClick={() => setShowSidePromo(false)} 
+              className="fixed inset-0 bg-black/40 z-40 transition-opacity"
+            />
+          )}
+
+          {/* Side Drawer Panel Wrapper (Floating Centered on Right Side) */}
+          <div 
+            className="fixed right-0 top-1/2 z-50 flex shadow-2xl transition-transform duration-300"
+            style={{
+              height: '420px',
+              transform: showSidePromo 
+                ? 'translate(0, -50%)' 
+                : `translate(${panelWidth}px, -50%)`,
+            }}
+          >
+            {/* Vertical Toggle Trigger Button (Sized to exact height of drawer) */}
+            <button 
+              onClick={() => setShowSidePromo(!showSidePromo)}
+              className="w-12 transition-all duration-200 hover:brightness-110 active:scale-95 flex flex-col items-center py-6 px-1 rounded-l-2xl shadow-md focus:outline-none cursor-pointer select-none"
+              style={{ 
+                height: '420px',
+                backgroundColor: homeSettings?.promotions?.sideButtonBgColor || "#000000",
+                color: homeSettings?.promotions?.sideButtonTextColor || "#ffffff"
+              }}
+            >
+              {/* Arrow icon pointing to close (▶) or open (◀) */}
+              <div className="mb-4 text-xs font-bold flex flex-col items-center gap-1.5">
+                <span>{showSidePromo ? '▶' : '◀'}</span>
+                {renderTriggerIcon(homeSettings?.promotions?.sideTriggerIcon)}
+              </div>
+              
+              {/* Vertical text */}
+              <span 
+                className="tracking-[0.22em] font-extrabold uppercase select-none flex-1 text-center" 
+                style={{ 
+                  writingMode: 'vertical-lr', 
+                  transform: 'rotate(180deg)',
+                  fontSize: homeSettings?.promotions?.sideTextSizeTrigger === "Pequeño" 
+                    ? "10px" 
+                    : homeSettings?.promotions?.sideTextSizeTrigger === "Grande" 
+                      ? "14px" 
+                      : "12px"
+                }}
+              >
+                {homeSettings?.promotions?.sideTextTrigger || "CONSIGUE 30% DE DTO."}
+              </span>
+            </button>
+
+            {/* Pink Drawer Panel */}
+            <div 
+              className="flex flex-col font-sans border-y border-r rounded-r-2xl overflow-hidden shadow-inner"
+              style={{ 
+                width: `${panelWidth}px`, 
+                height: '420px',
+                backgroundColor: homeSettings?.promotions?.sideBgColor || "#ffeceb",
+                color: homeSettings?.promotions?.sideTextColor || "#222222",
+                borderColor: homeSettings?.promotions?.sidePromoTextColor || "#ffd2cc"
+              }}
+            >
+              {/* Content Area */}
+              <div className="flex-1 p-6 flex flex-col justify-center space-y-5">
+                
+                {/* Promo Header Text */}
+                <h3 
+                  className="text-center font-bold leading-snug px-1 uppercase tracking-wide"
+                  style={{
+                    color: homeSettings?.promotions?.sideTextColor || "#222222",
+                    fontSize: homeSettings?.promotions?.sideTextSizeTitle === "text-xs" 
+                      ? "12px" 
+                      : homeSettings?.promotions?.sideTextSizeTitle === "text-base" 
+                        ? "16px" 
+                        : "14px"
+                  }}
+                >
+                  {homeSettings?.promotions?.sideTitle || "Suscribirse para disfrutar los precios de VIP y Ventas Flash"}
+                </h3>
+
+                {/* Promo Offer Columns */}
+                <div className="grid grid-cols-2 gap-2 items-center relative py-1">
+                  {/* Box 1 (Left) */}
+                  {parseSideTextLeft(
+                    homeSettings?.promotions?.sideTextLeft || "Suscribirse y obtén -30% En Primer Pedido",
+                    homeSettings?.promotions?.sidePromoTextColor || "#e1251b",
+                    homeSettings?.promotions?.sideTextSizePromo || "Normal"
+                  )}
+
+                  {/* Vertical Divider */}
+                  <div 
+                    className="absolute left-1/2 top-1 bottom-1 border-l" 
+                    style={{ borderColor: homeSettings?.promotions?.sidePromoTextColor ? `${homeSettings.promotions.sidePromoTextColor}44` : "#fecaca" }}
+                  />
+
+                  {/* Box 2 (Right) */}
+                  {parseSideTextRight(
+                    homeSettings?.promotions?.sideTextRight || "ENVÍO GRATIS en su primer pedido +$MXN99",
+                    homeSettings?.promotions?.sidePromoTextColor || "#e1251b",
+                    homeSettings?.promotions?.sideTextSizePromo || "Normal"
+                  )}
+                </div>
+
+                {/* Registration Form */}
+                <div className="flex gap-2 w-full pt-1">
+                  <input 
+                    type="email" 
+                    placeholder="INTRODUCE TU CORREO ELECTRÓNICO"
+                    className="flex-1 bg-white border border-gray-300 rounded p-2.5 text-[10px] sm:text-xs focus:ring-[#e1251b] focus:border-[#e1251b] text-center font-semibold placeholder-gray-400 italic"
+                  />
+                  <button 
+                    onClick={() => {
+                      alert("¡Gracias por registrarte! Tu código de descuento ha sido enviado a tu correo.");
+                      setShowSidePromo(false);
+                    }}
+                    className="w-24 sm:w-28 font-extrabold py-2.5 px-2 rounded text-[10px] sm:text-xs tracking-wider transition-all hover:brightness-110 active:scale-95 uppercase cursor-pointer"
+                    style={{
+                      backgroundColor: homeSettings?.promotions?.sideButtonBgColor || "#000000",
+                      color: homeSettings?.promotions?.sideButtonTextColor || "#ffffff"
+                    }}
+                  >
+                    REGÍSTRATE
+                  </button>
+                </div>
+
+                {/* Disclaimers & Checkboxes */}
+                <div className="text-[9px] sm:text-[10px] space-y-2.5 leading-relaxed pt-1" style={{ color: homeSettings?.promotions?.sideTextColor ? `${homeSettings.promotions.sideTextColor}cc` : "#6b7280" }}>
+                  <p>
+                    Al registrarse, acepta nuestra <span className="underline cursor-pointer hover:text-black">Política de privacidad y cookies</span> y nuestros <span className="underline cursor-pointer hover:text-black">Términos y condiciones</span>.
+                  </p>
+                  <label className="flex items-start gap-2 cursor-pointer">
+                    <input type="checkbox" className="mt-0.5 rounded text-black focus:ring-black h-3 w-3 border-gray-300 shrink-0" />
+                    <span className="leading-normal">
+                      Me gustaría recibir ofertas exclusivas y las últimas noticias de geekystore por correo electrónico. Entiendo que puedo comunicarme con geekystore para cancelar la suscripción en cualquier momento.
+                    </span>
+                  </label>
+                </div>
+
+              </div>
+            </div>
+          </div>
+        </>
       )}
     </div>
   );

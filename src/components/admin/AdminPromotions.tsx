@@ -69,6 +69,10 @@ export function AdminPromotions({ homeSettings, updateHomeSettings }: AdminPromo
   const [catalogPromoButtonBgColor, setCatalogPromoButtonBgColor] = useState(currentPromo.catalogPromoButtonBgColor ?? "#222222");
   const [catalogPromoButtonTextColor, setCatalogPromoButtonTextColor] = useState(currentPromo.catalogPromoButtonTextColor ?? "#ffffff");
   const [catalogPromoIcon, setCatalogPromoIcon] = useState(currentPromo.catalogPromoIcon ?? "GiftBow");
+  const [catalogPromoAlwaysShow, setCatalogPromoAlwaysShow] = useState(currentPromo.catalogPromoAlwaysShow ?? false);
+  const [catalogPromoPage, setCatalogPromoPage] = useState(currentPromo.catalogPromoPage ?? "Catálogo");
+  const [sideTextSizeTrigger, setSideTextSizeTrigger] = useState(currentPromo.sideTextSizeTrigger ?? "Mediano");
+  const [sidePromoPage, setSidePromoPage] = useState(currentPromo.sidePromoPage ?? "Detalle de Producto");
 
   const [isSaving, setIsSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
@@ -120,6 +124,10 @@ export function AdminPromotions({ homeSettings, updateHomeSettings }: AdminPromo
         catalogPromoButtonBgColor,
         catalogPromoButtonTextColor,
         catalogPromoIcon,
+        catalogPromoAlwaysShow,
+        catalogPromoPage,
+        sideTextSizeTrigger,
+        sidePromoPage,
         // Tag promo styles
         tagBgColor,
         tagBorderColor,
@@ -312,17 +320,34 @@ export function AdminPromotions({ homeSettings, updateHomeSettings }: AdminPromo
             </button>
           </div>
 
-          <div className="flex items-center gap-2">
-            <input
-              id="sidePublished"
-              type="checkbox"
-              checked={sidePublished}
-              onChange={(e) => setSidePublished(e.target.checked)}
-              className="rounded text-primary-600 focus:ring-primary-500 h-4 w-4"
-            />
-            <label htmlFor="sidePublished" className="text-sm font-semibold text-gray-700 cursor-pointer">
-              Activar panel promocional lateral en la página de productos
-            </label>
+          <div className="flex flex-col md:flex-row gap-4 items-start md:items-center border-b pb-3 border-gray-100">
+            <div className="flex items-center gap-2">
+              <input
+                id="sidePublished"
+                type="checkbox"
+                checked={sidePublished}
+                onChange={(e) => setSidePublished(e.target.checked)}
+                className="rounded text-primary-600 focus:ring-primary-500 h-4 w-4"
+              />
+              <label htmlFor="sidePublished" className="text-sm font-semibold text-gray-700 cursor-pointer">
+                Activar panel promocional lateral
+              </label>
+            </div>
+            
+            <div className="flex items-center gap-2">
+              <label htmlFor="sidePromoPage" className="text-xs font-bold text-gray-650 uppercase">Página de Visualización:</label>
+              <select
+                id="sidePromoPage"
+                value={sidePromoPage}
+                onChange={(e) => setSidePromoPage(e.target.value)}
+                disabled={!sidePublished}
+                className="bg-white border border-gray-300 rounded-lg p-1.5 text-xs font-semibold focus:ring-primary-500 focus:border-primary-500"
+              >
+                <option value="Detalle de Producto">Solo Detalle de Producto</option>
+                <option value="Catálogo">Solo Catálogo</option>
+                <option value="Ambos">Ambos (Catálogo y Detalle de Producto)</option>
+              </select>
+            </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -528,6 +553,20 @@ export function AdminPromotions({ homeSettings, updateHomeSettings }: AdminPromo
                   <option value="Percent">Porcentaje (%)</option>
                 </select>
               </div>
+
+              <div className="space-y-1">
+                <label className="block text-[10px] font-bold text-gray-550 uppercase">Tamaño Texto Tirador</label>
+                <select
+                  value={sideTextSizeTrigger}
+                  onChange={(e) => setSideTextSizeTrigger(e.target.value)}
+                  disabled={!sidePublished}
+                  className="w-full bg-white border border-gray-300 rounded-lg p-2 text-xs font-semibold focus:ring-primary-500"
+                >
+                  <option value="Pequeño">Pequeño (10px)</option>
+                  <option value="Mediano">Mediano (12px)</option>
+                  <option value="Grande">Grande (14px)</option>
+                </select>
+              </div>
             </div>
           </div>
         </div>
@@ -550,17 +589,33 @@ export function AdminPromotions({ homeSettings, updateHomeSettings }: AdminPromo
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="flex items-center gap-2 col-span-1 md:col-span-2">
-              <input
-                id="catalogPromoPublished"
-                type="checkbox"
-                checked={catalogPromoPublished}
-                onChange={(e) => setCatalogPromoPublished(e.target.checked)}
-                className="rounded text-primary-600 focus:ring-primary-500 h-4 w-4"
-              />
-              <label htmlFor="catalogPromoPublished" className="text-sm font-semibold text-gray-700 cursor-pointer">
-                Activar ventana flotante promocional en el catálogo
-              </label>
+            <div className="flex flex-col md:flex-row gap-4 items-start md:items-center col-span-1 md:col-span-2 border-b pb-3 border-gray-100">
+              <div className="flex items-center gap-2">
+                <input
+                  id="catalogPromoPublished"
+                  type="checkbox"
+                  checked={catalogPromoPublished}
+                  onChange={(e) => setCatalogPromoPublished(e.target.checked)}
+                  className="rounded text-primary-600 focus:ring-primary-500 h-4 w-4"
+                />
+                <label htmlFor="catalogPromoPublished" className="text-sm font-semibold text-gray-700 cursor-pointer">
+                  Activar ventana flotante promocional
+                </label>
+              </div>
+              
+              <div className="flex items-center gap-2">
+                <input
+                  id="catalogPromoAlwaysShow"
+                  type="checkbox"
+                  checked={catalogPromoAlwaysShow}
+                  onChange={(e) => setCatalogPromoAlwaysShow(e.target.checked)}
+                  disabled={!catalogPromoPublished}
+                  className="rounded text-primary-600 focus:ring-primary-500 h-4 w-4"
+                />
+                <label htmlFor="catalogPromoAlwaysShow" className="text-sm font-semibold text-gray-700 cursor-pointer disabled:text-gray-400">
+                  Mostrar siempre (ignorar descarte del usuario)
+                </label>
+              </div>
             </div>
 
             <div className="space-y-1">
@@ -574,6 +629,20 @@ export function AdminPromotions({ homeSettings, updateHomeSettings }: AdminPromo
                 className="w-full border border-gray-300 rounded-lg p-2.5 text-sm focus:ring-primary-500 focus:border-primary-500 disabled:bg-gray-100"
                 required
               />
+            </div>
+
+            <div className="space-y-1">
+              <label className="block text-xs font-bold text-gray-700 uppercase">Página de Visualización</label>
+              <select
+                value={catalogPromoPage}
+                onChange={(e) => setCatalogPromoPage(e.target.value)}
+                disabled={!catalogPromoPublished}
+                className="w-full bg-white border border-gray-300 rounded-lg p-2.5 text-sm font-semibold focus:ring-primary-500"
+              >
+                <option value="Catálogo">Solo Catálogo</option>
+                <option value="Detalle de Producto">Solo Detalle de Producto</option>
+                <option value="Ambos">Ambos (Catálogo y Detalle de Producto)</option>
+              </select>
             </div>
 
             <div className="space-y-1">
