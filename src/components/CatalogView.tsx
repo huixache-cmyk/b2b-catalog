@@ -6,7 +6,7 @@ import { useProducts } from "@/hooks/useProducts";
 import { MATERIALS, Product } from "@/types";
 import { useSettings } from "@/hooks/useSettings";
 import { ProductCard } from "./ProductCard";
-import { Filter, X, ChevronDown, Gift, Truck, Tag, Star } from "lucide-react";
+import { Filter, X, ChevronDown, Gift } from "lucide-react";
 
 function getSearchSimilarity(text: string, query: string): number {
   const textLower = text.toLowerCase();
@@ -45,141 +45,6 @@ function getSearchSimilarity(text: string, query: string): number {
 
   return 0;
 }
-
-const renderCatalogPromoIllustration = (iconType?: string) => {
-  if (iconType === "Coins") {
-    return (
-      <div className="absolute -top-11 flex justify-center z-10 w-full select-none pointer-events-none">
-        <svg viewBox="0 0 120 60" className="w-28 h-14 drop-shadow-md">
-          <defs>
-            <linearGradient id="goldCoinsGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stopColor="#ffe89c" />
-              <stop offset="30%" stopColor="#f5af19" />
-              <stop offset="70%" stopColor="#e65c00" />
-              <stop offset="100%" stopColor="#9e3a00" />
-            </linearGradient>
-          </defs>
-          <ellipse cx="40" cy="35" rx="14" ry="7" fill="url(#goldCoinsGrad)" stroke="#b86d00" strokeWidth="1" />
-          <ellipse cx="40" cy="35" rx="10" ry="4" fill="none" stroke="#ffe89c" strokeWidth="0.7" strokeDasharray="2,2" />
-          
-          <ellipse cx="80" cy="35" rx="14" ry="7" fill="url(#goldCoinsGrad)" stroke="#b86d00" strokeWidth="1" />
-          <ellipse cx="80" cy="35" rx="10" ry="4" fill="none" stroke="#ffe89c" strokeWidth="0.7" strokeDasharray="2,2" />
-
-          <ellipse cx="50" cy="28" rx="16" ry="8" fill="url(#goldCoinsGrad)" stroke="#b86d00" strokeWidth="1" />
-          <ellipse cx="50" cy="28" rx="12" ry="5" fill="none" stroke="#ffe89c" strokeWidth="0.8" />
-          <text x="50" y="31" fontSize="8" fontWeight="bold" fill="#7a4200" textAnchor="middle">$</text>
-
-          <ellipse cx="70" cy="28" rx="16" ry="8" fill="url(#goldCoinsGrad)" stroke="#b86d00" strokeWidth="1" />
-          <ellipse cx="70" cy="28" rx="12" ry="5" fill="none" stroke="#ffe89c" strokeWidth="0.8" />
-          <text x="70" y="31" fontSize="8" fontWeight="bold" fill="#7a4200" textAnchor="middle">$</text>
-          
-          <ellipse cx="60" cy="20" rx="18" ry="9" fill="url(#goldCoinsGrad)" stroke="#9e3a00" strokeWidth="1" />
-          <ellipse cx="60" cy="20" rx="14" ry="6" fill="none" stroke="#ffe89c" strokeWidth="1" />
-          <text x="60" y="23" fontSize="10" fontWeight="bold" fill="#7a4200" textAnchor="middle">$</text>
-          
-          <path d="M25 15 L27 20 L32 22 L27 24 L25 29 L23 24 L18 22 L23 20 Z" fill="#ffffff" />
-          <path d="M95 18 L97 21 L102 22 L97 23 L95 26 L93 23 L88 22 L93 21 Z" fill="#ffffff" />
-        </svg>
-      </div>
-    );
-  }
-
-  if (iconType === "Truck") {
-    return (
-      <div className="absolute -top-11 flex justify-center z-10 w-full select-none pointer-events-none">
-        <svg viewBox="0 0 120 60" className="w-28 h-14 drop-shadow-md">
-          <line x1="5" y1="20" x2="25" y2="20" stroke="#f39c12" strokeWidth="1.5" strokeLinecap="round" />
-          <line x1="8" y1="26" x2="28" y2="26" stroke="#f39c12" strokeWidth="2.5" strokeLinecap="round" />
-          <line x1="3" y1="32" x2="20" y2="32" stroke="#e67e22" strokeWidth="2" strokeLinecap="round" />
-          
-          <ellipse cx="60" cy="50" rx="45" ry="4" fill="#000000" opacity="0.1" />
-
-          <rect x="30" y="10" width="55" height="30" rx="3" fill="#ffffff" stroke="#d35400" strokeWidth="1" />
-          <text x="57" y="22" fontSize="7" fontWeight="bold" fill="#000" textAnchor="middle">ENVÍO</text>
-          <text x="57" y="31" fontSize="7" fontWeight="bold" fill="#e67e22" textAnchor="middle">GRATIS</text>
-
-          <path d="M85 20 L98 20 C101 20 103 22 103 25 L103 40 L85 40 Z" fill="#f1c40f" stroke="#d35400" strokeWidth="1" />
-          <path d="M87 23 L95 23 L99 28 L87 28 Z" fill="#2c3e50" />
-          <rect x="101" y="35" width="3" height="3" fill="#ecf0f1" />
-
-          <circle cx="45" cy="43" r="7" fill="#2c3e50" stroke="#bdc3c7" strokeWidth="1.5" />
-          <circle cx="45" cy="43" r="3" fill="#ffffff" />
-          <circle cx="85" cy="43" r="7" fill="#2c3e50" stroke="#bdc3c7" strokeWidth="1.5" />
-          <circle cx="85" cy="43" r="3" fill="#ffffff" />
-          
-          <path d="M107 15 L108 17 L110 18 L108 19 L107 21 L106 19 L104 18 L106 17 Z" fill="#f1c40f" />
-        </svg>
-      </div>
-    );
-  }
-  
-  if (iconType === "Tag") {
-    return (
-      <div className="absolute -top-11 flex justify-center z-10 w-full select-none pointer-events-none">
-        <svg viewBox="0 0 120 60" className="w-28 h-14 drop-shadow-md">
-          <path d="M15 15 L17 17 L19 18 L17 19 L15 21 L13 19 L11 18 L13 17 Z" fill="#e74c3c" />
-          
-          <g transform="rotate(-8 60 30)">
-            <path d="M30 18 L75 18 C78 18 80 20 80 23 L80 37 C80 40 78 42 75 42 L30 42 C28 42 26 40 26 37 L26 23 C26 20 28 18 30 18 Z" fill="#e74c3c" stroke="#ffffff" strokeWidth="1.5" />
-            <circle cx="21" cy="30" r="3" fill="#ffe066" />
-            <path d="M10 25 Q17 28 21 30" stroke="#d35400" strokeWidth="1.2" fill="none" />
-            <text x="53" y="27" fontSize="6.5" fontWeight="bold" fill="#ffffff" textAnchor="middle">DESCUENTOS</text>
-            <text x="53" y="36" fontSize="6.5" fontWeight="bold" fill="#ffe066" textAnchor="middle">EXCLUSIVOS</text>
-          </g>
-          
-          <circle cx="85" cy="35" r="13" fill="#f1c40f" stroke="#e67e22" strokeWidth="1" />
-          <circle cx="85" cy="35" r="10" fill="#f39c12" />
-          <text x="85" y="39" fontSize="11" fontWeight="black" fill="#ffffff" textAnchor="middle">%</text>
-        </svg>
-      </div>
-    );
-  }
-  
-  if (iconType === "Star") {
-    return (
-      <div className="absolute -top-11 flex justify-center z-10 w-full select-none pointer-events-none">
-        <svg viewBox="0 0 120 60" className="w-28 h-14 drop-shadow-md">
-          <defs>
-            <linearGradient id="goldStarGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stopColor="#fff2cc" />
-              <stop offset="30%" stopColor="#ffb834" />
-              <stop offset="70%" stopColor="#f39c12" />
-              <stop offset="100%" stopColor="#d35400" />
-            </linearGradient>
-          </defs>
-          <path d="M20 38 Q60 48 100 38 L95 28 Q60 38 25 28 Z" fill="url(#goldStarGrad)" stroke="#b86d00" strokeWidth="1" />
-          <polygon points="60,7 64,21 78,21 67,29 71,43 60,35 49,43 53,29 42,21 56,21" fill="url(#goldStarGrad)" stroke="#b86d00" strokeWidth="1.2" />
-          <polygon points="60,11 63,22 74,22 65,28 68,39 60,32 52,39 55,28 46,22 57,22" fill="none" stroke="#ffffff" strokeWidth="0.8" opacity="0.8" />
-          <circle cx="25" cy="18" r="1.5" fill="#ffffff" />
-          <path d="M22 15 L24 17 L26 18 L24 19 L22 21 L20 19 L18 18 L20 17 Z" fill="#ffd700" />
-          <circle cx="95" cy="18" r="1.5" fill="#ffffff" />
-          <path d="M92 15 L94 17 L96 18 L94 19 L92 21 L90 19 L88 18 L90 17 Z" fill="#ffd700" />
-        </svg>
-      </div>
-    );
-  }
-  
-  return (
-    <div className="absolute -top-9 flex justify-center z-10 w-full select-none pointer-events-none">
-      <svg className="w-24 h-12 text-[#f39c12] fill-current drop-shadow-md" viewBox="0 0 100 50">
-        <path d="M50 30 C20 10, 10 30, 50 30 Z" fill="url(#goldGoldGradient)" stroke="#d35400" strokeWidth="1" />
-        <path d="M50 30 C80 10, 90 30, 50 30 Z" fill="url(#goldGoldGradient)" stroke="#d35400" strokeWidth="1" />
-        <path d="M50 30 L35 50 L42 35 Z" fill="url(#goldGoldGradient)" />
-        <path d="M50 30 L65 50 L58 35 Z" fill="url(#goldGoldGradient)" />
-        <circle cx="50" cy="30" r="7" fill="#d35400" />
-        <circle cx="50" cy="30" r="5" fill="url(#goldGoldGradient)" />
-        <defs>
-          <linearGradient id="goldGoldGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%" stopColor="#fff2cc" />
-            <stop offset="30%" stopColor="#ffb834" />
-            <stop offset="70%" stopColor="#f39c12" />
-            <stop offset="100%" stopColor="#d35400" />
-          </linearGradient>
-        </defs>
-      </svg>
-    </div>
-  );
-};
 
 export function CatalogView({ 
   initialProducts, 
@@ -517,9 +382,6 @@ export function CatalogView({
                 borderColor: homeSettings?.promotions?.catalogPromoCouponBorderColor || "#ffeadd"
               }}
             >
-              
-              {/* Illustration Icon Header */}
-              {renderCatalogPromoIllustration(homeSettings?.promotions?.catalogPromoIcon)}
 
               {/* Title Section */}
               <h2 
@@ -693,15 +555,6 @@ export function CatalogView({
                   color: homeSettings?.promotions?.catalogPromoButtonTextColor || "#ffffff"
                 }}
               >
-                {homeSettings?.promotions?.catalogPromoIcon === "Truck" && (
-                  <Truck className="w-4 h-4 shrink-0 text-white animate-bounce" />
-                )}
-                {homeSettings?.promotions?.catalogPromoIcon === "Tag" && (
-                  <span className="bg-red-500 text-white rounded-full w-4 h-4 flex items-center justify-center text-[9px] font-black shrink-0 tracking-normal">%</span>
-                )}
-                {homeSettings?.promotions?.catalogPromoIcon === "Star" && (
-                  <Star className="w-4 h-4 shrink-0 text-yellow-400 fill-current" />
-                )}
                 <span>{homeSettings?.promotions?.catalogPromoButtonText || "¡Consíguelos Todos!"}</span>
               </button>
 

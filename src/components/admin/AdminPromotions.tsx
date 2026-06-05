@@ -868,22 +868,6 @@ export function AdminPromotions({ homeSettings, updateHomeSettings }: AdminPromo
                     />
                   </div>
                 </div>
-
-                <div className="space-y-1">
-                  <label className="block text-[10px] font-bold text-gray-550 uppercase">Ilustración Superior</label>
-                  <select
-                    value={catalogPromoIcon}
-                    onChange={(e) => setCatalogPromoIcon(e.target.value)}
-                    disabled={!catalogPromoPublished}
-                    className="w-full bg-white border border-gray-300 rounded-lg p-2 text-xs font-semibold focus:ring-primary-500"
-                  >
-                    <option value="Coins">Monedas de Oro (Acumulación)</option>
-                    <option value="GiftBow">Moño Dorado</option>
-                    <option value="Truck">Camión de Envío Gratis</option>
-                    <option value="Tag">Etiqueta de Descuentos Exclusivos</option>
-                    <option value="Star">Estrella Dorada</option>
-                  </select>
-                </div>
               </div>
             </div>
           </div>
