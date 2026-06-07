@@ -275,7 +275,8 @@ export function CatalogView({
       
       if (checkClaimed && hasEnvioSinCosto) return;
 
-      const dismissed = localStorage.getItem("b2b_catalog_promo_dismissed") === "true";
+      const promoKey = `b2b_catalog_promo_dismissed_${homeSettings?.promotions?.catalogPromoTitle || ""}_${homeSettings?.promotions?.coupon1Discount || ""}`;
+      const dismissed = localStorage.getItem(promoKey) === "true";
       const isPublished = homeSettings?.promotions?.catalogPromoPublished ?? true;
       const alwaysShow = homeSettings?.promotions?.catalogPromoAlwaysShow ?? false;
       const displayPage = homeSettings?.promotions?.catalogPromoPage ?? "Catálogo";
@@ -297,7 +298,8 @@ export function CatalogView({
     setShowPromoPopup(false);
     if (typeof window !== "undefined") {
       try {
-        localStorage.setItem("b2b_catalog_promo_dismissed", "true");
+        const promoKey = `b2b_catalog_promo_dismissed_${homeSettings?.promotions?.catalogPromoTitle || ""}_${homeSettings?.promotions?.coupon1Discount || ""}`;
+        localStorage.setItem(promoKey, "true");
       } catch (e) {
         console.warn("Could not save promo dismissal", e);
       }
