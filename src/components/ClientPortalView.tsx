@@ -1,15 +1,207 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { B2BClientSession, useClientAuth } from "@/hooks/useClientAuth";
 import { supabase } from "@/lib/supabase";
 import { QuoteRequest } from "@/types";
 import { formatCurrency } from "@/utils/formatters";
-import { FileText, ArrowLeft, LogOut, Building2, User, MapPin, Percent, ShoppingBag, Eye, EyeOff, X, Download } from "lucide-react";
+import { 
+  FileText, ArrowLeft, LogOut, Building2, User, MapPin, Percent, 
+  ShoppingBag, Eye, EyeOff, X, Download, Plus, Trash2, Edit, Check, CheckCircle2, RotateCcw,
+  Gift
+} from "lucide-react";
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
+import { CustomerAddress } from "@/services/crmService";
+import mexicoData from "@/utils/mexicoStates.json";
+
+const STATE_LADAS: Record<string, string[]> = {
+  "Aguascalientes": ["449", "458", "495", "496"],
+  "Baja California": ["615", "646", "653", "661", "664", "665", "686"],
+  "Baja California Sur": ["612", "613", "624"],
+  "Campeche": ["981", "982", "996"],
+  "Coahuila de Zaragoza": ["842", "844", "861", "862", "864", "866", "867", "869", "871", "872", "873", "877", "878"],
+  "Colima": ["312", "313", "314"],
+  "Chiapas": ["961", "962", "963", "964", "965", "966", "967", "968", "992", "994"],
+  "Chihuahua": ["614", "621", "625", "626", "627", "628", "629", "635", "636", "639", "648", "649", "652", "656"],
+  "Ciudad de México": ["55", "56"],
+  "Durango": ["618", "671", "674", "675", "676", "677", "871", "872"],
+  "Guanajuato": ["411", "412", "413", "415", "417", "418", "419", "428", "429", "445", "456", "461", "462", "464", "466", "468", "469", "472", "473", "476", "477", "479"],
+  "Guerrero": ["732", "733", "736", "741", "742", "744", "745", "747", "754", "755", "756", "757", "758", "762"],
+  "Hidalgo": ["738", "743", "746", "748", "759", "761", "763", "771", "772", "773", "774", "775", "776", "778", "779", "789", "791"],
+  "Jalisco": ["33", "315", "316", "317", "321", "322", "341", "342", "343", "344", "345", "346", "347", "348", "349", "354", "357", "374", "375", "376", "378", "382", "384", "385", "386", "388", "391", "392", "393", "431", "457", "474", "475", "495", "496"],
+  "México": ["55", "56", "591", "592", "593", "594", "595", "596", "597", "599", "711", "712", "713", "714", "715", "716", "717", "718", "719", "721", "722", "723", "724", "725", "726", "728", "729", "761", "767"],
+  "Michoacán de Ocampo": ["351", "352", "353", "355", "356", "359", "381", "383", "434", "435", "436", "438", "443", "447", "451", "452", "453", "454", "455", "459", "715", "753", "786"],
+  "Morelos": ["734", "735", "737", "739", "751", "777"],
+  "Nayarit": ["311", "319", "323", "324", "325", "327", "329", "389"],
+  "Nuevo León": ["81", "821", "823", "824", "825", "826", "828", "829", "892"],
+  "Oaxaca": ["951", "953", "954", "958", "971", "972", "994", "995"],
+  "Puebla": ["221", "222", "223", "224", "225", "227", "231", "232", "233", "236", "237", "238", "243", "244", "248", "249", "275", "276", "746", "764", "797"],
+  "Querétaro": ["414", "427", "441", "442", "446", "448", "487"],
+  "Quintana Roo": ["983", "984", "997", "998"],
+  "San Luis Potosí": ["444", "458", "481", "482", "483", "485", "487", "488", "489", "496"],
+  "Sinaloa": ["667", "668", "669", "672", "673", "687", "694", "695", "696", "698"],
+  "Sonora": ["622", "623", "631", "632", "633", "634", "637", "638", "641", "642", "643", "644", "645", "647", "651", "653", "662", "670"],
+  "Tabasco": ["913", "914", "917", "923", "932", "933", "934", "937", "993"],
+  "Tamaulipas": ["831", "832", "833", "834", "835", "836", "841", "867", "868", "891", "894", "897", "899"],
+  "Tlaxcala": ["222", "241", "246", "247", "248", "276"],
+  "Veracruz de Ignacio de la Llave": ["228", "229", "232", "235", "269", "271", "272", "273", "274", "278", "282", "283", "284", "285", "287", "288", "489", "782", "783", "784", "785", "833", "846", "921", "922", "924", "965", "985"],
+  "Yucatán": ["969", "985", "986", "988", "991", "997", "999"],
+  "Zacatecas": ["433", "437", "457", "458", "463", "467", "478", "492", "493", "494", "496", "498", "499"]
+};
+
+const validateLadaWithState = (phone: string, state: string): boolean => {
+  const digits = phone.replace(/\D/g, "");
+  if (digits.length !== 10) return false;
+  
+  const ladasAllowed = STATE_LADAS[state] || [];
+  if (ladasAllowed.length === 0) return true;
+  
+  const prefix2 = digits.substring(0, 2);
+  if (ladasAllowed.includes(prefix2)) return true;
+  
+  const prefix3 = digits.substring(0, 3);
+  if (ladasAllowed.includes(prefix3)) return true;
+  
+  return false;
+};
+
+const validateEmailDomain = (email: string): boolean => {
+  const emailTrimmed = email.trim();
+  const atIdx = emailTrimmed.lastIndexOf("@");
+  if (atIdx === -1 || atIdx === 0 || atIdx === emailTrimmed.length - 1) return false;
+  
+  const domain = emailTrimmed.substring(atIdx + 1).toLowerCase();
+  const domainRegex = /^[a-zA-Z0-9.-]+\.[a-zA-Z]{2,6}$/;
+  if (!domainRegex.test(domain)) return false;
+  
+  const blockedDomains = [
+    "test.com", "example.com", "ejemplo.com", "prueba.com", "domain.com", 
+    "correo.com", "mailinator.com", "tempmail.com", "yopmail.com", 
+    "mail.com", "correo.es", "domain.mx"
+  ];
+  if (blockedDomains.includes(domain)) return false;
+  
+  return true;
+};
+
+const getStateFromZip = (zip: string): string => {
+  if (!/^\d{5}$/.test(zip)) return "";
+  const prefix = parseInt(zip.substring(0, 2), 10);
+  
+  if (prefix >= 1 && prefix <= 16) return "Ciudad de México";
+  if (prefix === 20) return "Aguascalientes";
+  if (prefix === 21 || prefix === 22) return "Baja California";
+  if (prefix === 23) return "Baja California Sur";
+  if (prefix === 24) return "Campeche";
+  if (prefix >= 25 && prefix <= 27) return "Coahuila de Zaragoza";
+  if (prefix === 28) return "Colima";
+  if (prefix >= 29 && prefix <= 30) return "Chiapas";
+  if (prefix >= 31 && prefix <= 33) return "Chihuahua";
+  if (prefix >= 34 && prefix <= 35) return "Durango";
+  if (prefix >= 36 && prefix <= 38) return "Guanajuato";
+  if (prefix >= 39 && prefix <= 41) return "Guerrero";
+  if (prefix >= 42 && prefix <= 43) return "Hidalgo";
+  if (prefix >= 44 && prefix <= 49) return "Jalisco";
+  if (prefix >= 50 && prefix <= 57) return "México";
+  if (prefix >= 58 && prefix <= 61) return "Michoacán de Ocampo";
+  if (prefix === 62) return "Morelos";
+  if (prefix === 63) return "Nayarit";
+  if (prefix >= 64 && prefix <= 67) return "Nuevo León";
+  if (prefix >= 68 && prefix <= 71) return "Oaxaca";
+  if (prefix >= 72 && prefix <= 75) return "Puebla";
+  if (prefix === 76) return "Querétaro";
+  if (prefix === 77) return "Quintana Roo";
+  if (prefix >= 78 && prefix <= 79) return "San Luis Potosí";
+  if (prefix >= 80 && prefix <= 82) return "Sinaloa";
+  if (prefix >= 83 && prefix <= 85) return "Sonora";
+  if (prefix === 86) return "Tabasco";
+  if (prefix >= 87 && prefix <= 89) return "Tamaulipas";
+  if (prefix === 90) return "Tlaxcala";
+  if (prefix >= 91 && prefix <= 96) return "Veracruz de Ignacio de la Llave";
+  if (prefix === 97) return "Yucatán";
+  if (prefix >= 98 && prefix <= 99) return "Zacatecas";
+  
+  return "";
+};
+
+const validateZipCodeWithState = (zip: string, state: string): boolean => {
+  if (!/^\d{5}$/.test(zip)) return false;
+  const prefix = parseInt(zip.substring(0, 2), 10);
+  
+  switch (state) {
+    case "Ciudad de México":
+      return prefix >= 1 && prefix <= 16;
+    case "Aguascalientes":
+      return prefix === 20;
+    case "Baja California":
+      return prefix === 21 || prefix === 22;
+    case "Baja California Sur":
+      return prefix === 23;
+    case "Campeche":
+      return prefix === 24;
+    case "Coahuila de Zaragoza":
+      return prefix >= 25 && prefix <= 27;
+    case "Colima":
+      return prefix === 28;
+    case "Chiapas":
+      return prefix === 29 || prefix === 30;
+    case "Chihuahua":
+      return prefix >= 31 && prefix <= 33;
+    case "Durango":
+      return prefix === 34 || prefix === 35;
+    case "Guanajuato":
+      return prefix >= 36 && prefix <= 38;
+    case "Guerrero":
+      return prefix >= 39 && prefix <= 41;
+    case "Hidalgo":
+      return prefix === 42 || prefix === 43;
+    case "Jalisco":
+      return prefix >= 44 && prefix <= 49;
+    case "México":
+      return prefix >= 50 && prefix <= 57;
+    case "Michoacán de Ocampo":
+      return prefix >= 58 && prefix <= 61;
+    case "Morelos":
+      return prefix === 62;
+    case "Nayarit":
+      return prefix === 63;
+    case "Nuevo León":
+      return prefix >= 64 && prefix <= 67;
+    case "Oaxaca":
+      return prefix >= 68 && prefix <= 71;
+    case "Puebla":
+      return prefix >= 72 && prefix <= 75;
+    case "Querétaro":
+      return prefix === 76;
+    case "Quintana Roo":
+      return prefix === 77;
+    case "San Luis Potosí":
+      return prefix === 78 || prefix === 79;
+    case "Sinaloa":
+      return prefix >= 80 && prefix <= 82;
+    case "Sonora":
+      return prefix >= 83 && prefix <= 85;
+    case "Tabasco":
+      return prefix === 86;
+    case "Tamaulipas":
+      return prefix >= 87 && prefix <= 89;
+    case "Tlaxcala":
+      return prefix === 90;
+    case "Veracruz de Ignacio de la Llave":
+      return prefix >= 91 && prefix <= 96;
+    case "Yucatán":
+      return prefix === 97;
+    case "Zacatecas":
+      return prefix === 98 || prefix === 99;
+    default:
+      return false;
+  }
+};
 
 export function ClientPortalView({ onBack }: { onBack?: () => void }) {
+  const router = useRouter();
   const { session, logoutClient } = useClientAuth();
   const [quotes, setQuotes] = useState<QuoteRequest[]>([]);
   const [orders, setOrders] = useState<QuoteRequest[]>([]);
@@ -26,6 +218,36 @@ export function ClientPortalView({ onBack }: { onBack?: () => void }) {
   // States for password visibility toggle
   const [showNewKey, setShowNewKey] = useState(false);
   const [showConfirmKey, setShowConfirmKey] = useState(false);
+
+  // States for Commercial Data editing
+  const [showCommercialModal, setShowCommercialModal] = useState(false);
+  const [editBusinessName, setEditBusinessName] = useState("");
+  const [editRfc, setEditRfc] = useState("");
+  const [commercialError, setCommercialError] = useState("");
+  const [isSavingCommercial, setIsSavingCommercial] = useState(false);
+
+  // States for Main Contact editing
+  const [showContactModal, setShowContactModal] = useState(false);
+  const [editContactName, setEditContactName] = useState("");
+  const [editContactEmail, setEditContactEmail] = useState("");
+  const [editContactPhone, setEditContactPhone] = useState("");
+  const [contactError, setContactError] = useState("");
+  const [isSavingContact, setIsSavingContact] = useState(false);
+
+  // States for Shipping Address editing/adding
+  const [showAddressModal, setShowAddressModal] = useState(false);
+  const [editingAddress, setEditingAddress] = useState<CustomerAddress | null>(null);
+  const [addrStreet, setAddrStreet] = useState("");
+  const [addrExtNum, setAddrExtNum] = useState("");
+  const [addrIntNum, setAddrIntNum] = useState("");
+  const [addrNeighborhood, setAddrNeighborhood] = useState("");
+  const [addrZip, setAddrZip] = useState("");
+  const [addrState, setAddrState] = useState("");
+  const [addrCity, setAddrCity] = useState("");
+  const [addrReference, setAddrReference] = useState("");
+  const [addrIsDefault, setAddrIsDefault] = useState(false);
+  const [addressError, setAddressError] = useState("");
+  const [isSavingAddress, setIsSavingAddress] = useState(false);
 
   const handleChangeAccessKey = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -95,6 +317,374 @@ export function ClientPortalView({ onBack }: { onBack?: () => void }) {
       setKeyChangeError(err.message || "Error al actualizar la clave.");
     } finally {
       setIsChangingKey(false);
+    }
+  };
+
+  const refreshSessionData = async () => {
+    if (!session?.customer?.id) return;
+    try {
+      const customerId = session.customer.id;
+      const [custRes, contactsRes, addressesRes, discountsRes] = await Promise.all([
+        supabase.from("customers").select("*").eq("id", customerId).single(),
+        supabase.from("customer_contacts").select("*").eq("customer_id", customerId),
+        supabase.from("customer_addresses").select("*").eq("customer_id", customerId),
+        supabase.from("customer_discounts").select("*").eq("customer_id", customerId)
+      ]);
+
+      if (custRes.error) throw custRes.error;
+
+      const freshContact = contactsRes.data?.find(c => c.id === session.contact.id) || contactsRes.data?.find(c => c.is_primary) || contactsRes.data?.[0];
+
+      const freshSession = {
+        customer: custRes.data,
+        contact: freshContact || session.contact,
+        addresses: addressesRes.data || [],
+        discounts: discountsRes.data || []
+      };
+
+      localStorage.setItem("geekystore_b2b_session", JSON.stringify(freshSession));
+      window.dispatchEvent(new Event("b2b_session_updated"));
+    } catch (e) {
+      console.error("Error refreshing B2B session:", e);
+    }
+  };
+
+  // Commercial Data methods
+  const openEditCommercial = () => {
+    if (!session) return;
+    setEditBusinessName(session.customer.business_name || "");
+    setEditRfc(session.customer.rfc || "");
+    setCommercialError("");
+    setShowCommercialModal(true);
+  };
+
+  const handleSaveCommercial = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!session) return;
+    setCommercialError("");
+
+    const businessNameTrimmed = editBusinessName.trim();
+    const rfcTrimmed = editRfc.trim().toUpperCase();
+
+    if (!businessNameTrimmed) {
+      setCommercialError("La Razón Social es requerida.");
+      return;
+    }
+
+    if (rfcTrimmed) {
+      const rfcRegex = /^[A-Z&Ñ]{3,4}\d{6}[A-Z0-9]{3}$/;
+      if (!rfcRegex.test(rfcTrimmed)) {
+        setCommercialError("RFC no válido. Debe tener 12 o 13 caracteres con homoclave conforme al SAT.");
+        return;
+      }
+    }
+
+    setIsSavingCommercial(true);
+    try {
+      const { error } = await supabase
+        .from("customers")
+        .update({
+          business_name: businessNameTrimmed,
+          rfc: rfcTrimmed || null,
+          updated_at: new Date().toISOString()
+        })
+        .eq("id", session.customer.id);
+
+      if (error) throw error;
+
+      await supabase.from("customer_activity").insert([{
+        customer_id: session.customer.id,
+        activity_type: "note",
+        title: "Datos Comerciales Actualizados",
+        description: `El cliente actualizó su Razón Social a: "${businessNameTrimmed}" y RFC a: "${rfcTrimmed || 'No registrado'}" desde el portal.`,
+        created_by: "Cliente"
+      }]);
+
+      await refreshSessionData();
+      setShowCommercialModal(false);
+    } catch (err: any) {
+      console.error(err);
+      setCommercialError(err.message || "Error al actualizar los datos comerciales.");
+    } finally {
+      setIsSavingCommercial(false);
+    }
+  };
+
+  // Contact Info methods
+  const openEditContact = () => {
+    if (!session) return;
+    setEditContactName(session.contact.name || "");
+    setEditContactEmail(session.contact.email || "");
+    setEditContactPhone(session.contact.phone || "");
+    setContactError("");
+    setShowContactModal(true);
+  };
+
+  const handleSaveContact = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!session) return;
+    setContactError("");
+
+    const nameTrimmed = editContactName.trim();
+    const emailTrimmed = editContactEmail.trim().toLowerCase();
+    const phoneDigits = editContactPhone.replace(/\D/g, "");
+
+    const nameRegex = /^[a-zA-ZáéíóúÁÉÍÓÚñÑüÜ\s'-]{2,100}$/;
+    const words = nameTrimmed.split(/\s+/).filter(w => w.length > 0);
+    if (!nameTrimmed || !nameRegex.test(nameTrimmed) || !nameTrimmed.includes(" ") || words.length < 2) {
+      setContactError("Ingrese Nombre y Apellido.");
+      return;
+    }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailTrimmed || !emailRegex.test(emailTrimmed)) {
+      setContactError("Ingrese un correo electrónico válido.");
+      return;
+    }
+    if (!validateEmailDomain(emailTrimmed)) {
+      setContactError("Ingrese un dominio de correo real y válido.");
+      return;
+    }
+
+    if (phoneDigits.length !== 10) {
+      setContactError("Ingrese un teléfono válido de 10 dígitos.");
+      return;
+    }
+
+    const defaultAddr = session.addresses.find(a => a.is_default) || session.addresses[0];
+    const stateForLada = defaultAddr?.state;
+    if (stateForLada && !validateLadaWithState(phoneDigits, stateForLada)) {
+      setContactError(`La lada del teléfono no corresponde al estado de tu dirección principal (${stateForLada}).`);
+      return;
+    }
+
+    setIsSavingContact(true);
+    try {
+      const { error } = await supabase
+        .from("customer_contacts")
+        .update({
+          name: nameTrimmed,
+          email: emailTrimmed,
+          phone: phoneDigits,
+          whatsapp: phoneDigits
+        })
+        .eq("id", session.contact.id);
+
+      if (error) throw error;
+
+      await supabase.from("customer_activity").insert([{
+        customer_id: session.customer.id,
+        activity_type: "note",
+        title: "Contacto Principal Actualizado",
+        description: `El cliente actualizó su contacto principal a: ${nameTrimmed}, Correo: ${emailTrimmed}, Tel: ${phoneDigits} desde el portal.`,
+        created_by: "Cliente"
+      }]);
+
+      await refreshSessionData();
+      setShowContactModal(false);
+    } catch (err: any) {
+      console.error(err);
+      setContactError(err.message || "Error al actualizar el contacto.");
+    } finally {
+      setIsSavingContact(false);
+    }
+  };
+
+  // Shipping Address methods
+  const openAddAddress = () => {
+    if (!session) return;
+    setEditingAddress(null);
+    setAddrStreet("");
+    setAddrExtNum("");
+    setAddrIntNum("");
+    setAddrNeighborhood("");
+    setAddrZip("");
+    setAddrState("");
+    setAddrCity("");
+    setAddrReference("");
+    setAddrIsDefault(session.addresses.length === 0);
+    setAddressError("");
+    setShowAddressModal(true);
+  };
+
+  const openEditAddress = (addr: CustomerAddress) => {
+    setEditingAddress(addr);
+    setAddrStreet(addr.street || "");
+    setAddrExtNum(addr.exterior_number || "");
+    setAddrIntNum(addr.interior_number || "");
+    setAddrNeighborhood(addr.neighborhood || "");
+    setAddrZip(addr.postal_code || "");
+    setAddrState(addr.state || "");
+    setAddrCity(addr.city || "");
+    setAddrReference(addr.reference || "");
+    setAddrIsDefault(addr.is_default || false);
+    setAddressError("");
+    setShowAddressModal(true);
+  };
+
+  const handleZipChange = (val: string) => {
+    const cleaned = val.replace(/\D/g, "").slice(0, 5);
+    setAddrZip(cleaned);
+
+    if (cleaned.length === 5) {
+      const detectedState = getStateFromZip(cleaned);
+      if (detectedState) {
+        setAddrState(detectedState);
+        const cities = (mexicoData as Record<string, string[]>)[detectedState] || [];
+        setAddrCity(cities[0] || "");
+      }
+    }
+  };
+
+  const handleSaveAddress = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!session) return;
+    setAddressError("");
+
+    const streetTrimmed = addrStreet.trim();
+    const extNumTrimmed = addrExtNum.trim();
+    const intNumTrimmed = addrIntNum.trim();
+    const neighborhoodTrimmed = addrNeighborhood.trim();
+    const zipTrimmed = addrZip.trim();
+    const stateTrimmed = addrState.trim();
+    const cityTrimmed = addrCity.trim();
+    const referenceTrimmed = addrReference.trim();
+
+    if (!streetTrimmed || !extNumTrimmed || !neighborhoodTrimmed || !stateTrimmed || !cityTrimmed) {
+      setAddressError("Por favor completa todos los campos obligatorios.");
+      return;
+    }
+
+    if (!/^\d{5}$/.test(zipTrimmed)) {
+      setAddressError("El Código Postal debe ser de 5 dígitos.");
+      return;
+    }
+
+    if (!validateZipCodeWithState(zipTrimmed, stateTrimmed)) {
+      setAddressError(`El código postal no corresponde al estado seleccionado (${stateTrimmed}).`);
+      return;
+    }
+
+    setIsSavingAddress(true);
+    try {
+      if (addrIsDefault) {
+        await supabase
+          .from("customer_addresses")
+          .update({ is_default: false })
+          .eq("customer_id", session.customer.id);
+      }
+
+      const addressPayload = {
+        customer_id: session.customer.id,
+        address_type: "shipping" as const,
+        street: streetTrimmed,
+        exterior_number: extNumTrimmed,
+        interior_number: intNumTrimmed || null,
+        neighborhood: neighborhoodTrimmed,
+        city: cityTrimmed,
+        state: stateTrimmed,
+        postal_code: zipTrimmed,
+        country: "México",
+        reference: referenceTrimmed || null,
+        is_default: addrIsDefault
+      };
+
+      if (editingAddress?.id) {
+        const { error } = await supabase
+          .from("customer_addresses")
+          .update(addressPayload)
+          .eq("id", editingAddress.id);
+        if (error) throw error;
+      } else {
+        const isFirst = session.addresses.length === 0;
+        if (isFirst) addressPayload.is_default = true;
+
+        const { error } = await supabase
+          .from("customer_addresses")
+          .insert([addressPayload]);
+        if (error) throw error;
+      }
+
+      await supabase.from("customer_activity").insert([{
+        customer_id: session.customer.id,
+        activity_type: "note",
+        title: editingAddress?.id ? "Dirección de Envío Modificada" : "Nueva Dirección de Envío",
+        description: `El cliente ${editingAddress?.id ? 'editó la dirección' : 'añadió una dirección'}: ${streetTrimmed} #${extNumTrimmed}, CP ${zipTrimmed}, ${cityTrimmed}, ${stateTrimmed} desde el portal.`,
+        created_by: "Cliente"
+      }]);
+
+      await refreshSessionData();
+      setShowAddressModal(false);
+    } catch (err: any) {
+      console.error(err);
+      setAddressError(err.message || "Error al guardar la dirección.");
+    } finally {
+      setIsSavingAddress(false);
+    }
+  };
+
+  const handleDeleteAddress = async (id: string, isDefault: boolean) => {
+    if (!session) return;
+    if (!confirm("¿Estás seguro de eliminar esta dirección?")) return;
+    try {
+      const { error } = await supabase
+        .from("customer_addresses")
+        .delete()
+        .eq("id", id);
+      if (error) throw error;
+
+      await supabase.from("customer_activity").insert([{
+        customer_id: session.customer.id,
+        activity_type: "note",
+        title: "Dirección de Envío Eliminada",
+        description: `El cliente eliminó una dirección de envío desde el portal.`,
+        created_by: "Cliente"
+      }]);
+
+      if (isDefault) {
+        const remaining = session.addresses.filter(a => a.id !== id);
+        if (remaining.length > 0) {
+          await supabase
+            .from("customer_addresses")
+            .update({ is_default: true })
+            .eq("id", remaining[0].id);
+        }
+      }
+
+      await refreshSessionData();
+    } catch (err: any) {
+      console.error("Error deleting address:", err);
+      alert(err.message || "Error al eliminar la dirección.");
+    }
+  };
+
+  const handleSetDefaultAddress = async (id: string) => {
+    if (!session) return;
+    try {
+      await supabase
+        .from("customer_addresses")
+        .update({ is_default: false })
+        .eq("customer_id", session.customer.id);
+
+      const { error } = await supabase
+        .from("customer_addresses")
+        .update({ is_default: true })
+        .eq("id", id);
+
+      if (error) throw error;
+
+      await supabase.from("customer_activity").insert([{
+        customer_id: session.customer.id,
+        activity_type: "note",
+        title: "Dirección Predeterminada Cambiada",
+        description: `El cliente cambió su dirección de envío predeterminada desde el portal.`,
+        created_by: "Cliente"
+      }]);
+
+      await refreshSessionData();
+    } catch (err: any) {
+      console.error("Error setting default address:", err);
+      alert(err.message || "Error al establecer la dirección predeterminada.");
     }
   };
 
@@ -257,14 +847,18 @@ export function ClientPortalView({ onBack }: { onBack?: () => void }) {
           {onBack && (
             <button 
               onClick={onBack}
-              className="flex items-center gap-2 border border-gray-300 hover:bg-gray-50 text-gray-700 font-bold px-4 py-2 rounded-lg text-sm transition-colors"
+              className="flex items-center gap-2 bg-primary-600 hover:bg-primary-700 text-white font-bold border border-primary-600 hover:border-primary-700 shadow-sm px-4 py-2 rounded-lg text-sm transition-colors cursor-pointer"
             >
-              <ArrowLeft className="w-4 h-4" /> Seguir Navegando
+              <RotateCcw className="w-4 h-4" /> Explorar Catálogo
             </button>
           )}
           <button 
-            onClick={logoutClient}
-            className="flex items-center gap-2 bg-red-50 hover:bg-red-100 text-red-700 font-bold px-4 py-2 rounded-lg text-sm border border-red-200 transition-colors"
+            onClick={() => {
+              logoutClient();
+              if (onBack) onBack();
+              router.push("/catalog");
+            }}
+            className="flex items-center gap-2 bg-red-50 hover:bg-red-100 text-red-700 font-bold px-4 py-2 rounded-lg text-sm border border-red-200 transition-colors cursor-pointer"
           >
             <LogOut className="w-4 h-4" /> Cerrar Sesión B2B
           </button>
@@ -273,12 +867,21 @@ export function ClientPortalView({ onBack }: { onBack?: () => void }) {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         
-        {/* Column 1: Commercial Data & Contact Info */}
+        {/* Column 1: Commercial Data, Contact Info & Shipping Addresses */}
         <div className="space-y-6 lg:col-span-1">
           {/* Card: Commercial Status */}
           <div className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm space-y-4 text-left">
-            <h3 className="font-bold text-gray-900 border-b pb-2 text-sm uppercase tracking-wider flex items-center gap-2">
-              <Building2 className="w-4 h-4 text-primary-600" /> Datos Comerciales
+            <h3 className="font-bold text-gray-900 border-b pb-2 text-sm uppercase tracking-wider flex items-center justify-between">
+              <span className="flex items-center gap-2">
+                <Building2 className="w-4 h-4 text-primary-600" /> Datos Comerciales
+              </span>
+              <button 
+                onClick={openEditCommercial}
+                className="p-1 hover:bg-gray-100 rounded text-gray-400 hover:text-primary-600 transition-colors bg-transparent border-0 cursor-pointer"
+                title="Editar Datos Comerciales"
+              >
+                <Edit className="w-4 h-4" />
+              </button>
             </h3>
             <div className="space-y-3 text-sm">
               <div>
@@ -316,10 +919,19 @@ export function ClientPortalView({ onBack }: { onBack?: () => void }) {
             </div>
           </div>
 
-          {/* Card: Primary Contact & Addresses */}
+          {/* Card: Primary Contact */}
           <div className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm space-y-4 text-left">
-            <h3 className="font-bold text-gray-900 border-b pb-2 text-sm uppercase tracking-wider flex items-center gap-2">
-              <User className="w-4 h-4 text-primary-600" /> Contacto Principal
+            <h3 className="font-bold text-gray-900 border-b pb-2 text-sm uppercase tracking-wider flex items-center justify-between">
+              <span className="flex items-center gap-2">
+                <User className="w-4 h-4 text-primary-600" /> Contacto Principal
+              </span>
+              <button 
+                onClick={openEditContact}
+                className="p-1 hover:bg-gray-100 rounded text-gray-400 hover:text-primary-600 transition-colors bg-transparent border-0 cursor-pointer"
+                title="Editar Contacto Principal"
+              >
+                <Edit className="w-4 h-4" />
+              </button>
             </h3>
             <div className="text-sm space-y-1">
               <p className="font-bold text-gray-800">{contact.name}</p>
@@ -327,22 +939,81 @@ export function ClientPortalView({ onBack }: { onBack?: () => void }) {
               <p className="text-gray-600 text-xs mt-1">{contact.email}</p>
               <p className="text-gray-600 text-xs">{contact.phone}</p>
             </div>
+          </div>
 
-            <h3 className="font-bold text-gray-900 border-b pb-2 pt-2 text-sm uppercase tracking-wider flex items-center gap-2">
-              <MapPin className="w-4 h-4 text-primary-600" /> Dirección de Envío Default
+          {/* Card: Shipping Addresses */}
+          <div className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm space-y-4 text-left">
+            <h3 className="font-bold text-gray-900 border-b pb-2 text-sm uppercase tracking-wider flex items-center justify-between">
+              <span className="flex items-center gap-2">
+                <MapPin className="w-4 h-4 text-primary-600" /> Direcciones de Envío
+              </span>
+              <button 
+                onClick={openAddAddress}
+                className="p-1 hover:bg-gray-100 rounded text-gray-400 hover:text-primary-600 transition-colors bg-transparent border-0 cursor-pointer"
+                title="Agregar Dirección de Envío"
+              >
+                <Plus className="w-4.5 h-4.5" />
+              </button>
             </h3>
-            {defaultAddress ? (
-              <div className="text-sm text-gray-600 space-y-1">
-                <p className="font-bold text-gray-800">{defaultAddress.street} #{defaultAddress.exterior_number} {defaultAddress.interior_number ? `Int. ${defaultAddress.interior_number}` : ''}</p>
-                <p>{defaultAddress.neighborhood}, CP {defaultAddress.postal_code}</p>
-                <p>{defaultAddress.city}, {defaultAddress.state}</p>
-                {defaultAddress.reference && (
-                  <p className="text-xs text-gray-400 italic mt-1.5">Ref: {defaultAddress.reference}</p>
-                )}
-              </div>
-            ) : (
-              <p className="text-xs text-gray-400 italic">No hay direcciones registradas.</p>
-            )}
+            <div className="space-y-3 max-h-[400px] overflow-y-auto pr-1">
+              {addresses.map((addr) => (
+                <div 
+                  key={addr.id} 
+                  className={`p-3 rounded-xl border text-xs relative group ${
+                    addr.is_default 
+                      ? 'bg-primary-50/10 border-primary-200 shadow-2xs' 
+                      : 'bg-gray-50/40 border-gray-150'
+                  }`}
+                >
+                  <div className="space-y-1 pr-14">
+                    <p className="font-bold text-gray-900">
+                      {addr.street} #{addr.exterior_number}{addr.interior_number ? `, Int. ${addr.interior_number}` : ""}
+                    </p>
+                    <p className="text-gray-600">{addr.neighborhood}, CP {addr.postal_code}</p>
+                    <p className="text-gray-650">{addr.city}, {addr.state}</p>
+                    {addr.reference && (
+                      <p className="text-[10px] text-gray-450 italic mt-1 leading-normal">Ref: {addr.reference}</p>
+                    )}
+                  </div>
+                  
+                  {/* Actions overlay */}
+                  <div className="absolute top-2.5 right-2.5 flex items-center gap-1">
+                    {addr.is_default ? (
+                      <span className="bg-primary-100 text-primary-800 font-extrabold px-1.5 py-0.5 rounded text-[8px] uppercase tracking-wider border border-primary-200 flex items-center gap-0.5">
+                        <Check className="w-2.5 h-2.5" /> Principal
+                      </span>
+                    ) : (
+                      <button 
+                        onClick={() => handleSetDefaultAddress(addr.id!)}
+                        className="text-[9px] text-gray-400 hover:text-primary-700 hover:underline font-bold bg-transparent border-0 cursor-pointer py-0.5 px-1"
+                        title="Marcar como predeterminada"
+                      >
+                        Hacer Principal
+                      </button>
+                    )}
+                    <button 
+                      onClick={() => openEditAddress(addr)}
+                      className="p-1 hover:bg-gray-200/80 rounded text-gray-400 hover:text-primary-650 transition-colors bg-transparent border-0 cursor-pointer"
+                      title="Editar Dirección"
+                    >
+                      <Edit className="w-3.5 h-3.5" />
+                    </button>
+                    {!addr.is_default && (
+                      <button 
+                        onClick={() => handleDeleteAddress(addr.id!, addr.is_default)}
+                        className="p-1 hover:bg-red-50 rounded text-gray-400 hover:text-red-650 transition-colors bg-transparent border-0 cursor-pointer"
+                        title="Eliminar Dirección"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ))}
+              {addresses.length === 0 && (
+                <p className="text-xs text-gray-400 italic text-center py-4">No hay direcciones registradas.</p>
+              )}
+            </div>
           </div>
         </div>
 
@@ -450,9 +1121,9 @@ export function ClientPortalView({ onBack }: { onBack?: () => void }) {
             <h3 className="font-bold text-gray-900 border-b pb-2 text-sm uppercase tracking-wider flex items-center gap-2">
               <Percent className="w-4 h-4 text-primary-600" /> Descuentos B2B Activos
             </h3>
-            {discounts.filter(d => d.active).length > 0 ? (
+            {discounts.filter(d => d.active && d.discount_type !== "promotion").length > 0 ? (
               <div className="space-y-3">
-                {discounts.filter(d => d.active).map(d => (
+                {discounts.filter(d => d.active && d.discount_type !== "promotion").map(d => (
                   <div key={d.id} className="flex justify-between items-center bg-gray-50 p-2.5 rounded-lg border border-gray-100">
                     <div>
                       <p className="text-xs font-bold text-gray-800 uppercase">
@@ -461,7 +1132,7 @@ export function ClientPortalView({ onBack }: { onBack?: () => void }) {
                          "Descuento Global"}
                       </p>
                       {d.valid_until && (
-                        <p className="text-[10px] text-gray-400">Vence: {new Date(d.valid_until).toLocaleDateString()}</p>
+                        <p className="text-[10px] text-gray-450">Vence: {new Date(d.valid_until).toLocaleDateString()}</p>
                       )}
                     </div>
                     <span className="text-sm font-black text-green-700">-{d.discount_percent}%</span>
@@ -470,6 +1141,82 @@ export function ClientPortalView({ onBack }: { onBack?: () => void }) {
               </div>
             ) : (
               <p className="text-xs text-gray-400 italic text-center py-2">No tienes descuentos especiales asignados actualmente.</p>
+            )}
+          </div>
+
+          {/* Card: Price Level Discount */}
+          <div className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm space-y-4 text-left">
+            <h3 className="font-bold text-gray-900 border-b pb-2 text-sm uppercase tracking-wider flex items-center gap-2">
+              <Percent className="w-4 h-4 text-primary-600" /> Descuento por Nivel B2B
+            </h3>
+            <div className="bg-gray-50 p-3 rounded-lg border border-gray-100 flex flex-col gap-1.5">
+              <div className="flex justify-between items-center">
+                <span className="text-xs font-extrabold text-gray-950 uppercase">
+                  Nivel de Precios: {
+                    customer.price_level === 'retail' ? 'Retail' :
+                    customer.price_level === 'wholesale' ? 'Mayorista' :
+                    customer.price_level === 'distributor' ? 'Distribuidor' :
+                    customer.price_level === 'special' ? 'Especial' :
+                    customer.price_level
+                  }
+                </span>
+                <span className="text-sm font-black text-primary-700">
+                  {
+                    customer.price_level === 'retail' ? '-5%' :
+                    customer.price_level === 'wholesale' ? '-10%' :
+                    customer.price_level === 'distributor' ? '-20%' :
+                    customer.price_level === 'special' ? '-25%' :
+                    '0%'
+                  }
+                </span>
+              </div>
+              <p className="text-[10px] text-gray-550 leading-normal">
+                {
+                  customer.price_level === 'retail' ? 'Aplica un descuento general del 5% en todos los productos del catálogo.' :
+                  customer.price_level === 'wholesale' ? 'Aplica un descuento general del 10% (o el precio de escala de mayoreo de 100 piezas, el que resulte más bajo).' :
+                  customer.price_level === 'distributor' ? 'Aplica un descuento general del 20% (o el precio de escala de distribuidor de 150 piezas, el que resulte más bajo).' :
+                  customer.price_level === 'special' ? 'Aplica un descuento de nivel especial del 25% en todo el catálogo.' :
+                  'Precios base estándar sin descuento especial de nivel.'
+                }
+              </p>
+            </div>
+          </div>
+
+          {/* Card: B2B Coupons */}
+          <div className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm space-y-4 text-left">
+            <h3 className="font-bold text-gray-900 border-b pb-2 text-sm uppercase tracking-wider flex items-center gap-2">
+              <Gift className="w-4 h-4 text-primary-600" /> Mis Cupones B2B
+            </h3>
+            {discounts.filter(d => d.discount_type === "promotion").length > 0 ? (
+              <div className="space-y-3">
+                {discounts.filter(d => d.discount_type === "promotion").map(d => (
+                  <div key={d.id || d.category_id} className="bg-gray-50 p-3 rounded-lg border border-gray-100 flex flex-col gap-2">
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <p className="text-xs font-extrabold text-gray-900 uppercase">
+                          {d.category_id === 'ENVIO_SIN_COSTO' ? 'Envío sin Costo' :
+                           d.category_id === 'MUESTRA_Y_ENVIO_GRATIS' ? 'Muestra Física y Envío Gratis' :
+                           `Cupón: ${d.category_id}`}
+                        </p>
+                        <p className="text-[10px] text-gray-500 mt-0.5">
+                          {d.category_id === 'ENVIO_SIN_COSTO' ? 'Envío de productos a domicilio sin cargo adicional.' :
+                           d.category_id === 'MUESTRA_Y_ENVIO_GRATIS' ? 'Muestra física sin costo con envío a domicilio incluido.' :
+                           'Beneficio de promoción especial.'}
+                        </p>
+                      </div>
+                      <span className={`text-[8px] font-black uppercase px-2 py-0.5 rounded border tracking-wider shrink-0 ${
+                        d.active 
+                          ? 'bg-green-50 text-green-700 border-green-200' 
+                          : 'bg-gray-100 text-gray-400 border-gray-200'
+                      }`}>
+                        {d.active ? 'Activo' : 'Canjeado'}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-xs text-gray-400 italic text-center py-2">No tienes cupones asignados actualmente.</p>
             )}
           </div>
 
@@ -595,6 +1342,311 @@ export function ClientPortalView({ onBack }: { onBack?: () => void }) {
                 <Download className="w-4 h-4" /> Descargar PDF
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Commercial Data Modal */}
+      {showCommercialModal && (
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-xs animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md flex flex-col overflow-hidden transform transition-all duration-300 scale-100">
+            <div className="p-5 border-b border-gray-150 flex justify-between items-center bg-gray-50">
+              <div className="flex items-center gap-2">
+                <Building2 className="w-5 h-5 text-primary-600" />
+                <h3 className="font-bold text-gray-900 text-base">Editar Datos Comerciales</h3>
+              </div>
+              <button onClick={() => setShowCommercialModal(false)} className="text-gray-400 hover:text-gray-900 cursor-pointer bg-transparent border-0 p-1 rounded-lg">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            
+            <form onSubmit={handleSaveCommercial} className="p-6 space-y-4 text-left">
+              <div>
+                <label className="block text-xs font-bold text-gray-700 uppercase mb-1">Razón Social <span className="text-red-500">*</span></label>
+                <input 
+                  type="text" 
+                  required
+                  value={editBusinessName}
+                  onChange={e => setEditBusinessName(e.target.value)}
+                  placeholder="Ej. Comercializadora de México S.A. de C.V."
+                  className="w-full border border-gray-300 rounded-lg p-2.5 text-sm outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all font-medium text-gray-800"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-gray-700 uppercase mb-1">RFC (si requiere facturación)</label>
+                <input 
+                  type="text" 
+                  value={editRfc}
+                  onChange={e => setEditRfc(e.target.value.toUpperCase())}
+                  placeholder="Ej. COMA800101XXX"
+                  maxLength={13}
+                  className="w-full border border-gray-300 rounded-lg p-2.5 text-sm outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all font-mono uppercase text-gray-850"
+                />
+              </div>
+
+              {commercialError && (
+                <p className="text-red-500 text-xs font-medium bg-red-50 p-2.5 rounded-lg border border-red-200">{commercialError}</p>
+              )}
+
+              <div className="flex justify-end gap-3 pt-4 border-t border-gray-100">
+                <button 
+                  type="button"
+                  onClick={() => setShowCommercialModal(false)}
+                  className="px-4 py-2 text-sm font-semibold text-gray-500 hover:text-gray-750 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 cursor-pointer"
+                >
+                  Cancelar
+                </button>
+                <button 
+                  type="submit"
+                  disabled={isSavingCommercial}
+                  className="px-5 py-2 text-sm font-bold text-white bg-primary-600 hover:bg-primary-700 rounded-lg shadow disabled:bg-gray-300 cursor-pointer transition-colors"
+                >
+                  {isSavingCommercial ? "Guardando..." : "Guardar Cambios"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Main Contact Modal */}
+      {showContactModal && (
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-xs animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md flex flex-col overflow-hidden transform transition-all duration-300 scale-100">
+            <div className="p-5 border-b border-gray-150 flex justify-between items-center bg-gray-50">
+              <div className="flex items-center gap-2">
+                <User className="w-5 h-5 text-primary-600" />
+                <h3 className="font-bold text-gray-900 text-base">Editar Contacto Principal</h3>
+              </div>
+              <button onClick={() => setShowContactModal(false)} className="text-gray-400 hover:text-gray-900 cursor-pointer bg-transparent border-0 p-1 rounded-lg">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            
+            <form onSubmit={handleSaveContact} className="p-6 space-y-4 text-left">
+              <div>
+                <label className="block text-xs font-bold text-gray-700 uppercase mb-1">Nombre Completo <span className="text-red-500">*</span></label>
+                <input 
+                  type="text" 
+                  required
+                  value={editContactName}
+                  onChange={e => setEditContactName(e.target.value)}
+                  placeholder="Nombre y Apellido"
+                  className="w-full border border-gray-300 rounded-lg p-2.5 text-sm outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all font-medium text-gray-800"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-gray-700 uppercase mb-1">Correo Electrónico <span className="text-red-500">*</span></label>
+                <input 
+                  type="email" 
+                  required
+                  value={editContactEmail}
+                  onChange={e => setEditContactEmail(e.target.value)}
+                  placeholder="correo@empresa.com"
+                  className="w-full border border-gray-300 rounded-lg p-2.5 text-sm outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all text-gray-800"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-gray-700 uppercase mb-1">Teléfono (10 dígitos) <span className="text-red-500">*</span></label>
+                <input 
+                  type="tel" 
+                  required
+                  value={editContactPhone}
+                  onChange={e => setEditContactPhone(e.target.value.replace(/\D/g, "").slice(0, 10))}
+                  placeholder="4491234567"
+                  maxLength={10}
+                  className="w-full border border-gray-300 rounded-lg p-2.5 text-sm outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all font-mono text-gray-850"
+                />
+              </div>
+
+              {contactError && (
+                <p className="text-red-500 text-xs font-medium bg-red-50 p-2.5 rounded-lg border border-red-200">{contactError}</p>
+              )}
+
+              <div className="flex justify-end gap-3 pt-4 border-t border-gray-100">
+                <button 
+                  type="button"
+                  onClick={() => setShowContactModal(false)}
+                  className="px-4 py-2 text-sm font-semibold text-gray-500 hover:text-gray-750 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 cursor-pointer"
+                >
+                  Cancelar
+                </button>
+                <button 
+                  type="submit"
+                  disabled={isSavingContact}
+                  className="px-5 py-2 text-sm font-bold text-white bg-primary-600 hover:bg-primary-700 rounded-lg shadow disabled:bg-gray-300 cursor-pointer transition-colors"
+                >
+                  {isSavingContact ? "Guardando..." : "Guardar Cambios"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Shipping Address Modal (Add/Edit) */}
+      {showAddressModal && (
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-xs animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg flex flex-col overflow-hidden transform transition-all duration-300 scale-100">
+            <div className="p-5 border-b border-gray-150 flex justify-between items-center bg-gray-50">
+              <div className="flex items-center gap-2">
+                <MapPin className="w-5 h-5 text-primary-600" />
+                <h3 className="font-bold text-gray-900 text-base">
+                  {editingAddress ? "Editar Dirección de Envío" : "Agregar Dirección de Envío"}
+                </h3>
+              </div>
+              <button onClick={() => setShowAddressModal(false)} className="text-gray-400 hover:text-gray-900 cursor-pointer bg-transparent border-0 p-1 rounded-lg">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            
+            <form onSubmit={handleSaveAddress} className="p-6 space-y-4 text-left overflow-y-auto max-h-[75vh]">
+              <div className="grid grid-cols-3 gap-4">
+                <div className="col-span-2">
+                  <label className="block text-xs font-bold text-gray-700 uppercase mb-1">Calle / Av. <span className="text-red-500">*</span></label>
+                  <input 
+                    type="text" 
+                    required
+                    value={addrStreet}
+                    onChange={e => setAddrStreet(e.target.value)}
+                    placeholder="Nombre de la calle"
+                    className="w-full border border-gray-300 rounded-lg p-2.5 text-sm outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all font-medium text-gray-800"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 uppercase mb-1">Num. Ext. <span className="text-red-500">*</span></label>
+                  <input 
+                    type="text" 
+                    required
+                    value={addrExtNum}
+                    onChange={e => setAddrExtNum(e.target.value)}
+                    placeholder="102-B"
+                    className="w-full border border-gray-300 rounded-lg p-2.5 text-sm outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all text-gray-850"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 uppercase mb-1">Num. Int. (Opcional)</label>
+                  <input 
+                    type="text" 
+                    value={addrIntNum}
+                    onChange={e => setAddrIntNum(e.target.value)}
+                    placeholder="Depto / Bodega"
+                    className="w-full border border-gray-300 rounded-lg p-2.5 text-sm outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all text-gray-850"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 uppercase mb-1">Colonia / Fracc. <span className="text-red-500">*</span></label>
+                  <input 
+                    type="text" 
+                    required
+                    value={addrNeighborhood}
+                    onChange={e => setAddrNeighborhood(e.target.value)}
+                    placeholder="Ej. Centro"
+                    className="w-full border border-gray-300 rounded-lg p-2.5 text-sm outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all text-gray-850"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 uppercase mb-1">Código Postal <span className="text-red-500">*</span></label>
+                  <input 
+                    type="text" 
+                    required
+                    value={addrZip}
+                    onChange={e => handleZipChange(e.target.value)}
+                    placeholder="5 dígitos"
+                    maxLength={5}
+                    className="w-full border border-gray-300 rounded-lg p-2.5 text-sm outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all font-mono text-gray-800"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 uppercase mb-1">Estado <span className="text-red-500">*</span></label>
+                  <select 
+                    value={addrState}
+                    required
+                    onChange={e => {
+                      setAddrState(e.target.value);
+                      const cities = (mexicoData as Record<string, string[]>)[e.target.value] || [];
+                      setAddrCity(cities[0] || "");
+                    }}
+                    className="w-full border border-gray-300 rounded-lg p-2.5 text-sm outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all bg-white text-gray-800 font-medium"
+                  >
+                    <option value="">Seleccione...</option>
+                    {Object.keys(mexicoData).map(st => (
+                      <option key={st} value={st}>{st}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 uppercase mb-1">Municipio / Ciudad <span className="text-red-500">*</span></label>
+                  <select 
+                    value={addrCity}
+                    required
+                    onChange={e => setAddrCity(e.target.value)}
+                    className="w-full border border-gray-300 rounded-lg p-2.5 text-sm outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all bg-white text-gray-850 font-medium"
+                  >
+                    <option value="">Seleccione...</option>
+                    {addrState && ((mexicoData as Record<string, string[]>)[addrState] || []).map(cit => (
+                      <option key={cit} value={cit}>{cit}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-gray-700 uppercase mb-1">Referencias de Entrega (Opcional)</label>
+                <textarea 
+                  value={addrReference}
+                  onChange={e => setAddrReference(e.target.value)}
+                  placeholder="Ej. Fachada azul, portón negro, entre calle X y Y."
+                  rows={2}
+                  className="w-full border border-gray-300 rounded-lg p-2.5 text-sm outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all text-gray-800"
+                />
+              </div>
+
+              {(!editingAddress || !editingAddress.is_default) && (
+                <div className="flex items-center gap-2 pt-1">
+                  <input 
+                    type="checkbox" 
+                    id="addrIsDefault"
+                    checked={addrIsDefault}
+                    onChange={e => setAddrIsDefault(e.target.checked)}
+                    className="w-4 h-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500 cursor-pointer"
+                  />
+                  <label htmlFor="addrIsDefault" className="text-xs font-bold text-gray-750 uppercase cursor-pointer select-none">
+                    Establecer como dirección de envío principal
+                  </label>
+                </div>
+              )}
+
+              {addressError && (
+                <p className="text-red-500 text-xs font-medium bg-red-50 p-2.5 rounded-lg border border-red-200">{addressError}</p>
+              )}
+
+              <div className="flex justify-end gap-3 pt-4 border-t border-gray-100">
+                <button 
+                  type="button"
+                  onClick={() => setShowAddressModal(false)}
+                  className="px-4 py-2 text-sm font-semibold text-gray-500 hover:text-gray-750 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 cursor-pointer"
+                >
+                  Cancelar
+                </button>
+                <button 
+                  type="submit"
+                  disabled={isSavingAddress}
+                  className="px-5 py-2 text-sm font-bold text-white bg-primary-600 hover:bg-primary-700 rounded-lg shadow disabled:bg-gray-300 cursor-pointer transition-colors"
+                >
+                  {isSavingAddress ? "Guardando..." : "Guardar Dirección"}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

@@ -67,8 +67,10 @@ export type HomeSettings = {
     catalogPromoPage?: string;
     catalogPromoTitle?: string;
     catalogPromoBadge?: string;
+    catalogPromoTargetAudience?: string;
     sideTextSizeTrigger?: string;
     sidePromoPage?: string;
+    sidePromoTargetAudience?: string;
     // Tag Promo Customizer
     tagBgColor?: string;
     tagBorderColor?: string;
@@ -152,8 +154,10 @@ const DEFAULT_HOME_SETTINGS: HomeSettings = {
     catalogPromoPage: "Catálogo",
     catalogPromoTitle: "Ofertas especiales solo para ti",
     catalogPromoBadge: "Nuevo usuario",
+    catalogPromoTargetAudience: "new_clients",
     sideTextSizeTrigger: "Mediano",
     sidePromoPage: "Detalle de Producto",
+    sidePromoTargetAudience: "new_clients",
     tagBgColor: "#eefcf7",
     tagBorderColor: "#cbf2e3",
     tagTextColor: "#0a6644",
@@ -178,11 +182,11 @@ const settingsListeners = new Set<(data: CachedSettingsData) => void>();
 let saveTimeout: NodeJS.Timeout;
 
 export function useSettings(initialCategories?: string[], initialSeasons?: string[]) {
-  const [categories, setCategories] = useState<string[]>(globalSettingsCache?.categories || initialCategories || DEFAULT_CATEGORIES);
-  const [seasons, setSeasons] = useState<string[]>(globalSettingsCache?.seasons || initialSeasons || DEFAULT_SEASONS);
-  const [featuredSeason, setFeaturedSeason] = useState<string | null>(globalSettingsCache?.featuredSeason || null);
-  const [homeSettings, setHomeSettings] = useState<HomeSettings>(globalSettingsCache?.homeSettings || DEFAULT_HOME_SETTINGS);
-  const [isLoaded, setIsLoaded] = useState(globalSettingsLoaded);
+  const [categories, setCategories] = useState<string[]>(initialCategories || DEFAULT_CATEGORIES);
+  const [seasons, setSeasons] = useState<string[]>(initialSeasons || DEFAULT_SEASONS);
+  const [featuredSeason, setFeaturedSeason] = useState<string | null>(null);
+  const [homeSettings, setHomeSettings] = useState<HomeSettings>(DEFAULT_HOME_SETTINGS);
+  const [isLoaded, setIsLoaded] = useState(false);
 
   // Prime cache with server-rendered initial data if cache is empty
   if (!globalSettingsCache && (initialCategories || initialSeasons)) {

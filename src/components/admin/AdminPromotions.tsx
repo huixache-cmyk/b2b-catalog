@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { HomeSettings } from "@/hooks/useSettings";
 import { Save, Tag, PanelLeft, Check, Gift, Palette, Sliders } from "lucide-react";
 
@@ -46,7 +46,7 @@ export function AdminPromotions({ homeSettings, updateHomeSettings }: AdminPromo
   const [coupon2LeftNote, setCoupon2LeftNote] = useState(currentPromo.coupon2LeftNote ?? "Sin mín. de compra");
   const [coupon2RightTitle, setCoupon2RightTitle] = useState(currentPromo.coupon2RightTitle ?? "Cupón válido en todo el sitio");
   const [coupon2RightLimit, setCoupon2RightLimit] = useState(currentPromo.coupon2RightLimit ?? "Límite de $MXN240");
-  const [catalogPromoButtonText, setCatalogPromoButtonText] = useState(currentPromo.catalogPromoButtonText ?? "¡Consíguelos Todos!");
+  const [catalogPromoButtonText, setCatalogPromoButtonText] = useState(currentPromo.catalogPromoButtonText ?? "¡Consíguelo!");
   const [catalogPromoFooterNote, setCatalogPromoFooterNote] = useState(currentPromo.catalogPromoFooterNote ?? "Cupones confirmados después de iniciar sesión");
 
   // Styling states for Side Drawer Promo
@@ -73,8 +73,72 @@ export function AdminPromotions({ homeSettings, updateHomeSettings }: AdminPromo
   const [catalogPromoPage, setCatalogPromoPage] = useState(currentPromo.catalogPromoPage ?? "Catálogo");
   const [catalogPromoTitle, setCatalogPromoTitle] = useState(currentPromo.catalogPromoTitle ?? "Ofertas especiales solo para ti");
   const [catalogPromoBadge, setCatalogPromoBadge] = useState(currentPromo.catalogPromoBadge ?? "Nuevo usuario");
+  const [catalogPromoTargetAudience, setCatalogPromoTargetAudience] = useState(currentPromo.catalogPromoTargetAudience ?? "new_clients");
   const [sideTextSizeTrigger, setSideTextSizeTrigger] = useState(currentPromo.sideTextSizeTrigger ?? "Mediano");
   const [sidePromoPage, setSidePromoPage] = useState(currentPromo.sidePromoPage ?? "Detalle de Producto");
+  const [sidePromoTargetAudience, setSidePromoTargetAudience] = useState(currentPromo.sidePromoTargetAudience ?? "new_clients");
+
+  const [isInitialized, setIsInitialized] = useState(false);
+
+  useEffect(() => {
+    if (homeSettings && homeSettings.promotions && !isInitialized) {
+      const p = homeSettings.promotions;
+      setTagText(p.tagText ?? "Oferta especial de envío gratis");
+      setTagPublished(p.tagPublished ?? true);
+      setTagBgColor(p.tagBgColor ?? "#eefcf7");
+      setTagBorderColor(p.tagBorderColor ?? "#cbf2e3");
+      setTagTextColor(p.tagTextColor ?? "#0a6644");
+      setTagTextSize(p.tagTextSize ?? "text-xs");
+      setTagIcon(p.tagIcon ?? "Truck");
+      
+      setSideTextTrigger(p.sideTextTrigger ?? "CONSIGUE 30% DE DTO.");
+      setSideTitle(p.sideTitle ?? "Suscribirse para disfrutar los precios de VIP y Ventas Flash");
+      setSideTextLeft(p.sideTextLeft ?? "Suscribirse y obtén -30% En Primer Pedido");
+      setSideTextRight(p.sideTextRight ?? "ENVÍO GRATIS en su primer pedido +$MXN99");
+      setSidePublished(p.sidePublished ?? true);
+      
+      setCatalogPromoPublished(p.catalogPromoPublished ?? true);
+      setCatalogPromoDelay(p.catalogPromoDelay ?? 3);
+      setCoupon1Discount(p.coupon1Discount ?? "30% DE DESCUENTO");
+      setCoupon1LeftNote(p.coupon1LeftNote ?? "Sin mín. de compra");
+      setCoupon1RightTitle(p.coupon1RightTitle ?? "Cupón válido en todo el sitio");
+      setCoupon1RightLimit(p.coupon1RightLimit ?? "Límite de $MXN3,000");
+      setCoupon2Discount(p.coupon2Discount ?? "65% DE DESCUENTO");
+      setCoupon2LeftNote(p.coupon2LeftNote ?? "Sin mín. de compra");
+      setCoupon2RightTitle(p.coupon2RightTitle ?? "Cupón válido en todo el sitio");
+      setCoupon2RightLimit(p.coupon2RightLimit ?? "Límite de $MXN240");
+      setCatalogPromoButtonText(p.catalogPromoButtonText ?? "¡Consíguelo!");
+      setCatalogPromoFooterNote(p.catalogPromoFooterNote ?? "Cupones confirmados después de iniciar sesión");
+      
+      setSideBgColor(p.sideBgColor ?? "#ffeceb");
+      setSideTextColor(p.sideTextColor ?? "#222222");
+      setSidePromoTextColor(p.sidePromoTextColor ?? "#e1251b");
+      setSideButtonBgColor(p.sideButtonBgColor ?? "#000000");
+      setSideButtonTextColor(p.sideButtonTextColor ?? "#ffffff");
+      setSideTextSizeTitle(p.sideTextSizeTitle ?? "Mediano");
+      setSideTextSizePromo(p.sideTextSizePromo ?? "Normal");
+      setSideTriggerIcon(p.sideTriggerIcon ?? "Arrow");
+      
+      setCatalogPromoBgColorStart(p.catalogPromoBgColorStart ?? "#fff6ee");
+      setCatalogPromoBgColorEnd(p.catalogPromoBgColorEnd ?? "#ffffff");
+      setCatalogPromoTextColor(p.catalogPromoTextColor ?? "#a0522d");
+      setCatalogPromoCouponBgColor(p.catalogPromoCouponBgColor ?? "#fff7f6");
+      setCatalogPromoCouponBorderColor(p.catalogPromoCouponBorderColor ?? "#ffd2cc");
+      setCatalogPromoCouponTextColor(p.catalogPromoCouponTextColor ?? "#ff4a5a");
+      setCatalogPromoButtonBgColor(p.catalogPromoButtonBgColor ?? "#222222");
+      setCatalogPromoButtonTextColor(p.catalogPromoButtonTextColor ?? "#ffffff");
+      setCatalogPromoIcon(p.catalogPromoIcon ?? "GiftBow");
+      setCatalogPromoAlwaysShow(p.catalogPromoAlwaysShow ?? false);
+      setCatalogPromoPage(p.catalogPromoPage ?? "Catálogo");
+      setCatalogPromoTitle(p.catalogPromoTitle ?? "Ofertas especiales solo para ti");
+      setCatalogPromoBadge(p.catalogPromoBadge ?? "Nuevo usuario");
+      setCatalogPromoTargetAudience(p.catalogPromoTargetAudience ?? "new_clients");
+      setSideTextSizeTrigger(p.sideTextSizeTrigger ?? "Mediano");
+      setSidePromoPage(p.sidePromoPage ?? "Detalle de Producto");
+      setSidePromoTargetAudience(p.sidePromoTargetAudience ?? "new_clients");
+      setIsInitialized(true);
+    }
+  }, [homeSettings, isInitialized]);
 
   const [isSaving, setIsSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
@@ -130,8 +194,10 @@ export function AdminPromotions({ homeSettings, updateHomeSettings }: AdminPromo
         catalogPromoPage,
         catalogPromoTitle,
         catalogPromoBadge,
+        catalogPromoTargetAudience,
         sideTextSizeTrigger,
         sidePromoPage,
+        sidePromoTargetAudience,
         // Tag promo styles
         tagBgColor,
         tagBorderColor,
@@ -331,30 +397,43 @@ export function AdminPromotions({ homeSettings, updateHomeSettings }: AdminPromo
                 type="checkbox"
                 checked={sidePublished}
                 onChange={(e) => setSidePublished(e.target.checked)}
-                className="rounded text-primary-600 focus:ring-primary-500 h-4 w-4"
+                className="rounded text-primary-600 focus:ring-primary-500 h-4 w-4 cursor-pointer"
               />
               <label htmlFor="sidePublished" className="text-sm font-semibold text-gray-700 cursor-pointer">
                 Activar panel promocional lateral
               </label>
             </div>
-            
-            <div className="flex items-center gap-2">
-              <label htmlFor="sidePromoPage" className="text-xs font-bold text-gray-650 uppercase">Página de Visualización:</label>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-1">
+              <label htmlFor="sidePromoPage" className="block text-xs font-bold text-gray-700 uppercase">Página de Visualización</label>
               <select
                 id="sidePromoPage"
                 value={sidePromoPage}
                 onChange={(e) => setSidePromoPage(e.target.value)}
                 disabled={!sidePublished}
-                className="bg-white border border-gray-300 rounded-lg p-1.5 text-xs font-semibold focus:ring-primary-500 focus:border-primary-500"
+                className="w-full bg-white border border-gray-300 rounded-lg p-2.5 text-sm font-semibold focus:ring-primary-500 focus:border-primary-500 disabled:bg-gray-100"
               >
                 <option value="Detalle de Producto">Solo Detalle de Producto</option>
                 <option value="Catálogo">Solo Catálogo</option>
                 <option value="Ambos">Ambos (Catálogo y Detalle de Producto)</option>
               </select>
             </div>
-          </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-1">
+              <label htmlFor="sidePromoTargetAudience" className="block text-xs font-bold text-gray-700 uppercase">Público Objetivo (Aplicar a)</label>
+              <select
+                id="sidePromoTargetAudience"
+                value={sidePromoTargetAudience}
+                onChange={(e) => setSidePromoTargetAudience(e.target.value)}
+                disabled={!sidePublished}
+                className="w-full bg-white border border-gray-300 rounded-lg p-2.5 text-sm font-semibold focus:ring-primary-500 focus:border-primary-500 disabled:bg-gray-100"
+              >
+                <option value="new_clients">Solo nuevos clientes (ocultar si ya se reclamó)</option>
+                <option value="all_clients">Todos los clientes (mostrar siempre, incluso si ya tienen el cupón)</option>
+              </select>
+            </div>
             <div className="space-y-1">
               <label className="block text-xs font-bold text-gray-700 uppercase">Texto del Botón Lateral (Trigger)</label>
               <input
@@ -650,6 +729,19 @@ export function AdminPromotions({ homeSettings, updateHomeSettings }: AdminPromo
             </div>
 
             <div className="space-y-1">
+              <label className="block text-xs font-bold text-gray-700 uppercase">Público Objetivo (Aplicar a):</label>
+              <select
+                value={catalogPromoTargetAudience}
+                onChange={(e) => setCatalogPromoTargetAudience(e.target.value)}
+                disabled={!catalogPromoPublished}
+                className="w-full bg-white border border-gray-300 rounded-lg p-2.5 text-sm font-semibold focus:ring-primary-500"
+              >
+                <option value="new_clients">Solo nuevos clientes (ocultar si ya se reclamó el cupón)</option>
+                <option value="all_clients">Todos los clientes (mostrar siempre, incluso si ya tienen el cupón)</option>
+              </select>
+            </div>
+
+            <div className="space-y-1">
               <label className="block text-xs font-bold text-gray-700 uppercase">Título de la Ventana Flotante</label>
               <input
                 type="text"
@@ -750,56 +842,7 @@ export function AdminPromotions({ homeSettings, updateHomeSettings }: AdminPromo
               </div>
             </div>
 
-            {/* Coupon 2 Config */}
-            <div className="border border-gray-100 rounded-lg p-4 bg-gray-50/50 space-y-3 col-span-1 md:col-span-2">
-              <h4 className="font-bold text-xs text-gray-700 uppercase border-b pb-1">Configuración del Cupón 2</h4>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                <div className="space-y-1">
-                  <label className="block text-[10px] font-bold text-gray-550 uppercase">Texto de Descuento (Izquierda)</label>
-                  <input
-                    type="text"
-                    value={coupon2Discount}
-                    onChange={(e) => setCoupon2Discount(e.target.value)}
-                    disabled={!catalogPromoPublished}
-                    className="w-full bg-white border border-gray-300 rounded-lg p-2 text-xs focus:ring-primary-500"
-                    required
-                  />
-                </div>
-                <div className="space-y-1">
-                  <label className="block text-[10px] font-bold text-gray-550 uppercase">Nota de Descuento (Izquierda)</label>
-                  <input
-                    type="text"
-                    value={coupon2LeftNote}
-                    onChange={(e) => setCoupon2LeftNote(e.target.value)}
-                    disabled={!catalogPromoPublished}
-                    className="w-full bg-white border border-gray-300 rounded-lg p-2 text-xs focus:ring-primary-500"
-                    required
-                  />
-                </div>
-                <div className="space-y-1">
-                  <label className="block text-[10px] font-bold text-gray-550 uppercase">Título del Cupón (Derecha)</label>
-                  <input
-                    type="text"
-                    value={coupon2RightTitle}
-                    onChange={(e) => setCoupon2RightTitle(e.target.value)}
-                    disabled={!catalogPromoPublished}
-                    className="w-full bg-white border border-gray-300 rounded-lg p-2 text-xs focus:ring-primary-500"
-                    required
-                  />
-                </div>
-                <div className="space-y-1">
-                  <label className="block text-[10px] font-bold text-gray-550 uppercase">Restricción / Límite (Derecha)</label>
-                  <input
-                    type="text"
-                    value={coupon2RightLimit}
-                    onChange={(e) => setCoupon2RightLimit(e.target.value)}
-                    disabled={!catalogPromoPublished}
-                    className="w-full bg-white border border-gray-300 rounded-lg p-2 text-xs focus:ring-primary-500"
-                    required
-                  />
-                </div>
-              </div>
-            </div>
+            {/* Coupon 2 Config removed */}
 
             {/* Customizer Sub-section for Section 3 */}
             <div className="border-t border-gray-150 pt-4 mt-4 space-y-4 col-span-1 md:col-span-2">

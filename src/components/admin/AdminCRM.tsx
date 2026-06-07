@@ -113,6 +113,7 @@ export function AdminCRM() {
   // Segments & Campaign State
   const [showCampaignModal, setShowCampaignModal] = useState(false);
   const [selectedSegmentId, setSelectedSegmentId] = useState<string>("");
+  const [editingSegmentId, setEditingSegmentId] = useState<string | null>(null);
   const [campaignMessage, setCampaignMessage] = useState("");
   const [campaignRecipients, setCampaignRecipients] = useState<Customer[]>([]);
   const [newSegmentName, setNewSegmentName] = useState("");
@@ -426,12 +427,23 @@ export function AdminCRM() {
       return;
     }
     try {
-      await addSegment({
-        name: newSegmentName,
-        description: newSegmentDesc,
-        rules_json: newSegmentRules,
-        active: true
-      });
+      if (editingSegmentId) {
+        await updateSegment(editingSegmentId, {
+          name: newSegmentName,
+          description: newSegmentDesc,
+          rules_json: newSegmentRules
+        });
+        setEditingSegmentId(null);
+        alert("Segmento de campaña actualizado con éxito.");
+      } else {
+        await addSegment({
+          name: newSegmentName,
+          description: newSegmentDesc,
+          rules_json: newSegmentRules,
+          active: true
+        });
+        alert("Segmento de campaña guardado con éxito.");
+      }
       setNewSegmentName("");
       setNewSegmentDesc("");
       setNewSegmentRules({
@@ -441,7 +453,6 @@ export function AdminCRM() {
         price_level: "",
         min_purchases: 0
       });
-      alert("Segmento de campaña guardado con éxito.");
     } catch (e) {
       console.error(e);
       alert("Error al guardar segmento");
@@ -1394,6 +1405,44 @@ export function AdminCRM() {
                       </button>
                     </div>
                   </div>
+
+                  {/* Cupones B2B */}
+                  <div className="p-4 bg-gray-50 border rounded-xl space-y-3 mt-4">
+                    <h5 className="font-bold text-gray-700 text-xs uppercase">Cupones de Promoción Disponibles</h5>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
+                      <label className="flex items-center gap-2 cursor-pointer select-none">
+                        <input 
+                          type="checkbox"
+                          checked={formDiscounts.some(d => d.discount_type === 'promotion' && d.category_id === 'ENVIO_SIN_COSTO' && d.active)}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setFormDiscounts([...formDiscounts, { discount_type: 'promotion', category_id: 'ENVIO_SIN_COSTO', discount_percent: 0, active: true }]);
+                            } else {
+                              setFormDiscounts(formDiscounts.filter(d => !(d.discount_type === 'promotion' && d.category_id === 'ENVIO_SIN_COSTO')));
+                            }
+                          }}
+                          className="rounded text-primary-600 focus:ring-primary-500 h-4 w-4 border-gray-300 cursor-pointer"
+                        />
+                        <span className="text-xs font-semibold text-gray-700">🎟️ Cupón Envío sin Costo</span>
+                      </label>
+
+                      <label className="flex items-center gap-2 cursor-pointer select-none">
+                        <input 
+                          type="checkbox"
+                          checked={formDiscounts.some(d => d.discount_type === 'promotion' && d.category_id === 'MUESTRA_Y_ENVIO_GRATIS' && d.active)}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setFormDiscounts([...formDiscounts, { discount_type: 'promotion', category_id: 'MUESTRA_Y_ENVIO_GRATIS', discount_percent: 0, active: true }]);
+                            } else {
+                              setFormDiscounts(formDiscounts.filter(d => !(d.discount_type === 'promotion' && d.category_id === 'MUESTRA_Y_ENVIO_GRATIS')));
+                            }
+                          }}
+                          className="rounded text-primary-600 focus:ring-primary-500 h-4 w-4 border-gray-300 cursor-pointer"
+                        />
+                        <span className="text-xs font-semibold text-gray-700">🎟️ Cupón Muestra Física y Envío Gratis</span>
+                      </label>
+                    </div>
+                  </div>
                 </div>
               )}
 
@@ -1517,6 +1566,7 @@ export function AdminCRM() {
                       value={selectedSegmentId}
                       onChange={e => {
                         setSelectedSegmentId(e.target.value);
+                        setEditingSegmentId(null);
                       }}
                       className="flex-1 border border-gray-300 rounded-lg p-2.5 text-sm focus:ring-primary-500 bg-white"
                     >
@@ -1527,16 +1577,66 @@ export function AdminCRM() {
                       type="button" 
                       onClick={handleEvaluateSegment}
                       disabled={!selectedSegmentId}
-                      className="bg-primary-600 hover:bg-primary-750 text-white font-bold px-4 rounded-lg text-xs disabled:opacity-50"
+                      className="bg-primary-600 hover:bg-primary-750 text-white font-bold px-3 rounded-lg text-xs disabled:opacity-50 cursor-pointer"
                     >
                       Calcular
                     </button>
+                    {selectedSegmentId && (
+                      <>
+                        <button 
+                          type="button" 
+                          onClick={() => {
+                            const seg = segments.find(s => s.id === selectedSegmentId);
+                            if (seg && seg.id) {
+                              setEditingSegmentId(seg.id);
+                              setNewSegmentName(seg.name);
+                              setNewSegmentDesc(seg.description || "");
+                              setNewSegmentRules(seg.rules_json || {
+                                state: "",
+                                city: "",
+                                customer_type: "",
+                                price_level: "",
+                                min_purchases: 0
+                              });
+                            }
+                          }}
+                          className="bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold px-3 rounded-lg text-xs cursor-pointer flex items-center justify-center border border-gray-200"
+                          title="Editar Segmento"
+                        >
+                          <Edit className="w-4.5 h-4.5" />
+                        </button>
+                        <button 
+                          type="button" 
+                          onClick={async () => {
+                            const seg = segments.find(s => s.id === selectedSegmentId);
+                            if (seg && seg.id && confirm(`¿Estás seguro de que deseas eliminar el segmento "${seg.name}"?`)) {
+                              try {
+                                await deleteSegment(seg.id);
+                                setSelectedSegmentId("");
+                                setCampaignRecipients([]);
+                                setEditingSegmentId(null);
+                                alert("Segmento eliminado correctamente.");
+                              } catch (e) {
+                                console.error(e);
+                                alert("Error al eliminar segmento.");
+                              }
+                            }
+                          }}
+                          className="bg-red-50 hover:bg-red-100 text-red-600 font-bold px-3 rounded-lg text-xs cursor-pointer flex items-center justify-center border border-red-200"
+                          title="Eliminar Segmento"
+                        >
+                          <Trash2 className="w-4.5 h-4.5" />
+                        </button>
+                      </>
+                    )}
                   </div>
                 </div>
 
                 {/* Create a new campaign segment */}
                 <form onSubmit={handleCreateSegment} className="bg-gray-50 border p-4 rounded-xl space-y-4">
-                  <h5 className="font-bold text-gray-700 text-xs uppercase flex items-center gap-1.5 border-b pb-1">Crear Nuevo Segmento</h5>
+                  <h5 className="font-bold text-gray-700 text-xs uppercase flex items-center gap-1.5 border-b pb-1">
+                    {editingSegmentId ? "Editar Segmento B2B" : "Crear Nuevo Segmento"}
+                  </h5>
                   <div className="grid grid-cols-2 gap-3">
                     <div className="space-y-1">
                       <label className="block text-[10px] font-bold text-gray-600 uppercase">Nombre</label>
@@ -1583,9 +1683,29 @@ export function AdminCRM() {
                       </select>
                     </div>
                   </div>
-                  <div className="text-right pt-2 border-t">
-                    <button type="submit" className="bg-primary-600 text-white font-bold py-1.5 px-4 rounded text-xs hover:bg-primary-750">
-                      Guardar Segmento
+                  <div className="text-right pt-2 border-t flex justify-end gap-2">
+                    {editingSegmentId && (
+                      <button 
+                        type="button" 
+                        onClick={() => {
+                          setEditingSegmentId(null);
+                          setNewSegmentName("");
+                          setNewSegmentDesc("");
+                          setNewSegmentRules({
+                            state: "",
+                            city: "",
+                            customer_type: "",
+                            price_level: "",
+                            min_purchases: 0
+                          });
+                        }}
+                        className="bg-gray-200 text-gray-700 font-bold py-1.5 px-4 rounded text-xs hover:bg-gray-300 cursor-pointer"
+                      >
+                        Cancelar
+                      </button>
+                    )}
+                    <button type="submit" className="bg-primary-600 text-white font-bold py-1.5 px-4 rounded text-xs hover:bg-primary-750 cursor-pointer">
+                      {editingSegmentId ? "Actualizar Segmento" : "Guardar Segmento"}
                     </button>
                   </div>
                 </form>

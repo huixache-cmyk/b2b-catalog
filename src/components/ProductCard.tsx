@@ -15,7 +15,8 @@ export function ProductCard({ product }: { product: Product }) {
     const base = product.price;
     
     let levelFactor = 1;
-    if (session.customer.price_level === "wholesale") levelFactor = 0.90;
+    if (session.customer.price_level === "retail") levelFactor = 0.95;
+    else if (session.customer.price_level === "wholesale") levelFactor = 0.90;
     else if (session.customer.price_level === "distributor") levelFactor = 0.80;
     else if (session.customer.price_level === "special") levelFactor = 0.75;
     

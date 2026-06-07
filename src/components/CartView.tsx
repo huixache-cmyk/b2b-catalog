@@ -4,7 +4,8 @@ import { useState, useMemo, useEffect } from "react";
 import { useCart } from "@/hooks/useCart";
 import { useQuotes } from "@/hooks/useQuotes";
 import Link from "next/link";
-import { Trash2, ShoppingCart, FileText, Send, AlertCircle, RotateCw } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Trash2, ShoppingCart, FileText, Send, AlertCircle, RotateCw, RotateCcw } from "lucide-react";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import mexicoData from "@/utils/mexicoStates.json";
@@ -219,6 +220,7 @@ const getStateFromZip = (zip: string): string => {
 };
 
 export function CartView() {
+  const router = useRouter();
   const { cartItems, isLoaded, updateQuantity, removeFromCart, cartTotal, clearCart } = useCart();
   const { addQuote } = useQuotes();
   const { products } = useProducts();
@@ -331,7 +333,7 @@ export function CartView() {
       const tier3Price = roundToHalf(basePrice * (1 - (product.discount150 || 0) / 100));
 
       let unitProductPrice = basePrice;
-      if (item.quantity > discountQty2) {
+      if (item.quantity >= discountQty2) {
         unitProductPrice = tier3Price;
       } else if (item.quantity >= discountQty1) {
         unitProductPrice = tier2Price;
@@ -341,7 +343,9 @@ export function CartView() {
         let priceAfterLevel = unitProductPrice;
         const priceLevel = activeB2BSession.customer.price_level;
         
-        if (priceLevel === "wholesale") {
+        if (priceLevel === "retail") {
+          priceAfterLevel = unitProductPrice * 0.95;
+        } else if (priceLevel === "wholesale") {
           const option1 = tier2Price;
           const option2 = unitProductPrice * 0.90;
           priceAfterLevel = Math.min(option1, option2);
@@ -394,6 +398,104 @@ export function CartView() {
   const recalculatedTotal = useMemo(() => {
     return recalculatedItems.reduce((sum, item) => sum + item.totalPrice, 0);
   }, [recalculatedItems]);
+
+  const summaryBreakdown = useMemo(() => {
+    let totalOriginal = 0;
+    let totalLevelDiscount = 0;
+    let totalCommercialDiscount = 0;
+    let totalPrint = 0;
+
+    cartItems.forEach(item => {
+      const product = products.find(p => p.id === item.productId);
+      if (!product) return;
+
+      const printPrices: Record<string, number> = {
+        "Sin Impresión": 0,
+        "Grabado Chico": 15,
+        "Grabado Grande": 25,
+        "DTF": 12,
+        "Impresión 1 tinta": 10,
+        "Impresión 2 tintas": 18,
+        "Impresión 3 tintas": 25,
+        "Impresión 4 tintas": 30,
+        ...(homeSettings?.print_prices || {})
+      };
+      const printPrice = item.isPersonalized ? (printPrices[item.printOption] || 0) : 0;
+
+      const basePrice = product.price || 0;
+      const discountQty1 = product.discountQty1 ?? 100;
+      const discountQty2 = product.discountQty2 ?? 150;
+      const roundToHalf = (num: number) => Math.round(num * 2) / 2;
+      const tier2Price = roundToHalf(basePrice * (1 - (product.discount100 || 0) / 100));
+      const tier3Price = roundToHalf(basePrice * (1 - (product.discount150 || 0) / 100));
+
+      let unitProductPrice = basePrice;
+      if (item.quantity >= discountQty2) {
+        unitProductPrice = tier3Price;
+      } else if (item.quantity >= discountQty1) {
+        unitProductPrice = tier2Price;
+      }
+
+      totalOriginal += unitProductPrice * item.quantity;
+      totalPrint += printPrice * item.quantity;
+
+      if (activeB2BSession) {
+        let priceAfterLevel = unitProductPrice;
+        const priceLevel = activeB2BSession.customer.price_level;
+        
+        if (priceLevel === "retail") {
+          priceAfterLevel = unitProductPrice * 0.95;
+        } else if (priceLevel === "wholesale") {
+          const option1 = tier2Price;
+          const option2 = unitProductPrice * 0.90;
+          priceAfterLevel = Math.min(option1, option2);
+        } else if (priceLevel === "distributor") {
+          const option1 = tier3Price;
+          const option2 = unitProductPrice * 0.80;
+          priceAfterLevel = Math.min(option1, option2);
+        } else if (priceLevel === "special") {
+          priceAfterLevel = unitProductPrice * 0.75;
+        }
+
+        let bestDiscount = 0;
+        const activeDiscounts = activeB2BSession.discounts || [];
+        
+        const prodDisc = activeDiscounts.find((d: any) => d.active && d.discount_type === "product" && d.product_id === product.id);
+        const catDisc = activeDiscounts.find((d: any) => d.active && d.discount_type === "category" && d.category_id?.toLowerCase() === product.category?.toLowerCase());
+        const globDisc = activeDiscounts.find((d: any) => d.active && d.discount_type === "global");
+        
+        if (prodDisc) {
+          bestDiscount = prodDisc.discount_percent;
+        } else if (catDisc) {
+          bestDiscount = catDisc.discount_percent;
+        } else if (globDisc) {
+          bestDiscount = globDisc.discount_percent;
+        } else {
+          bestDiscount = activeB2BSession.customer.assigned_discount_percent || 0;
+        }
+
+        const b2bProductPrice = roundToHalf(priceAfterLevel * (1 - bestDiscount / 100));
+        
+        const levelDiscount = (unitProductPrice - priceAfterLevel) * item.quantity;
+        const commercialDiscount = (priceAfterLevel - b2bProductPrice) * item.quantity;
+
+        totalLevelDiscount += levelDiscount;
+        totalCommercialDiscount += commercialDiscount;
+      }
+    });
+
+    const activePromoCoupons = activeB2BSession?.discounts?.filter(
+      (d: any) => d.active && d.discount_type === 'promotion'
+    ) || [];
+
+    return {
+      totalOriginal,
+      totalLevelDiscount,
+      totalCommercialDiscount,
+      totalPrint,
+      activePromoCoupons
+    };
+  }, [cartItems, products, activeB2BSession, homeSettings]);
 
   const [recentViews, setRecentViews] = useState<Product[]>([]);
   
@@ -814,6 +916,39 @@ Quedo en espera de confirmación de existencias.`;
       // 1. Guardar localmente y en Supabase DB
       await addQuote(newQuote);
 
+      // Deactivate B2B coupons if applied!
+      if (activeB2BSession) {
+        try {
+          await supabase
+            .from("customer_discounts")
+            .update({ active: false })
+            .eq("customer_id", activeB2BSession.customer.id)
+            .eq("discount_type", "promotion");
+            
+          // Refresh session in localStorage to reflect that coupons are used!
+          const refreshedDiscounts = (activeB2BSession.discounts || []).map((d: any) => 
+            d.discount_type === "promotion" ? { ...d, active: false } : d
+          );
+          const updatedSession = {
+            ...activeB2BSession,
+            discounts: refreshedDiscounts
+          };
+          localStorage.setItem("geekystore_b2b_session", JSON.stringify(updatedSession));
+          window.dispatchEvent(new Event("b2b_session_updated"));
+
+          // Log CRM activity for coupon usage
+          await supabase.from("customer_activity").insert([{
+            customer_id: activeB2BSession.customer.id,
+            activity_type: "quote",
+            title: "Cupones Canjeados B2B",
+            description: `El cliente utilizó sus cupones promocionales en la cotización ${newQuote.id}.`,
+            created_by: "Sistema"
+          }]);
+        } catch (couponErr) {
+          console.warn("Failed to deactivate coupons or log activity:", couponErr);
+        }
+      }
+
       const res = await fetch('/api/send-quote', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -929,10 +1064,22 @@ Quedo en espera de confirmación de existencias.`;
         ))}
         
         <div className="flex justify-between items-center pt-4">
-          <Link href="/catalog" className="inline-flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white font-bold py-2.5 px-5 rounded-lg shadow-sm hover:shadow transition-all text-sm cursor-pointer">
-            <RotateCw className="w-5 h-5" />
-            Seguir comprando
-          </Link>
+          <div className="flex gap-3">
+            <button 
+              type="button"
+              onClick={() => router.back()}
+              className="inline-flex items-center gap-2 bg-white border border-gray-300 hover:bg-gray-50 text-gray-750 font-bold py-2.5 px-4 rounded-lg shadow-2xs transition-colors text-sm cursor-pointer"
+            >
+              <RotateCcw className="w-4 h-4" />
+              Regresar
+            </button>
+            <Link 
+              href="/catalog" 
+              className="inline-flex items-center bg-primary-600 hover:bg-primary-700 text-white font-bold py-2.5 px-5 rounded-lg shadow-sm hover:shadow transition-all text-sm cursor-pointer border border-primary-600 hover:border-primary-700"
+            >
+              Explorar Catálogo
+            </Link>
+          </div>
           <button onClick={clearCart} className="text-red-600 hover:text-red-800 text-sm font-normal transition-colors cursor-pointer">
             Vaciar Carrito
           </button>
@@ -944,11 +1091,61 @@ Quedo en espera de confirmación de existencias.`;
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 sticky top-24">
           <h3 className="text-xl font-bold text-gray-900 mb-6 border-b pb-4">Resumen de Cotización</h3>
           
-          <div className="flex justify-between mb-2 text-gray-600">
-            <span>Artículos ({recalculatedItems.length})</span>
-            <span>-</span>
+          <div className="space-y-2.5 mb-6 text-sm text-gray-600 border-b pb-4">
+            <div className="flex justify-between">
+              <span>Artículos ({recalculatedItems.length})</span>
+              <span>-</span>
+            </div>
+            
+            <div className="flex justify-between">
+              <span>Subtotal Productos (Base)</span>
+              <span>{formatCurrency(summaryBreakdown.totalOriginal)}</span>
+            </div>
+
+            {summaryBreakdown.totalPrint > 0 && (
+              <div className="flex justify-between">
+                <span>Personalización / Impresión</span>
+                <span>+ {formatCurrency(summaryBreakdown.totalPrint)}</span>
+              </div>
+            )}
+
+            {activeB2BSession && summaryBreakdown.totalLevelDiscount > 0 && (
+              <div className="flex justify-between text-green-600 font-medium">
+                <span>Descuento B2B Nivel ({
+                  activeB2BSession.customer.price_level === 'retail' ? 'Retail' :
+                  activeB2BSession.customer.price_level === 'wholesale' ? 'Mayorista' :
+                  activeB2BSession.customer.price_level === 'distributor' ? 'Distribuidor' :
+                  activeB2BSession.customer.price_level === 'special' ? 'Especial' :
+                  activeB2BSession.customer.price_level
+                })</span>
+                <span>- {formatCurrency(summaryBreakdown.totalLevelDiscount)}</span>
+              </div>
+            )}
+
+            {activeB2BSession && summaryBreakdown.totalCommercialDiscount > 0 && (
+              <div className="flex justify-between text-green-600 font-medium">
+                <span>Descuento Comercial B2B</span>
+                <span>- {formatCurrency(summaryBreakdown.totalCommercialDiscount)}</span>
+              </div>
+            )}
+
+            {activeB2BSession && summaryBreakdown.activePromoCoupons.length > 0 && (
+              <div className="pt-2 border-t border-dashed border-gray-200 space-y-1.5">
+                <span className="text-xs font-bold text-yellow-600 uppercase tracking-wide block">Cupones Aplicados:</span>
+                {summaryBreakdown.activePromoCoupons.map((d: any) => (
+                  <div key={d.category_id} className="flex justify-between text-xs text-yellow-600 font-medium pl-2">
+                    <span className="flex items-center gap-1">
+                      <span className="inline-block w-1.5 h-1.5 rounded-full bg-yellow-500 shrink-0" />
+                      {d.category_id === 'ENVIO_SIN_COSTO' ? 'Envío Gratis' : 'Muestra + Envío Gratis'}
+                    </span>
+                    <span className="font-bold">Activo</span>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
-          <div className="flex justify-between mb-6 text-xl font-black text-gray-900">
+
+          <div className="flex justify-between mb-6 text-xl font-black text-gray-900 pt-2">
             <span>Total Estimado</span>
             <span>{formatCurrency(recalculatedTotal)}</span>
           </div>

@@ -227,9 +227,10 @@ export function Header() {
   const [newCategoryInput, setNewCategoryInput] = useState("");
 
   // B2B Client Auth States
-  const { session, loginClient } = useClientAuth();
+  const { session, loginClient, logoutClient } = useClientAuth();
   const [showB2BLogin, setShowB2BLogin] = useState(false);
   const [showClientPortal, setShowClientPortal] = useState(false);
+  const [showB2bDropdown, setShowB2bDropdown] = useState(false);
   const [b2bEmail, setB2bEmail] = useState("");
   const [b2bAccessKey, setB2bAccessKey] = useState("");
   const [b2bLoginError, setB2bLoginError] = useState("");
@@ -274,7 +275,7 @@ export function Header() {
         setShowB2BLogin(false);
         setB2bEmail("");
         setB2bAccessKey("");
-        setShowClientPortal(true);
+        router.push("/catalog");
       } else {
         setB2bLoginError(res.error || "Error al iniciar sesión.");
       }
@@ -601,6 +602,29 @@ export function Header() {
 
       if (addressError) throw addressError;
 
+      // Sync guest coupons if present in localStorage
+      if (typeof window !== "undefined") {
+        try {
+          const claimedStr = localStorage.getItem("geekystore_claimed_coupons");
+          if (claimedStr) {
+            const claimed = JSON.parse(claimedStr) as string[];
+            for (const coupon of claimed) {
+              await fetch("/api/claim-coupon", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  customer_id: customer.id,
+                  coupon: coupon
+                })
+              });
+            }
+            localStorage.removeItem("geekystore_claimed_coupons");
+          }
+        } catch (e) {
+          console.warn("Failed to sync guest coupons on register:", e);
+        }
+      }
+
       // 3. Log activity in CRM
       await supabase
         .from("customer_activity")
@@ -658,10 +682,30 @@ export function Header() {
     supabase.auth.getSession().then((res) => {
       setIsAdmin(!!res?.data?.session);
     });
+    
+    // Listen to changes in auth state
     const { data } = supabase.auth.onAuthStateChange((_event, session) => {
       setIsAdmin(!!session);
     });
+
+    const handleOpenAuth = (e: Event) => {
+      const customEvent = e as CustomEvent;
+      setShowB2BLogin(true);
+      if (customEvent.detail && customEvent.detail.register) {
+        setIsB2bRegistering(true);
+      } else {
+        setIsB2bRegistering(false);
+      }
+    };
+
+    if (typeof window !== 'undefined') {
+      window.addEventListener("open_b2b_auth", handleOpenAuth);
+    }
+
     return () => {
+      if (typeof window !== 'undefined') {
+        window.removeEventListener("open_b2b_auth", handleOpenAuth);
+      }
       if (data?.subscription) {
         data.subscription.unsubscribe();
       }
@@ -794,14 +838,20 @@ export function Header() {
       {/* Main Header */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
         <div className="flex items-center justify-between">
-          {/* Logo */}
-          <div className="flex-shrink-0 flex items-center">
+          {/* Logo & B2B User Info */}
+          <div className="flex-shrink-0 flex items-center gap-4">
             <Link href="/" className="text-3xl font-bold tracking-tight flex items-center gap-0.5" style={{ fontFamily: 'Museo, sans-serif' }}>
               <span className="text-secondary-500">{'</'}</span>
               <span className="text-primary-500">geeky</span>
               <span className="text-secondary-500">store</span>
               <span className="text-secondary-500">{'>'}</span>
             </Link>
+            {session && (
+              <div className="flex flex-col text-[10px] text-gray-500 pl-3 border-l border-gray-200 leading-tight">
+                <span className="font-bold text-gray-950 truncate max-w-[120px]">{session.contact.name}</span>
+                <span className="text-gray-700">CP: {session.addresses.find((a: any) => a.is_default)?.postal_code || session.addresses[0]?.postal_code || "N/A"}</span>
+              </div>
+            )}
           </div>
 
           {/* Search Bar */}
@@ -873,18 +923,79 @@ export function Header() {
               )}
             </Link>
             
-            {/* B2B Client Login button */}
-            <button
-              onClick={handlePortalClick}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-bold text-xs border transition-all cursor-pointer ${
-                session 
-                  ? 'bg-[#0a6644] border-[#0a6644] hover:bg-[#085236] text-white shadow-sm' 
-                  : 'bg-[#eefcf7] border-[#cbf2e3] text-[#0a6644] hover:bg-[#dbf7ed]'
-              }`}
-            >
-              <User className="w-4 h-4 shrink-0" />
-              <span className="hidden sm:inline">{session ? "Mi Cuenta B2B" : "Acceso B2B"}</span>
-            </button>
+            
+
+            {/* B2B Client Login button & Dropdown */}
+            <div className="relative">
+              <button
+                onClick={() => setShowB2bDropdown(!showB2bDropdown)}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-bold text-xs border transition-all cursor-pointer ${
+                  session 
+                    ? 'bg-primary-600 border-primary-600 hover:bg-primary-700 hover:border-primary-700 text-white shadow-sm' 
+                    : 'bg-[#eefcf7] border-[#cbf2e3] text-[#0a6644] hover:bg-[#dbf7ed]'
+                }`}
+              >
+                <User className="w-4 h-4 shrink-0" />
+                <span className="hidden sm:inline">Mi Cuenta B2B</span>
+              </button>
+
+              {showB2bDropdown && (
+                <>
+                  {/* Backdrop overlay to close when clicking outside */}
+                  <div className="fixed inset-0 z-30" onClick={() => setShowB2bDropdown(false)} />
+                  
+                  <div className="absolute right-0 mt-2 w-56 bg-white border border-gray-150 rounded-xl shadow-xl z-40 py-1.5 divide-y divide-gray-100 text-left animate-in fade-in slide-in-from-top-2 duration-150">
+                    <div className="py-1">
+                      <button
+                        disabled={!!session}
+                        onClick={() => {
+                          setShowB2BLogin(true);
+                          setShowB2bDropdown(false);
+                        }}
+                        className={`w-full text-left px-4 py-2 text-xs font-semibold flex items-center gap-2 cursor-pointer transition-colors border-0 bg-transparent ${
+                          session 
+                            ? 'text-gray-300 cursor-not-allowed bg-gray-50/50' 
+                            : 'text-gray-700 hover:bg-gray-50 hover:text-primary-700'
+                        }`}
+                      >
+                        Registrarse/Iniciar Sesión
+                      </button>
+                    </div>
+                    <div className="py-1">
+                      <button
+                        disabled={!session}
+                        onClick={() => {
+                          setShowClientPortal(true);
+                          setShowB2bDropdown(false);
+                        }}
+                        className={`w-full text-left px-4 py-2 text-xs font-semibold flex items-center gap-2 cursor-pointer transition-colors border-0 bg-transparent ${
+                          !session 
+                            ? 'text-gray-300 cursor-not-allowed bg-gray-50/50' 
+                            : 'text-gray-700 hover:bg-gray-50 hover:text-primary-700'
+                        }`}
+                      >
+                        Mi Cuenta
+                      </button>
+                      <button
+                        disabled={!session}
+                        onClick={() => {
+                          logoutClient();
+                          setShowB2bDropdown(false);
+                          router.push("/catalog");
+                        }}
+                        className={`w-full text-left px-4 py-2 text-xs font-semibold flex items-center gap-2 cursor-pointer transition-colors border-0 bg-transparent ${
+                          !session 
+                            ? 'text-gray-300 cursor-not-allowed bg-gray-50/50' 
+                            : 'text-red-600 hover:bg-red-50'
+                        }`}
+                      >
+                        Salir
+                      </button>
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
 
             <button onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)} className="md:hidden text-gray-500 hover:text-gray-900 p-2">
               <Menu className="w-6 h-6" />
@@ -1190,6 +1301,7 @@ export function Header() {
                         setShowB2BLogin(false);
                         setIsB2bRegistering(false);
                         setB2bRegSuccess(false);
+                        router.push("/catalog");
                       }}
                       className="w-full mt-4 bg-green-600 hover:bg-green-700 text-white rounded-lg py-2.5 font-bold transition-colors cursor-pointer text-sm"
                     >
@@ -1445,7 +1557,7 @@ export function Header() {
                       disabled={isB2bLoggingIn}
                       className="w-full bg-primary-600 hover:bg-primary-700 text-white rounded-lg py-2.5 font-bold transition-colors disabled:opacity-50 flex items-center justify-center cursor-pointer text-sm uppercase"
                     >
-                      {isB2bLoggingIn ? "Ingresando..." : "Iniciar Sesión B2B"}
+                      {isB2bLoggingIn ? "Ingresando..." : "Iniciar Sesión"}
                     </button>
 
                     <button

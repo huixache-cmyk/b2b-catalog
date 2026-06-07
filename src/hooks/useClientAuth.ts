@@ -114,6 +114,38 @@ export function useClientAuth() {
       const activeCustomer = customers[0];
       const activeContact = contacts.find(c => c.customer_id === activeCustomer.id)!;
 
+      // Sync guest coupons if present in localStorage
+      if (typeof window !== "undefined") {
+        try {
+          const claimedStr = localStorage.getItem("geekystore_claimed_coupons");
+          if (claimedStr) {
+            const claimed = JSON.parse(claimedStr) as string[];
+            for (const coupon of claimed) {
+              const { data: existing } = await supabase
+                .from("customer_discounts")
+                .select("*")
+                .eq("customer_id", activeCustomer.id)
+                .eq("discount_type", "promotion")
+                .eq("category_id", coupon);
+                
+              if (!existing || existing.length === 0) {
+                await fetch("/api/claim-coupon", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    customer_id: activeCustomer.id,
+                    coupon: coupon
+                  })
+                });
+              }
+            }
+            localStorage.removeItem("geekystore_claimed_coupons");
+          }
+        } catch (e) {
+          console.warn("Failed to sync guest coupons on login:", e);
+        }
+      }
+
       // 3. Load addresses and active discounts
       const [addressesRes, discountsRes] = await Promise.all([
         supabase.from("customer_addresses").select("*").eq("customer_id", activeCustomer.id),

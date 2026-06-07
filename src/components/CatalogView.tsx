@@ -7,6 +7,9 @@ import { MATERIALS, Product } from "@/types";
 import { useSettings } from "@/hooks/useSettings";
 import { ProductCard } from "./ProductCard";
 import { Filter, X, ChevronDown, Gift, Truck, Tag, Percent, Star } from "lucide-react";
+import Link from "next/link";
+import { useClientAuth } from "@/hooks/useClientAuth";
+import { supabase } from "@/lib/supabase";
 
 function getSearchSimilarity(text: string, query: string): number {
   const textLower = text.toLowerCase();
@@ -77,95 +80,94 @@ const renderTagIcon = (iconName?: string, textColor?: string) => {
   }
 };
 
-const parseSideTextLeft = (fullText: string, promoColor: string, promoSize: string) => {
-  const match = fullText.match(/(-\d+%|\d+%\s*DTO\.?|\d+%\s*OFF)/i);
-  if (match) {
-    const promoPart = match[0];
-    const index = fullText.indexOf(promoPart);
-    const before = fullText.substring(0, index).trim();
-    const after = fullText.substring(index + promoPart.length).trim();
+const parsePromotionText = (fullText: string, promoColor: string, promoSize: string, side: 'left' | 'right') => {
+  if (!fullText) return null;
+
+  // Split into words, keeping the whitespace in the array
+  const parts = fullText.split(/(\s+)/);
+  const segments: { text: string; isUpper: boolean }[] = [];
+
+  parts.forEach(part => {
+    if (!part) return;
     
-    const fontSize = promoSize === "Grande" ? "48px" : promoSize === "Muy Grande" ? "56px" : "40px";
-    
-    return (
-      <div className="text-center flex flex-col justify-center items-center">
-        {before && (
-          <span className="text-[9px] sm:text-[10px] uppercase tracking-wide opacity-90">
-            {before}
-          </span>
-        )}
-        <span 
-          className="font-black my-0.5 leading-none"
-          style={{ color: promoColor, fontSize }}
-        >
-          {promoPart}
-        </span>
-        {after && (
-          <span className="text-[10px] sm:text-xs font-bold uppercase tracking-wide">
-            {after}
-          </span>
-        )}
-      </div>
-    );
-  }
+    // If it's just spaces, append to the last segment if we have one
+    if (/^\s+$/.test(part)) {
+      if (segments.length > 0) {
+        segments[segments.length - 1].text += part;
+      } else {
+        segments.push({ text: part, isUpper: false });
+      }
+      return;
+    }
+
+    // Determine if it is uppercase
+    // A part is uppercase if it has at least one letter and no lowercase letters
+    const hasLetters = /[a-zA-ZáéíóúÁÉÍÓÚñÑüÜ]/.test(part);
+    let isUpper = false;
+    if (hasLetters) {
+      isUpper = !/[a-zñüáéíóú]/.test(part);
+    } else {
+      isUpper = segments.length > 0 ? segments[segments.length - 1].isUpper : false;
+    }
+
+    if (segments.length > 0 && segments[segments.length - 1].isUpper === isUpper) {
+      segments[segments.length - 1].text += part;
+    } else {
+      segments.push({ text: part, isUpper });
+    }
+  });
+
+  const isLeft = side === 'left';
+  const fontSizeUpper = promoSize === "Grande" ? "42px" : promoSize === "Muy Grande" ? "52px" : "32px";
   
+  const fontSizeLower = isLeft ? "10px" : "9px";
+
   return (
-    <div className="text-center flex flex-col justify-center items-center px-2">
-      <span className="text-xs font-bold text-center leading-tight">{fullText}</span>
+    <div className={`text-center flex flex-col justify-center items-center ${isLeft ? 'px-2' : 'pl-3 px-2'}`}>
+      {segments.map((seg, idx) => {
+        const trimmedText = seg.text.trim();
+        if (!trimmedText) return null;
+
+        if (seg.isUpper) {
+          const words = trimmedText.split(/\s+/);
+          return (
+            <div key={idx} className="flex flex-col items-center">
+              {words.map((word, wIdx) => (
+                <span 
+                  key={wIdx} 
+                  className="font-black leading-none my-0.5 text-center block tracking-tighter"
+                  style={{ color: promoColor, fontSize: fontSizeUpper }}
+                >
+                  {word}
+                </span>
+              ))}
+            </div>
+          );
+        } else {
+          return (
+            <span 
+              key={idx} 
+              className="font-extrabold uppercase tracking-wide opacity-90 my-1 text-center block leading-tight max-w-full"
+              style={{ 
+                fontSize: fontSizeLower,
+                color: '#4b5563'
+              }}
+            >
+              {trimmedText}
+            </span>
+          );
+        }
+      })}
     </div>
   );
 };
 
+const parseSideTextLeft = (fullText: string, promoColor: string, promoSize: string) => {
+  return parsePromotionText(fullText, promoColor, promoSize, 'left');
+};
+
 const parseSideTextRight = (fullText: string, promoColor: string, promoSize: string) => {
-  const matchEnvio = fullText.match(/(ENVÍO\s+GRATIS|ENVIO\s+GRATIS|FREE\s+SHIPPING)/i);
-  if (matchEnvio) {
-    const promoPart = matchEnvio[0];
-    const index = fullText.indexOf(promoPart);
-    const after = fullText.substring(index + promoPart.length).trim();
-    
-    let line1 = after;
-    let line2 = "";
-    
-    const plusIndex = after.search(/\+\$|\+MXN|en\s+su/i);
-    if (plusIndex !== -1) {
-      line1 = after.substring(0, plusIndex).trim();
-      line2 = after.substring(plusIndex).trim();
-    }
-    
-    const fontSize = promoSize === "Grande" ? "30px" : promoSize === "Muy Grande" ? "36px" : "24px";
-    
-    return (
-      <div className="text-center flex flex-col justify-center items-center pl-3">
-        <span 
-          className="font-black leading-none uppercase"
-          style={{ color: promoColor, fontSize }}
-        >
-          {promoPart.includes(" ") ? (
-            <>
-              <div>{promoPart.split(/\s+/)[0]}</div>
-              <div className="mt-0.5">{promoPart.split(/\s+/)[1]}</div>
-            </>
-          ) : promoPart}
-        </span>
-        {line1 && (
-          <span className="text-[9px] sm:text-[10px] uppercase tracking-wide mt-1.5 opacity-90">
-            {line1}
-          </span>
-        )}
-        {line2 && (
-          <span className="text-[10px] sm:text-xs font-bold mt-0.5">
-            {line2}
-          </span>
-        )}
-      </div>
-    );
-  }
-  
-  return (
-    <div className="text-center flex flex-col justify-center items-center pl-3 px-2">
-      <span className="text-xs font-bold text-center leading-tight">{fullText}</span>
-    </div>
-  );
+  return parsePromotionText(fullText, promoColor, promoSize, 'right');
 };
 
 export function CatalogView({ 
@@ -179,6 +181,8 @@ export function CatalogView({
 }) {
   const searchParams = useSearchParams();
   const router = useRouter();
+  const { session } = useClientAuth();
+  const [acceptsOffers, setAcceptsOffers] = useState(false);
   const { products, isLoaded: productsLoaded } = useProducts(initialProducts);
   const { categories, seasons, homeSettings, isLoaded: settingsLoaded } = useSettings(initialCategories, initialSeasons);
   const isLoaded = productsLoaded && settingsLoaded;
@@ -198,6 +202,36 @@ export function CatalogView({
 
   const [showSidePromo, setShowSidePromo] = useState(false);
   const [panelWidth, setPanelWidth] = useState(440);
+
+  const hasEnvioSinCosto = useMemo(() => {
+    if (session) {
+      return session.discounts?.some((d: any) => d.discount_type === 'promotion' && d.category_id === 'ENVIO_SIN_COSTO');
+    }
+    if (typeof window !== "undefined") {
+      try {
+        const claimed = JSON.parse(localStorage.getItem("geekystore_claimed_coupons") || "[]");
+        return claimed.includes("ENVIO_SIN_COSTO");
+      } catch (e) {
+        return false;
+      }
+    }
+    return false;
+  }, [session]);
+
+  const hasMuestraEnvio = useMemo(() => {
+    if (session) {
+      return session.discounts?.some((d: any) => d.discount_type === 'promotion' && d.category_id === 'MUESTRA_Y_ENVIO_GRATIS');
+    }
+    if (typeof window !== "undefined") {
+      try {
+        const claimed = JSON.parse(localStorage.getItem("geekystore_claimed_coupons") || "[]");
+        return claimed.includes("MUESTRA_Y_ENVIO_GRATIS");
+      } catch (e) {
+        return false;
+      }
+    }
+    return false;
+  }, [session]);
 
   useEffect(() => {
     const handleResize = () => {
@@ -236,6 +270,11 @@ export function CatalogView({
   // Trigger catalog promotion popup for new users
   useEffect(() => {
     if (typeof window !== "undefined") {
+      const targetAudience = homeSettings?.promotions?.catalogPromoTargetAudience ?? "new_clients";
+      const checkClaimed = targetAudience === "new_clients";
+      
+      if (checkClaimed && hasEnvioSinCosto) return;
+
       const dismissed = localStorage.getItem("b2b_catalog_promo_dismissed") === "true";
       const isPublished = homeSettings?.promotions?.catalogPromoPublished ?? true;
       const alwaysShow = homeSettings?.promotions?.catalogPromoAlwaysShow ?? false;
@@ -252,7 +291,7 @@ export function CatalogView({
         return () => clearTimeout(timer);
       }
     }
-  }, [homeSettings, isLoaded]);
+  }, [homeSettings, isLoaded, hasEnvioSinCosto]);
 
   const handleClosePromoPopup = () => {
     setShowPromoPopup(false);
@@ -265,9 +304,120 @@ export function CatalogView({
     }
   };
 
-  const handleClaimCoupons = () => {
-    alert("¡Felicidades! Cupones aplicados correctamente. Inicia sesión o regístrate para disfrutarlos.");
+  const handleClaimCoupons = async () => {
+    if (session) {
+      try {
+        const { data: existing } = await supabase
+          .from("customer_discounts")
+          .select("*")
+          .eq("customer_id", session.customer.id)
+          .eq("discount_type", "promotion")
+          .eq("category_id", "ENVIO_SIN_COSTO");
+          
+        if (!existing || existing.length === 0) {
+          const res = await fetch("/api/claim-coupon", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              customer_id: session.customer.id,
+              coupon: "ENVIO_SIN_COSTO"
+            })
+          });
+          const resData = await res.json();
+          if (!res.ok || !resData.success) {
+            throw new Error(resData.error || "Failed to claim coupon");
+          }
+          
+          // Update local storage session
+          const updatedDiscounts = [...(session.discounts || []), {
+            discount_type: 'promotion',
+            category_id: 'ENVIO_SIN_COSTO',
+            discount_percent: 0,
+            active: true
+          }];
+          localStorage.setItem("geekystore_b2b_session", JSON.stringify({ ...session, discounts: updatedDiscounts }));
+          window.dispatchEvent(new Event("b2b_session_updated"));
+          alert("¡Felicidades! El cupón de Envío sin Costo ha sido agregado a tu cuenta B2B.");
+        } else {
+          alert("Ya has reclamado o usado este cupón.");
+        }
+      } catch (e) {
+        console.error(e);
+      }
+    } else {
+      if (typeof window !== "undefined") {
+        try {
+          const claimed = JSON.parse(localStorage.getItem("geekystore_claimed_coupons") || "[]");
+          if (!claimed.includes("ENVIO_SIN_COSTO")) {
+            claimed.push("ENVIO_SIN_COSTO");
+            localStorage.setItem("geekystore_claimed_coupons", JSON.stringify(claimed));
+          }
+          // Dispatch event to open B2B registration modal
+          window.dispatchEvent(new CustomEvent("open_b2b_auth", { detail: { register: true } }));
+        } catch (e) {
+          console.warn(e);
+        }
+      }
+    }
     handleClosePromoPopup();
+  };
+
+  const handleClaimSideCoupon = async () => {
+    if (session) {
+      try {
+        const { data: existing } = await supabase
+          .from("customer_discounts")
+          .select("*")
+          .eq("customer_id", session.customer.id)
+          .eq("discount_type", "promotion")
+          .eq("category_id", "MUESTRA_Y_ENVIO_GRATIS");
+          
+        if (!existing || existing.length === 0) {
+          const res = await fetch("/api/claim-coupon", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              customer_id: session.customer.id,
+              coupon: "MUESTRA_Y_ENVIO_GRATIS"
+            })
+          });
+          const resData = await res.json();
+          if (!res.ok || !resData.success) {
+            throw new Error(resData.error || "Failed to claim coupon");
+          }
+          
+          // Update local storage session
+          const updatedDiscounts = [...(session.discounts || []), {
+            discount_type: 'promotion',
+            category_id: 'MUESTRA_Y_ENVIO_GRATIS',
+            discount_percent: 0,
+            active: true
+          }];
+          localStorage.setItem("geekystore_b2b_session", JSON.stringify({ ...session, discounts: updatedDiscounts }));
+          window.dispatchEvent(new Event("b2b_session_updated"));
+          alert("¡Felicidades! El cupón de Muestra Física y Envío Gratis ha sido agregado a tu cuenta B2B.");
+        } else {
+          alert("Ya has reclamado o usado este cupón.");
+        }
+      } catch (e) {
+        console.error(e);
+      }
+    } else {
+      if (typeof window !== "undefined") {
+        try {
+          const claimed = JSON.parse(localStorage.getItem("geekystore_claimed_coupons") || "[]");
+          if (!claimed.includes("MUESTRA_Y_ENVIO_GRATIS")) {
+            claimed.push("MUESTRA_Y_ENVIO_GRATIS");
+            localStorage.setItem("geekystore_claimed_coupons", JSON.stringify(claimed));
+          }
+          // Dispatch event to open B2B registration modal
+          window.dispatchEvent(new CustomEvent("open_b2b_auth", { detail: { register: true } }));
+        } catch (e) {
+          console.warn(e);
+        }
+      }
+    }
+    setShowSidePromo(false);
   };
 
   const filteredProducts = useMemo(() => {
@@ -507,7 +657,7 @@ export function CatalogView({
       </main>
 
       {/* Floating Catalog Promotion Popup (New Users) */}
-      {showPromoPopup && (
+      {showPromoPopup && (homeSettings?.promotions?.catalogPromoTargetAudience !== "new_clients" || !hasEnvioSinCosto) && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-xs z-50 flex items-center justify-center p-4">
           {/* Modal Container */}
           <div className="relative w-full max-w-[390px] flex flex-col items-center">
@@ -558,18 +708,66 @@ export function CatalogView({
                   
                   {/* Left content */}
                   <div className="w-[38%] flex flex-col justify-center items-center pr-2 pt-2 text-center">
-                    <span 
-                      className="text-xl sm:text-2xl font-black leading-none tracking-tight"
-                      style={{ color: homeSettings?.promotions?.catalogPromoCouponTextColor || "#ff4a5a" }}
-                    >
-                      {homeSettings?.promotions?.coupon1Discount?.split(' ')[0] || "30%"}
-                    </span>
-                    <span 
-                      className="text-[7.5px] font-bold mt-1 uppercase tracking-tight"
-                      style={{ color: homeSettings?.promotions?.catalogPromoCouponTextColor || "#ff4a5a" }}
-                    >
-                      {homeSettings?.promotions?.coupon1Discount?.split(' ').slice(1).join(' ') || "DE DESCUENTO"}
-                    </span>
+                    {(() => {
+                      const fullText = homeSettings?.promotions?.coupon1Discount || "30% DE DESCUENTO";
+                      const color = homeSettings?.promotions?.catalogPromoCouponTextColor || "#ff4a5a";
+                      const hasAnyLowercase = /[a-zñüáéíóú]/.test(fullText);
+
+                      if (!hasAnyLowercase) {
+                        const firstWord = fullText.split(' ')[0] || "";
+                        const remaining = fullText.split(' ').slice(1).join(' ') || "";
+                        return (
+                          <>
+                            <span 
+                              className="text-xl sm:text-2xl font-black leading-none tracking-tight block text-center"
+                              style={{ color }}
+                            >
+                              {firstWord}
+                            </span>
+                            {remaining && (
+                              <span 
+                                className="text-[7.5px] font-bold mt-1 uppercase tracking-tight block text-center"
+                                style={{ color }}
+                              >
+                                {remaining}
+                              </span>
+                            )}
+                          </>
+                        );
+                      }
+
+                      const words = fullText.split(/\s+/).filter(w => w.length > 0);
+                      return (
+                        <>
+                          {words.map((word, idx) => {
+                            const hasLetters = /[a-zA-ZáéíóúÁÉÍÓÚñÑüÜ]/.test(word);
+                            const isUpper = hasLetters && !/[a-zñüáéíóú]/.test(word);
+
+                            if (isUpper || !hasLetters) {
+                              return (
+                                <span 
+                                  key={idx}
+                                  className="text-xl sm:text-2xl font-black leading-none tracking-tight block text-center uppercase"
+                                  style={{ color }}
+                                >
+                                  {word}
+                                </span>
+                              );
+                            } else {
+                              return (
+                                <span 
+                                  key={idx}
+                                  className="text-xs sm:text-sm font-extrabold leading-snug block text-center mt-0.5"
+                                  style={{ color }}
+                                >
+                                  {word}
+                                </span>
+                              );
+                            }
+                          })}
+                        </>
+                      );
+                    })()}
                     <span className="text-[8px] text-gray-455 mt-1 font-medium">
                       {homeSettings?.promotions?.coupon1LeftNote || "Sin mín. de compra"}
                     </span>
@@ -615,81 +813,6 @@ export function CatalogView({
                   />
                 </div>
 
-                {/* Coupon 2 */}
-                <div 
-                  className="relative flex rounded-2xl overflow-hidden p-4 min-h-[92px] shadow-sm border"
-                  style={{
-                    backgroundColor: homeSettings?.promotions?.catalogPromoCouponBgColor || "#fff7f6",
-                    borderColor: homeSettings?.promotions?.catalogPromoCouponBorderColor || "#ffd2cc"
-                  }}
-                >
-                  {/* Left tag */}
-                  <div 
-                    className="absolute top-0 left-0 text-white text-[8px] font-extrabold px-2 py-0.5 rounded-br-xl tracking-wider uppercase"
-                    style={{ backgroundColor: homeSettings?.promotions?.catalogPromoCouponTextColor || "#ff4a5a" }}
-                  >
-                    {homeSettings?.promotions?.catalogPromoBadge || "Nuevo usuario"}
-                  </div>
-                  
-                  {/* Left content */}
-                  <div className="w-[38%] flex flex-col justify-center items-center pr-2 pt-2 text-center">
-                    <span 
-                      className="text-xl sm:text-2xl font-black leading-none tracking-tight"
-                      style={{ color: homeSettings?.promotions?.catalogPromoCouponTextColor || "#ff4a5a" }}
-                    >
-                      {homeSettings?.promotions?.coupon2Discount?.split(' ')[0] || "65%"}
-                    </span>
-                    <span 
-                      className="text-[7.5px] font-bold mt-1 uppercase tracking-tight"
-                      style={{ color: homeSettings?.promotions?.catalogPromoCouponTextColor || "#ff4a5a" }}
-                    >
-                      {homeSettings?.promotions?.coupon2Discount?.split(' ').slice(1).join(' ') || "DE DESCUENTO"}
-                    </span>
-                    <span className="text-[8px] text-gray-455 mt-1 font-medium">
-                      {homeSettings?.promotions?.coupon2LeftNote || "Sin mín. de compra"}
-                    </span>
-                  </div>
-
-                  {/* Dashed border separator */}
-                  <div 
-                    className="border-r border-dashed my-1" 
-                    style={{ borderColor: homeSettings?.promotions?.catalogPromoCouponBorderColor || "#ffd2cc" }}
-                  />
-
-                  {/* Right content */}
-                  <div className="flex-1 pl-4 flex flex-col justify-center text-left">
-                    <span 
-                      className="text-xs sm:text-sm font-extrabold leading-snug"
-                      style={{ color: homeSettings?.promotions?.catalogPromoCouponTextColor || "#ff4a5a" }}
-                    >
-                      {homeSettings?.promotions?.coupon2RightTitle || "Cupón válido en todo el sitio"}
-                    </span>
-                    <span className="text-[9px] text-gray-500 mt-1">
-                      {homeSettings?.promotions?.coupon2RightLimit || "Límite de $MXN240"}
-                    </span>
-                    <div className="flex items-center justify-between mt-2 text-[8px] text-gray-400">
-                      <span>Por tiempo limitado</span>
-                      <ChevronDown className="w-3 h-3 text-gray-450 shrink-0" />
-                    </div>
-                  </div>
-
-                  {/* Scalloped circle cutouts */}
-                  <div 
-                    className="absolute top-0 left-[38%] -translate-y-1/2 -translate-x-1/2 w-4 h-4 rounded-full border-b"
-                    style={{ 
-                      backgroundColor: homeSettings?.promotions?.catalogPromoBgColorStart || "#fff6ee",
-                      borderColor: homeSettings?.promotions?.catalogPromoCouponBorderColor || "#ffd2cc"
-                    }}
-                  />
-                  <div 
-                    className="absolute bottom-0 left-[38%] translate-y-1/2 -translate-x-1/2 w-4 h-4 rounded-full border-t"
-                    style={{ 
-                      backgroundColor: homeSettings?.promotions?.catalogPromoBgColorEnd || "#ffffff",
-                      borderColor: homeSettings?.promotions?.catalogPromoCouponBorderColor || "#ffd2cc"
-                    }}
-                  />
-                </div>
-
               </div>
 
               {/* Action Claim Button */}
@@ -701,7 +824,7 @@ export function CatalogView({
                   color: homeSettings?.promotions?.catalogPromoButtonTextColor || "#ffffff"
                 }}
               >
-                <span>{homeSettings?.promotions?.catalogPromoButtonText || "¡Consíguelos Todos!"}</span>
+                <span>{homeSettings?.promotions?.catalogPromoButtonText || "¡Consíguelo!"}</span>
               </button>
 
             </div>
@@ -716,6 +839,7 @@ export function CatalogView({
 
       {/* Side Promotion Drawer */}
       {homeSettings?.promotions?.sidePublished !== false && 
+       (homeSettings?.promotions?.sidePromoTargetAudience !== "new_clients" || !hasMuestraEnvio) && 
        (homeSettings?.promotions?.sidePromoPage === "Catálogo" || 
         homeSettings?.promotions?.sidePromoPage === "Ambos") && (
         <>
@@ -824,33 +948,35 @@ export function CatalogView({
 
                 {/* Registration Form */}
                 <div className="flex gap-2 w-full pt-1">
-                  <input 
-                    type="email" 
-                    placeholder="INTRODUCE TU CORREO ELECTRÓNICO"
-                    className="flex-1 bg-white border border-gray-300 rounded p-2.5 text-[10px] sm:text-xs focus:ring-[#e1251b] focus:border-[#e1251b] text-center font-semibold placeholder-gray-400 italic"
-                  />
                   <button 
-                    onClick={() => {
-                      alert("¡Gracias por registrarte! Tu código de descuento ha sido enviado a tu correo.");
-                      setShowSidePromo(false);
-                    }}
-                    className="w-24 sm:w-28 font-extrabold py-2.5 px-2 rounded text-[10px] sm:text-xs tracking-wider transition-all hover:brightness-110 active:scale-95 uppercase cursor-pointer"
+                    onClick={handleClaimSideCoupon}
+                    disabled={!acceptsOffers}
+                    className={`w-full font-extrabold py-3 px-4 rounded text-xs tracking-wider transition-all uppercase ${
+                      !acceptsOffers 
+                        ? 'bg-gray-300 text-gray-500 cursor-not-allowed opacity-50' 
+                        : 'hover:brightness-110 active:scale-95 cursor-pointer'
+                    }`}
                     style={{
-                      backgroundColor: homeSettings?.promotions?.sideButtonBgColor || "#000000",
-                      color: homeSettings?.promotions?.sideButtonTextColor || "#ffffff"
+                      backgroundColor: acceptsOffers ? (homeSettings?.promotions?.sideButtonBgColor || "#000000") : undefined,
+                      color: acceptsOffers ? (homeSettings?.promotions?.sideButtonTextColor || "#ffffff") : undefined
                     }}
                   >
-                    REGÍSTRATE
+                    CONSÍGUELO ¡
                   </button>
                 </div>
 
                 {/* Disclaimers & Checkboxes */}
                 <div className="text-[9px] sm:text-[10px] space-y-2.5 leading-relaxed pt-1" style={{ color: homeSettings?.promotions?.sideTextColor ? `${homeSettings.promotions.sideTextColor}cc` : "#6b7280" }}>
                   <p>
-                    Al registrarse, acepta nuestra <span className="underline cursor-pointer hover:text-black">Política de privacidad y cookies</span> y nuestros <span className="underline cursor-pointer hover:text-black">Términos y condiciones</span>.
+                    Al continuar, acepta nuestro <Link href="/soporte/aviso-privacidad" className="underline hover:text-black">Aviso de Privacidad</Link> y nuestra <Link href="/soporte/politicas-envio" className="underline hover:text-black">Política de envíos</Link>.
                   </p>
                   <label className="flex items-start gap-2 cursor-pointer">
-                    <input type="checkbox" className="mt-0.5 rounded text-black focus:ring-black h-3 w-3 border-gray-300 shrink-0" />
+                    <input 
+                      type="checkbox" 
+                      checked={acceptsOffers}
+                      onChange={e => setAcceptsOffers(e.target.checked)}
+                      className="mt-0.5 rounded text-black focus:ring-black h-3 w-3 border-gray-300 shrink-0 cursor-pointer" 
+                    />
                     <span className="leading-normal">
                       Me gustaría recibir ofertas exclusivas y las últimas noticias de geekystore por correo electrónico. Entiendo que puedo comunicarme con geekystore para cancelar la suscripción en cualquier momento.
                     </span>

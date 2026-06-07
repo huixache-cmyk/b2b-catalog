@@ -1,17 +1,19 @@
 "use client";
  
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import { createPortal } from "react-dom";
 import { Product } from "@/types";
 import { ProductCard } from "./ProductCard";
-import { Check, Info, ShieldCheck, Truck, ChevronRight, ChevronLeft, Upload, Download, X, AlertCircle, ShoppingCart, MapPin, Gift, Tag, Percent, Star, ChevronDown } from "lucide-react";
+import { Check, Info, ShieldCheck, Truck, ChevronRight, ChevronLeft, Upload, Download, X, AlertCircle, ShoppingCart, MapPin, Gift, Tag, Percent, Star, ChevronDown, RotateCcw } from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useCart } from "@/hooks/useCart";
 import html2canvas from "html2canvas";
 import { useSettings } from "@/hooks/useSettings";
 import { formatCurrency } from "@/utils/formatters";
 import Image from "next/image";
 import { useClientAuth } from "@/hooks/useClientAuth";
+import { supabase } from "@/lib/supabase";
 
 const renderTriggerIcon = (iconName?: string) => {
   switch (iconName) {
@@ -44,98 +46,133 @@ const renderTagIcon = (iconName?: string, textColor?: string) => {
   }
 };
 
-const parseSideTextLeft = (fullText: string, promoColor: string, promoSize: string) => {
-  const match = fullText.match(/(-\d+%|\d+%\s*DTO\.?|\d+%\s*OFF)/i);
-  if (match) {
-    const promoPart = match[0];
-    const index = fullText.indexOf(promoPart);
-    const before = fullText.substring(0, index).trim();
-    const after = fullText.substring(index + promoPart.length).trim();
+const parsePromotionText = (fullText: string, promoColor: string, promoSize: string, side: 'left' | 'right') => {
+  if (!fullText) return null;
+
+  // Split into words, keeping the whitespace in the array
+  const parts = fullText.split(/(\s+)/);
+  const segments: { text: string; isUpper: boolean }[] = [];
+
+  parts.forEach(part => {
+    if (!part) return;
     
-    const fontSize = promoSize === "Grande" ? "48px" : promoSize === "Muy Grande" ? "56px" : "40px";
-    
-    return (
-      <div className="text-center flex flex-col justify-center items-center">
-        {before && (
-          <span className="text-[9px] sm:text-[10px] uppercase tracking-wide opacity-90">
-            {before}
-          </span>
-        )}
-        <span 
-          className="font-black my-0.5 leading-none"
-          style={{ color: promoColor, fontSize }}
-        >
-          {promoPart}
-        </span>
-        {after && (
-          <span className="text-[10px] sm:text-xs font-bold uppercase tracking-wide">
-            {after}
-          </span>
-        )}
-      </div>
-    );
-  }
+    // If it's just spaces, append to the last segment if we have one
+    if (/^\s+$/.test(part)) {
+      if (segments.length > 0) {
+        segments[segments.length - 1].text += part;
+      } else {
+        segments.push({ text: part, isUpper: false });
+      }
+      return;
+    }
+
+    // Determine if it is uppercase
+    // A part is uppercase if it has at least one letter and no lowercase letters
+    const hasLetters = /[a-zA-ZáéíóúÁÉÍÓÚñÑüÜ]/.test(part);
+    let isUpper = false;
+    if (hasLetters) {
+      isUpper = !/[a-zñüáéíóú]/.test(part);
+    } else {
+      isUpper = segments.length > 0 ? segments[segments.length - 1].isUpper : false;
+    }
+
+    if (segments.length > 0 && segments[segments.length - 1].isUpper === isUpper) {
+      segments[segments.length - 1].text += part;
+    } else {
+      segments.push({ text: part, isUpper });
+    }
+  });
+
+  const isLeft = side === 'left';
+  const fontSizeUpper = promoSize === "Grande" ? "42px" : promoSize === "Muy Grande" ? "52px" : "32px";
   
+  const fontSizeLower = isLeft ? "10px" : "9px";
+
   return (
-    <div className="text-center flex flex-col justify-center items-center px-2">
-      <span className="text-xs font-bold text-center leading-tight">{fullText}</span>
+    <div className={`text-center flex flex-col justify-center items-center ${isLeft ? 'px-2' : 'pl-3 px-2'}`}>
+      {segments.map((seg, idx) => {
+        const trimmedText = seg.text.trim();
+        if (!trimmedText) return null;
+
+        if (seg.isUpper) {
+          const words = trimmedText.split(/\s+/);
+          return (
+            <div key={idx} className="flex flex-col items-center">
+              {words.map((word, wIdx) => (
+                <span 
+                  key={wIdx} 
+                  className="font-black leading-none my-0.5 text-center block tracking-tighter"
+                  style={{ color: promoColor, fontSize: fontSizeUpper }}
+                >
+                  {word}
+                </span>
+              ))}
+            </div>
+          );
+        } else {
+          return (
+            <span 
+              key={idx} 
+              className="font-extrabold uppercase tracking-wide opacity-90 my-1 text-center block leading-tight max-w-full"
+              style={{ 
+                fontSize: fontSizeLower,
+                color: '#4b5563'
+              }}
+            >
+              {trimmedText}
+            </span>
+          );
+        }
+      })}
     </div>
   );
 };
 
+const parseSideTextLeft = (fullText: string, promoColor: string, promoSize: string) => {
+  return parsePromotionText(fullText, promoColor, promoSize, 'left');
+};
+
 const parseSideTextRight = (fullText: string, promoColor: string, promoSize: string) => {
-  const matchEnvio = fullText.match(/(ENVÍO\s+GRATIS|ENVIO\s+GRATIS|FREE\s+SHIPPING)/i);
-  if (matchEnvio) {
-    const promoPart = matchEnvio[0];
-    const index = fullText.indexOf(promoPart);
-    const after = fullText.substring(index + promoPart.length).trim();
-    
-    let line1 = after;
-    let line2 = "";
-    
-    const plusIndex = after.search(/\+\$|\+MXN|en\s+su/i);
-    if (plusIndex !== -1) {
-      line1 = after.substring(0, plusIndex).trim();
-      line2 = after.substring(plusIndex).trim();
-    }
-    
-    const fontSize = promoSize === "Grande" ? "30px" : promoSize === "Muy Grande" ? "36px" : "24px";
-    
-    return (
-      <div className="text-center flex flex-col justify-center items-center pl-3">
-        <span 
-          className="font-black leading-none uppercase"
-          style={{ color: promoColor, fontSize }}
-        >
-          {promoPart.includes(" ") ? (
-            <>
-              <div>{promoPart.split(/\s+/)[0]}</div>
-              <div className="mt-0.5">{promoPart.split(/\s+/)[1]}</div>
-            </>
-          ) : promoPart}
-        </span>
-        {line1 && (
-          <span className="text-[9px] sm:text-[10px] uppercase tracking-wide mt-1.5 opacity-90">
-            {line1}
-          </span>
-        )}
-        {line2 && (
-          <span className="text-[10px] sm:text-xs font-bold mt-0.5">
-            {line2}
-          </span>
-        )}
-      </div>
-    );
-  }
-  
-  return (
-    <div className="text-center flex flex-col justify-center items-center pl-3 px-2">
-      <span className="text-xs font-bold text-center leading-tight">{fullText}</span>
-    </div>
-  );
+  return parsePromotionText(fullText, promoColor, promoSize, 'right');
 };
  
 export function ProductDetailView({ product, relatedProducts }: { product: Product, relatedProducts: Product[] }) {
+  const router = useRouter();
+  const { session } = useClientAuth();
+
+  const hasEnvioSinCosto = useMemo(() => {
+    if (session) {
+      return session.discounts?.some(
+        (d: any) => d.discount_type === "promotion" && d.category_id === "ENVIO_SIN_COSTO"
+      );
+    }
+    if (typeof window !== "undefined") {
+      try {
+        const claimed = JSON.parse(localStorage.getItem("geekystore_claimed_coupons") || "[]");
+        return claimed.includes("ENVIO_SIN_COSTO");
+      } catch (e) {
+        return false;
+      }
+    }
+    return false;
+  }, [session]);
+
+  const hasMuestraEnvio = useMemo(() => {
+    if (session) {
+      return session.discounts?.some(
+        (d: any) => d.discount_type === "promotion" && d.category_id === "MUESTRA_Y_ENVIO_GRATIS"
+      );
+    }
+    if (typeof window !== "undefined") {
+      try {
+        const claimed = JSON.parse(localStorage.getItem("geekystore_claimed_coupons") || "[]");
+        return claimed.includes("MUESTRA_Y_ENVIO_GRATIS");
+      } catch (e) {
+        return false;
+      }
+    }
+    return false;
+  }, [session]);
   const firstNonEmptyIndex = product.images.findIndex(img => !!img);
   const [selectedImage, setSelectedImage] = useState(firstNonEmptyIndex !== -1 ? firstNonEmptyIndex : 0);
   const [printOption, setPrintOption] = useState("Impresión 1 tinta");
@@ -148,6 +185,7 @@ export function ProductDetailView({ product, relatedProducts }: { product: Produ
   const { addToCart } = useCart();
   const [showToast, setShowToast] = useState(false);
   const [showSidePromo, setShowSidePromo] = useState(false);
+  const [acceptsOffers, setAcceptsOffers] = useState(false);
   
   // Custom height/width calculation for side promotion to center it and match reference sizing
   const [panelWidth, setPanelWidth] = useState(440);
@@ -179,7 +217,7 @@ export function ProductDetailView({ product, relatedProducts }: { product: Produ
     }
   }, [product]);
  
-  const [shippingDestination, setShippingDestination] = useState<{ name: string; city: string; state: string; zip: string } | null>(null);
+  const [shippingDestination, setShippingDestination] = useState<{ name: string; city: string; state: string; zip: string; address?: string } | null>(null);
  
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -190,9 +228,9 @@ export function ProductDetailView({ product, relatedProducts }: { product: Produ
           if (Array.isArray(quotes) && quotes.length > 0) {
             const lastQuote = quotes[0];
             if (lastQuote && lastQuote.client) {
-              const { name, city, state, zip } = lastQuote.client;
+              const { name, city, state, zip, address } = lastQuote.client;
               if (name || city || state || zip) {
-                setShippingDestination({ name, city, state, zip });
+                setShippingDestination({ name, city, state, zip, address });
               }
             }
           }
@@ -202,6 +240,19 @@ export function ProductDetailView({ product, relatedProducts }: { product: Produ
       }
     }
   }, []);
+
+  const getShippingAddressText = () => {
+    if (session && session.addresses && session.addresses.length > 0) {
+      const defaultAddr = session.addresses.find(a => a.is_default) || session.addresses[0];
+      const interior = defaultAddr.interior_number ? `, Int. ${defaultAddr.interior_number}` : "";
+      return `${defaultAddr.street} #${defaultAddr.exterior_number}${interior}, Col. ${defaultAddr.neighborhood}, ${defaultAddr.city}, ${defaultAddr.state} - CP ${defaultAddr.postal_code}`;
+    }
+    if (shippingDestination) {
+      const addrPart = shippingDestination.address ? `${shippingDestination.address}, ` : "";
+      return `${addrPart}${shippingDestination.city}, ${shippingDestination.state} - CP ${shippingDestination.zip}`;
+    }
+    return "No especificado";
+  };
  
   // Mockup Editor States
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
@@ -313,10 +364,15 @@ export function ProductDetailView({ product, relatedProducts }: { product: Produ
   // Trigger catalog promotion popup for new users on product detail page
   useEffect(() => {
     if (typeof window !== "undefined") {
+      const targetAudience = homeSettings?.promotions?.catalogPromoTargetAudience ?? "new_clients";
+      const checkClaimed = targetAudience === "new_clients";
+
+      if (checkClaimed && hasEnvioSinCosto) return;
+
       const dismissed = localStorage.getItem("b2b_catalog_promo_dismissed") === "true";
       const isPublished = homeSettings?.promotions?.catalogPromoPublished ?? true;
       const alwaysShow = homeSettings?.promotions?.catalogPromoAlwaysShow ?? false;
-      const displayPage = homeSettings?.promotions?.catalogPromoPage ?? "Catálogo";
+      const displayPage = homeSettings?.promotions?.catalogPromoPage ?? "Detalle de Producto";
 
       const shouldShowPage = displayPage === "Detalle de Producto" || displayPage === "Ambos";
       const shouldShowDismissed = !dismissed || alwaysShow;
@@ -329,7 +385,7 @@ export function ProductDetailView({ product, relatedProducts }: { product: Produ
         return () => clearTimeout(timer);
       }
     }
-  }, [homeSettings, isLoaded]);
+  }, [homeSettings, isLoaded, hasEnvioSinCosto]);
 
   const handleClosePromoPopup = () => {
     setShowPromoPopup(false);
@@ -342,9 +398,120 @@ export function ProductDetailView({ product, relatedProducts }: { product: Produ
     }
   };
 
-  const handleClaimCoupons = () => {
-    alert("¡Felicidades! Cupones aplicados correctamente. Inicia sesión o regístrate para disfrutarlos.");
+  const handleClaimCoupons = async () => {
+    if (session) {
+      try {
+        const { data: existing } = await supabase
+          .from("customer_discounts")
+          .select("*")
+          .eq("customer_id", session.customer.id)
+          .eq("discount_type", "promotion")
+          .eq("category_id", "ENVIO_SIN_COSTO");
+          
+        if (!existing || existing.length === 0) {
+          const res = await fetch("/api/claim-coupon", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              customer_id: session.customer.id,
+              coupon: "ENVIO_SIN_COSTO"
+            })
+          });
+          const resData = await res.json();
+          if (!res.ok || !resData.success) {
+            throw new Error(resData.error || "Failed to claim coupon");
+          }
+          
+          // Update local storage session
+          const updatedDiscounts = [...(session.discounts || []), {
+            discount_type: 'promotion',
+            category_id: 'ENVIO_SIN_COSTO',
+            discount_percent: 0,
+            active: true
+          }];
+          localStorage.setItem("geekystore_b2b_session", JSON.stringify({ ...session, discounts: updatedDiscounts }));
+          window.dispatchEvent(new Event("b2b_session_updated"));
+          alert("¡Felicidades! El cupón de Envío sin Costo ha sido agregado a tu cuenta B2B.");
+        } else {
+          alert("Ya has reclamado o usado este cupón.");
+        }
+      } catch (e) {
+        console.error(e);
+      }
+    } else {
+      if (typeof window !== "undefined") {
+        try {
+          const claimed = JSON.parse(localStorage.getItem("geekystore_claimed_coupons") || "[]");
+          if (!claimed.includes("ENVIO_SIN_COSTO")) {
+            claimed.push("ENVIO_SIN_COSTO");
+            localStorage.setItem("geekystore_claimed_coupons", JSON.stringify(claimed));
+          }
+          // Dispatch event to open B2B registration modal
+          window.dispatchEvent(new CustomEvent("open_b2b_auth", { detail: { register: true } }));
+        } catch (e) {
+          console.warn(e);
+        }
+      }
+    }
     handleClosePromoPopup();
+  };
+
+  const handleClaimSideCoupon = async () => {
+    if (session) {
+      try {
+        const { data: existing } = await supabase
+          .from("customer_discounts")
+          .select("*")
+          .eq("customer_id", session.customer.id)
+          .eq("discount_type", "promotion")
+          .eq("category_id", "MUESTRA_Y_ENVIO_GRATIS");
+          
+        if (!existing || existing.length === 0) {
+          const res = await fetch("/api/claim-coupon", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              customer_id: session.customer.id,
+              coupon: "MUESTRA_Y_ENVIO_GRATIS"
+            })
+          });
+          const resData = await res.json();
+          if (!res.ok || !resData.success) {
+            throw new Error(resData.error || "Failed to claim coupon");
+          }
+          
+          // Update local storage session
+          const updatedDiscounts = [...(session.discounts || []), {
+            discount_type: 'promotion',
+            category_id: 'MUESTRA_Y_ENVIO_GRATIS',
+            discount_percent: 0,
+            active: true
+          }];
+          localStorage.setItem("geekystore_b2b_session", JSON.stringify({ ...session, discounts: updatedDiscounts }));
+          window.dispatchEvent(new Event("b2b_session_updated"));
+          alert("¡Felicidades! El cupón de Muestra Física y Envío Gratis ha sido agregado a tu cuenta B2B.");
+        } else {
+          alert("Ya has reclamado o usado este cupón.");
+        }
+      } catch (e) {
+        console.error(e);
+      }
+    } else {
+      if (typeof window !== "undefined") {
+        try {
+          const claimed = JSON.parse(localStorage.getItem("geekystore_claimed_coupons") || "[]");
+          if (!claimed.includes("MUESTRA_Y_ENVIO_GRATIS")) {
+            claimed.push("MUESTRA_Y_ENVIO_GRATIS");
+            localStorage.setItem("geekystore_claimed_coupons", JSON.stringify(claimed));
+          }
+          // Dispatch event to open B2B registration modal
+          window.dispatchEvent(new CustomEvent("open_b2b_auth", { detail: { register: true } }));
+        } catch (e) {
+          console.warn(e);
+        }
+      }
+    }
+    setShowSidePromo(false);
   };
 
   const printPrices: Record<string, number> = {
@@ -360,8 +527,6 @@ export function ProductDetailView({ product, relatedProducts }: { product: Produ
   };
   const printPrice = isPersonalized ? (printPrices[printOption] || 0) : 0;
 
-  const { session } = useClientAuth();
-
   const totalQuantity = typeof quantity === 'number' ? quantity : 0;
 
   const minPurchase = product.minPurchase ?? 50;
@@ -374,22 +539,28 @@ export function ProductDetailView({ product, relatedProducts }: { product: Produ
   const tier3Price = roundToHalf(basePrice * (1 - (product.discount150 || 0) / 100));
 
   // Helper to calculate B2B price for any quantity
-  const getB2BPriceForQty = (qty: number) => {
+  const getB2BPriceForQty = (qty: number, standardPriceOverride?: number) => {
     if (!session) return null;
     
     // 1. Determine standard scale price for that quantity
     let standardScalePrice = basePrice;
-    if (qty > discountQty2) {
-      standardScalePrice = tier3Price;
-    } else if (qty >= discountQty1) {
-      standardScalePrice = tier2Price;
+    if (standardPriceOverride !== undefined) {
+      standardScalePrice = standardPriceOverride;
+    } else {
+      if (qty >= discountQty2) {
+        standardScalePrice = tier3Price;
+      } else if (qty >= discountQty1) {
+        standardScalePrice = tier2Price;
+      }
     }
     
     // 2. Apply level pricing rules
     let priceAfterLevel = standardScalePrice;
     const priceLevel = session.customer.price_level;
     
-    if (priceLevel === "wholesale") {
+    if (priceLevel === "retail") {
+      priceAfterLevel = standardScalePrice * 0.95;
+    } else if (priceLevel === "wholesale") {
       const option1 = tier2Price;
       const option2 = standardScalePrice * 0.90;
       priceAfterLevel = Math.min(option1, option2);
@@ -400,7 +571,6 @@ export function ProductDetailView({ product, relatedProducts }: { product: Produ
     } else if (priceLevel === "special") {
       priceAfterLevel = standardScalePrice * 0.75;
     } else {
-      // retail
       priceAfterLevel = standardScalePrice;
     }
     
@@ -426,7 +596,7 @@ export function ProductDetailView({ product, relatedProducts }: { product: Produ
   };
 
   let unitProductPrice = basePrice;
-  if (totalQuantity > discountQty2) {
+  if (totalQuantity >= discountQty2) {
     unitProductPrice = tier3Price;
   } else if (totalQuantity >= discountQty1) {
     unitProductPrice = tier2Price;
@@ -445,12 +615,13 @@ export function ProductDetailView({ product, relatedProducts }: { product: Produ
   const handleAddToCart = () => {
     if (totalQuantity < minPurchase) return;
     
-    // El plano mecánico siempre es la última imagen del array (a menos que el usuario guarde un mockup sobre él)
+    // El plano mecánico siempre debe ser el original del catálogo
     const techIndex = getTechImageIndex();
-    const blueprintImage = savedMockups.find(m => m.bgIndex === techIndex)?.imgData || product.images[techIndex];
+    const blueprintImage = product.images[techIndex];
     
-    // Cualquier otro mockup guardado que no sea el plano técnico
-    const mockupImage = savedMockups.find(m => m.bgIndex !== techIndex)?.imgData;
+    // El mockup con logo de la vista real (Imagen 1)
+    const mockupImage = savedMockups.find(m => m.bgIndex === getIndividualImageIndex())?.imgData 
+      || savedMockups.find(m => m.bgIndex !== techIndex)?.imgData;
 
     addToCart({
       id: Date.now().toString(),
@@ -617,6 +788,66 @@ export function ProductDetailView({ product, relatedProducts }: { product: Produ
     }
   };
 
+  // Calculation of price breakdown components for display
+  let standardScalePrice = basePrice;
+  if (totalQuantity >= discountQty2) {
+    standardScalePrice = tier3Price;
+  } else if (totalQuantity >= discountQty1) {
+    standardScalePrice = tier2Price;
+  }
+
+  let levelDiscountPerUnit = 0;
+  let levelPercentLabel = "";
+  let commercialDiscountPerUnit = 0;
+  let commercialLabel = "";
+
+  if (session) {
+    const priceLevel = session.customer.price_level;
+    let priceAfterLevel = standardScalePrice;
+    if (priceLevel === "retail") {
+      priceAfterLevel = standardScalePrice * 0.95;
+      levelPercentLabel = "Retail (5%)";
+    } else if (priceLevel === "wholesale") {
+      const option1 = tier2Price;
+      const option2 = standardScalePrice * 0.90;
+      priceAfterLevel = Math.min(option1, option2);
+      const pct = Math.round(((standardScalePrice - priceAfterLevel) / standardScalePrice) * 100);
+      levelPercentLabel = `Mayorista (~${pct}%)`;
+    } else if (priceLevel === "distributor") {
+      const option1 = tier3Price;
+      const option2 = standardScalePrice * 0.80;
+      priceAfterLevel = Math.min(option1, option2);
+      const pct = Math.round(((standardScalePrice - priceAfterLevel) / standardScalePrice) * 100);
+      levelPercentLabel = `Distribuidor (~${pct}%)`;
+    } else if (priceLevel === "special") {
+      priceAfterLevel = standardScalePrice * 0.75;
+      levelPercentLabel = "Especial (25%)";
+    }
+    levelDiscountPerUnit = standardScalePrice - priceAfterLevel;
+
+    let bestDiscount = 0;
+    const activeDiscounts = session.discounts || [];
+    const prodDisc = activeDiscounts.find(d => d.active && d.discount_type === "product" && d.product_id === product.id);
+    const catDisc = activeDiscounts.find(d => d.active && d.discount_type === "category" && d.category_id?.toLowerCase() === product.category?.toLowerCase());
+    const globDisc = activeDiscounts.find(d => d.active && d.discount_type === "global");
+    
+    if (prodDisc) {
+      bestDiscount = prodDisc.discount_percent;
+      commercialLabel = `Especial Producto (${bestDiscount}%)`;
+    } else if (catDisc) {
+      bestDiscount = catDisc.discount_percent;
+      commercialLabel = `Especial Categoría (${bestDiscount}%)`;
+    } else if (globDisc) {
+      bestDiscount = globDisc.discount_percent;
+      commercialLabel = `Especial Global (${bestDiscount}%)`;
+    } else {
+      bestDiscount = session.customer.assigned_discount_percent || 0;
+      commercialLabel = bestDiscount > 0 ? `Comercial Asignado (${bestDiscount}%)` : "";
+    }
+    // Match exact unitProductPrice mathematical rounding
+    commercialDiscountPerUnit = priceAfterLevel - (getB2BPriceForQty(totalQuantity) || priceAfterLevel);
+  }
+
   return (
     <div className="space-y-16">
       {/* Toast Notification */}
@@ -733,15 +964,15 @@ export function ProductDetailView({ product, relatedProducts }: { product: Produ
                 <div className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
                   <div className="grid grid-cols-3 bg-gray-50 text-center text-[10px] font-bold text-gray-550 uppercase tracking-wider border-b border-gray-200">
                     <div className="py-2 border-r border-gray-200">DE {minPurchase} A {discountQty1 - 1} PZ</div>
-                    <div className="py-2 border-r border-gray-200">DE {discountQty1} A {discountQty2} PZ</div>
-                    <div className="py-2">MÁS DE {discountQty2} PZ</div>
+                    <div className="py-2 border-r border-gray-200">DE {discountQty1} A {discountQty2 - 1} PZ</div>
+                    <div className="py-2">DE {discountQty2} PZ O MÁS</div>
                   </div>
                   <div className="grid grid-cols-3 text-center text-xs">
                     <div className="py-2.5 border-r border-gray-200 font-bold">
                       {session ? (
                         <div className="flex flex-col items-center">
                           <span className="text-[10px] text-gray-400 line-through">{formatCurrency(basePrice)}</span>
-                          <span className="text-green-600 font-black">{formatCurrency(getB2BPriceForQty(minPurchase) || basePrice)}</span>
+                          <span className="text-green-600 font-black">{formatCurrency(getB2BPriceForQty(minPurchase, basePrice) || basePrice)}</span>
                         </div>
                       ) : (
                         <span className="text-gray-900">{formatCurrency(basePrice)}</span>
@@ -751,7 +982,7 @@ export function ProductDetailView({ product, relatedProducts }: { product: Produ
                       {session ? (
                         <div className="flex flex-col items-center">
                           <span className="text-[10px] text-gray-400 line-through">{formatCurrency(tier2Price)}</span>
-                          <span className="text-green-600 font-black">{formatCurrency(getB2BPriceForQty(discountQty1) || tier2Price)}</span>
+                          <span className="text-green-600 font-black">{formatCurrency(getB2BPriceForQty(discountQty1, tier2Price) || tier2Price)}</span>
                         </div>
                       ) : (
                         <span className="text-gray-900">{formatCurrency(tier2Price)}</span>
@@ -761,7 +992,7 @@ export function ProductDetailView({ product, relatedProducts }: { product: Produ
                       {session ? (
                         <div className="flex flex-col items-center">
                           <span className="text-[10px] text-gray-400 line-through">{formatCurrency(tier3Price)}</span>
-                          <span className="text-green-600 font-black">{formatCurrency(getB2BPriceForQty(discountQty2 + 1) || tier3Price)}</span>
+                          <span className="text-green-600 font-black">{formatCurrency(getB2BPriceForQty(discountQty2, tier3Price) || tier3Price)}</span>
                         </div>
                       ) : (
                         <span className="text-gray-900">{formatCurrency(tier3Price)}</span>
@@ -846,9 +1077,14 @@ export function ProductDetailView({ product, relatedProducts }: { product: Produ
             <h3 className="font-extrabold text-gray-900 text-sm uppercase tracking-wider border-b pb-2">Desglose de Cotización</h3>
             
             {/* Destino de Envío */}
-            <div className="bg-white rounded-xl p-3 border border-gray-200 flex items-center gap-2 text-xs text-gray-600">
-              <MapPin className="w-4 h-4 text-[#11a98c] shrink-0" />
-              <span className="font-bold text-gray-800">Enviar a:</span>
+            <div className="bg-white rounded-xl p-3 border border-gray-200 flex flex-col gap-1 text-xs text-gray-650 text-left">
+              <div className="flex items-center gap-2">
+                <MapPin className="w-4 h-4 text-[#11a98c] shrink-0" />
+                <span className="font-bold text-gray-800">Enviar a:</span>
+              </div>
+              <p className="font-medium text-gray-700 leading-normal pl-6">
+                {getShippingAddressText()}
+              </p>
             </div>
 
             {/* Quantity Input */}
@@ -896,21 +1132,59 @@ export function ProductDetailView({ product, relatedProducts }: { product: Produ
               </div>
             )}
             <div className="bg-gray-900 text-white p-4 rounded-xl space-y-3 font-normal">
+              {/* Original Price */}
               <div className="flex justify-between items-center text-xs pb-2 border-b border-gray-700">
-                <span className="text-gray-300 font-normal">{session ? "Precio Escala B2B (Pz)" : "Precio Escala (Pz)"}</span>
-                <span className="font-normal">{formatCurrency(unitProductPrice)} c/u</span>
+                <span className="text-gray-300 font-normal">Precio Escala (Base)</span>
+                <span className="font-normal">{formatCurrency(standardScalePrice)} c/u</span>
               </div>
+              
+              {/* Level Discount */}
+              {session && levelDiscountPerUnit > 0 && (
+                <div className="flex justify-between items-center text-xs pb-2 border-b border-gray-700 text-green-400">
+                  <span className="font-normal text-green-400">Descuento B2B</span>
+                  <span className="font-normal">- {formatCurrency(levelDiscountPerUnit)} c/u</span>
+                </div>
+              )}
+
+              {/* Commercial Discount */}
+              {session && commercialDiscountPerUnit > 0 && (
+                <div className="flex justify-between items-center text-xs pb-2 border-b border-gray-700 text-green-400">
+                  <span className="font-normal text-green-400">Desc. Comercial ({commercialLabel})</span>
+                  <span className="font-normal">- {formatCurrency(commercialDiscountPerUnit)} c/u</span>
+                </div>
+              )}
+
+              {/* B2B Unitary Price after B2B/Commercial discounts */}
+              {session && (
+                <div className="flex justify-between items-center text-xs pb-2 border-b border-gray-700 font-semibold">
+                  <span className="text-gray-300">Precio Producto B2B</span>
+                  <span className="text-green-400">{formatCurrency(unitProductPrice)} c/u</span>
+                </div>
+              )}
+
               <div className="flex justify-between items-center text-xs pb-2 border-b border-gray-700">
                 <span className="text-gray-300 font-normal">Costo Impresión</span>
                 <span className="font-normal">+ {formatCurrency(unitDecoratedPrice)} c/u</span>
               </div>
+              
+              {/* Promotion Coupons */}
+              {session && session.discounts?.filter((d: any) => d.active && d.discount_type === 'promotion').map((d: any) => (
+                <div key={d.category_id} className="flex justify-between items-center text-[10px] pb-2 border-b border-gray-700 text-yellow-400">
+                  <span className="font-normal text-yellow-400 flex items-center gap-1">
+                    <span className="inline-block w-1.5 h-1.5 rounded-full bg-yellow-400 shrink-0" />
+                    Cupón: {d.category_id === 'ENVIO_SIN_COSTO' ? 'Envío Gratis' : 'Muestra + Envío Gratis'}
+                  </span>
+                  <span className="font-bold">Aplicado</span>
+                </div>
+              ))}
+
               <div className="flex justify-between items-center text-xs font-normal">
                 <span className="text-gray-300 font-normal">Final Unitario</span>
                 <span className="font-normal text-primary-400">{formatCurrency(finalPricePerUnit)}</span>
               </div>
               <div className="flex justify-between items-center pt-3 border-t border-gray-700 gap-2 font-normal">
                 <div className="flex flex-col text-left font-normal">
-                  <span className="text-[9px] text-gray-450 uppercase tracking-wider font-normal">Total Estimado</span>
+                  <span className="text-[9px] text-gray-455 uppercase tracking-wider font-normal">Total Estimado</span>
                   <span className="text-[9px] text-gray-455 font-normal">({totalQuantity} pz)</span>
                 </div>
                 <span className="text-lg font-normal text-white text-right">{formatCurrency(total)}</span>
@@ -935,13 +1209,22 @@ export function ProductDetailView({ product, relatedProducts }: { product: Produ
               
               <Link 
                 href="/cart"
-                className="w-full py-3 px-4 rounded-xl font-bold text-sm transition-colors flex items-center justify-center border border-gray-300 text-gray-700 hover:border-gray-400 hover:bg-gray-100 bg-white"
+                className="w-full py-3 px-4 rounded-xl font-bold text-sm transition-colors flex items-center justify-center border border-gray-300 text-gray-700 hover:border-gray-400 hover:bg-gray-100 bg-white cursor-pointer"
               >
                 Ver carrito
               </Link>
 
+              <button 
+                onClick={() => router.back()}
+                className="w-full py-3 px-4 rounded-xl font-bold text-sm transition-colors flex items-center justify-center border border-gray-300 text-gray-700 hover:border-gray-400 hover:bg-gray-100 bg-white cursor-pointer"
+              >
+                <RotateCcw className="w-4 h-4 mr-2" />
+                Regresar
+              </button>
+
               {/* Promotion Tag */}
-              {homeSettings?.promotions?.tagPublished !== false && (
+              {homeSettings?.promotions?.tagPublished !== false && 
+               session?.discounts?.some(d => d.active && d.discount_type === 'promotion' && d.category_id === 'ENVIO_SIN_COSTO') && (
                 <div 
                   className={`rounded-lg p-2.5 flex items-center gap-2 font-semibold mt-2 ${homeSettings?.promotions?.tagTextSize || "text-xs"}`}
                   style={{
@@ -1173,6 +1456,7 @@ export function ProductDetailView({ product, relatedProducts }: { product: Produ
 
       {/* Side Promotion Drawer */}
       {homeSettings?.promotions?.sidePublished !== false && 
+       (homeSettings?.promotions?.sidePromoTargetAudience !== "new_clients" || !hasMuestraEnvio) && 
        (homeSettings?.promotions?.sidePromoPage === "Detalle de Producto" || 
         homeSettings?.promotions?.sidePromoPage === "Ambos" ||
         homeSettings?.promotions?.sidePromoPage === undefined) && (
@@ -1282,33 +1566,35 @@ export function ProductDetailView({ product, relatedProducts }: { product: Produ
 
                 {/* Registration Form (Side-by-side) */}
                 <div className="flex gap-2 w-full pt-1">
-                  <input 
-                    type="email" 
-                    placeholder="INTRODUCE TU CORREO ELECTRÓNICO"
-                    className="flex-1 bg-white border border-gray-300 rounded p-2.5 text-[10px] sm:text-xs focus:ring-[#e1251b] focus:border-[#e1251b] text-center font-semibold placeholder-gray-400 italic"
-                  />
                   <button 
-                    onClick={() => {
-                      alert("¡Gracias por registrarte! Tu código de descuento ha sido enviado a tu correo.");
-                      setShowSidePromo(false);
-                    }}
-                    className="w-24 sm:w-28 font-extrabold py-2.5 px-2 rounded text-[10px] sm:text-xs tracking-wider transition-all hover:brightness-110 active:scale-95 uppercase cursor-pointer"
+                    onClick={handleClaimSideCoupon}
+                    disabled={!acceptsOffers}
+                    className={`w-full font-extrabold py-3 px-4 rounded text-xs tracking-wider transition-all uppercase ${
+                      !acceptsOffers 
+                        ? 'bg-gray-300 text-gray-500 cursor-not-allowed opacity-50' 
+                        : 'hover:brightness-110 active:scale-95 cursor-pointer'
+                    }`}
                     style={{
-                      backgroundColor: homeSettings?.promotions?.sideButtonBgColor || "#000000",
-                      color: homeSettings?.promotions?.sideButtonTextColor || "#ffffff"
+                      backgroundColor: acceptsOffers ? (homeSettings?.promotions?.sideButtonBgColor || "#000000") : undefined,
+                      color: acceptsOffers ? (homeSettings?.promotions?.sideButtonTextColor || "#ffffff") : undefined
                     }}
                   >
-                    REGÍSTRATE
+                    CONSÍGUELO ¡
                   </button>
                 </div>
 
                 {/* Disclaimers & Checkboxes */}
                 <div className="text-[9px] sm:text-[10px] space-y-2.5 leading-relaxed pt-1" style={{ color: homeSettings?.promotions?.sideTextColor ? `${homeSettings.promotions.sideTextColor}cc` : "#6b7280" }}>
                   <p>
-                    Al registrarse, acepta nuestra <span className="underline cursor-pointer hover:text-black">Política de privacidad y cookies</span> y nuestros <span className="underline cursor-pointer hover:text-black">Términos y condiciones</span>.
+                    Al continuar, acepta nuestro <Link href="/soporte/aviso-privacidad" className="underline hover:text-black">Aviso de Privacidad</Link> y nuestra <Link href="/soporte/politicas-envio" className="underline hover:text-black">Política de envíos</Link>.
                   </p>
                   <label className="flex items-start gap-2 cursor-pointer">
-                    <input type="checkbox" className="mt-0.5 rounded text-black focus:ring-black h-3 w-3 border-gray-300 shrink-0" />
+                    <input 
+                      type="checkbox" 
+                      checked={acceptsOffers}
+                      onChange={e => setAcceptsOffers(e.target.checked)}
+                      className="mt-0.5 rounded text-black focus:ring-black h-3 w-3 border-gray-300 shrink-0 cursor-pointer" 
+                    />
                     <span className="leading-normal">
                       Me gustaría recibir ofertas exclusivas y las últimas noticias de geekystore por correo electrónico. Entiendo que puedo comunicarme con geekystore para cancelar la suscripción en cualquier momento.
                     </span>
@@ -1322,7 +1608,7 @@ export function ProductDetailView({ product, relatedProducts }: { product: Produ
       )}
 
       {/* Floating Catalog Promotion Popup (New Users) */}
-      {showPromoPopup && (
+      {showPromoPopup && (homeSettings?.promotions?.catalogPromoTargetAudience !== "new_clients" || !hasEnvioSinCosto) && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-xs z-50 flex items-center justify-center p-4">
           {/* Modal Container */}
           <div className="relative w-full max-w-[390px] flex flex-col items-center">
@@ -1373,18 +1659,66 @@ export function ProductDetailView({ product, relatedProducts }: { product: Produ
                   
                   {/* Left content */}
                   <div className="w-[38%] flex flex-col justify-center items-center pr-2 pt-2 text-center">
-                    <span 
-                      className="text-xl sm:text-2xl font-black leading-none tracking-tight"
-                      style={{ color: homeSettings?.promotions?.catalogPromoCouponTextColor || "#ff4a5a" }}
-                    >
-                      {homeSettings?.promotions?.coupon1Discount?.split(' ')[0] || "30%"}
-                    </span>
-                    <span 
-                      className="text-[7.5px] font-bold mt-1 uppercase tracking-tight"
-                      style={{ color: homeSettings?.promotions?.catalogPromoCouponTextColor || "#ff4a5a" }}
-                    >
-                      {homeSettings?.promotions?.coupon1Discount?.split(' ').slice(1).join(' ') || "DE DESCUENTO"}
-                    </span>
+                    {(() => {
+                      const fullText = homeSettings?.promotions?.coupon1Discount || "30% DE DESCUENTO";
+                      const color = homeSettings?.promotions?.catalogPromoCouponTextColor || "#ff4a5a";
+                      const hasAnyLowercase = /[a-zñüáéíóú]/.test(fullText);
+
+                      if (!hasAnyLowercase) {
+                        const firstWord = fullText.split(' ')[0] || "";
+                        const remaining = fullText.split(' ').slice(1).join(' ') || "";
+                        return (
+                          <>
+                            <span 
+                              className="text-xl sm:text-2xl font-black leading-none tracking-tight block text-center"
+                              style={{ color }}
+                            >
+                              {firstWord}
+                            </span>
+                            {remaining && (
+                              <span 
+                                className="text-[7.5px] font-bold mt-1 uppercase tracking-tight block text-center"
+                                style={{ color }}
+                              >
+                                {remaining}
+                              </span>
+                            )}
+                          </>
+                        );
+                      }
+
+                      const words = fullText.split(/\s+/).filter(w => w.length > 0);
+                      return (
+                        <>
+                          {words.map((word, idx) => {
+                            const hasLetters = /[a-zA-ZáéíóúÁÉÍÓÚñÑüÜ]/.test(word);
+                            const isUpper = hasLetters && !/[a-zñüáéíóú]/.test(word);
+
+                            if (isUpper || !hasLetters) {
+                              return (
+                                <span 
+                                  key={idx}
+                                  className="text-xl sm:text-2xl font-black leading-none tracking-tight block text-center uppercase"
+                                  style={{ color }}
+                                >
+                                  {word}
+                                </span>
+                              );
+                            } else {
+                              return (
+                                <span 
+                                  key={idx}
+                                  className="text-xs sm:text-sm font-extrabold leading-snug block text-center mt-0.5"
+                                  style={{ color }}
+                                >
+                                  {word}
+                                </span>
+                              );
+                            }
+                          })}
+                        </>
+                      );
+                    })()}
                     <span className="text-[8px] text-gray-455 mt-1 font-medium">
                       {homeSettings?.promotions?.coupon1LeftNote || "Sin mín. de compra"}
                     </span>
@@ -1430,81 +1764,6 @@ export function ProductDetailView({ product, relatedProducts }: { product: Produ
                   />
                 </div>
 
-                {/* Coupon 2 */}
-                <div 
-                  className="relative flex rounded-2xl overflow-hidden p-4 min-h-[92px] shadow-sm border"
-                  style={{
-                    backgroundColor: homeSettings?.promotions?.catalogPromoCouponBgColor || "#fff7f6",
-                    borderColor: homeSettings?.promotions?.catalogPromoCouponBorderColor || "#ffd2cc"
-                  }}
-                >
-                  {/* Left tag */}
-                  <div 
-                    className="absolute top-0 left-0 text-white text-[8px] font-extrabold px-2 py-0.5 rounded-br-xl tracking-wider uppercase"
-                    style={{ backgroundColor: homeSettings?.promotions?.catalogPromoCouponTextColor || "#ff4a5a" }}
-                  >
-                    {homeSettings?.promotions?.catalogPromoBadge || "Nuevo usuario"}
-                  </div>
-                  
-                  {/* Left content */}
-                  <div className="w-[38%] flex flex-col justify-center items-center pr-2 pt-2 text-center">
-                    <span 
-                      className="text-xl sm:text-2xl font-black leading-none tracking-tight"
-                      style={{ color: homeSettings?.promotions?.catalogPromoCouponTextColor || "#ff4a5a" }}
-                    >
-                      {homeSettings?.promotions?.coupon2Discount?.split(' ')[0] || "65%"}
-                    </span>
-                    <span 
-                      className="text-[7.5px] font-bold mt-1 uppercase tracking-tight"
-                      style={{ color: homeSettings?.promotions?.catalogPromoCouponTextColor || "#ff4a5a" }}
-                    >
-                      {homeSettings?.promotions?.coupon2Discount?.split(' ').slice(1).join(' ') || "DE DESCUENTO"}
-                    </span>
-                    <span className="text-[8px] text-gray-455 mt-1 font-medium">
-                      {homeSettings?.promotions?.coupon2LeftNote || "Sin mín. de compra"}
-                    </span>
-                  </div>
-
-                  {/* Dashed border separator */}
-                  <div 
-                    className="border-r border-dashed my-1" 
-                    style={{ borderColor: homeSettings?.promotions?.catalogPromoCouponBorderColor || "#ffd2cc" }}
-                  />
-
-                  {/* Right content */}
-                  <div className="flex-1 pl-4 flex flex-col justify-center text-left">
-                    <span 
-                      className="text-xs sm:text-sm font-extrabold leading-snug"
-                      style={{ color: homeSettings?.promotions?.catalogPromoCouponTextColor || "#ff4a5a" }}
-                    >
-                      {homeSettings?.promotions?.coupon2RightTitle || "Cupón válido en todo el sitio"}
-                    </span>
-                    <span className="text-[9px] text-gray-550 mt-1">
-                      {homeSettings?.promotions?.coupon2RightLimit || "Límite de $MXN240"}
-                    </span>
-                    <div className="flex items-center justify-between mt-2 text-[8px] text-gray-400">
-                      <span>Por tiempo limitado</span>
-                      <ChevronDown className="w-3 h-3 text-gray-455 shrink-0" />
-                    </div>
-                  </div>
-
-                  {/* Scalloped circle cutouts */}
-                  <div 
-                    className="absolute top-0 left-[38%] -translate-y-1/2 -translate-x-1/2 w-4 h-4 rounded-full border-b"
-                    style={{ 
-                      backgroundColor: homeSettings?.promotions?.catalogPromoBgColorStart || "#fff6ee",
-                      borderColor: homeSettings?.promotions?.catalogPromoCouponBorderColor || "#ffd2cc"
-                    }}
-                  />
-                  <div 
-                    className="absolute bottom-0 left-[38%] translate-y-1/2 -translate-x-1/2 w-4 h-4 rounded-full border-t"
-                    style={{ 
-                      backgroundColor: homeSettings?.promotions?.catalogPromoBgColorEnd || "#ffffff",
-                      borderColor: homeSettings?.promotions?.catalogPromoCouponBorderColor || "#ffd2cc"
-                    }}
-                  />
-                </div>
-
               </div>
 
               {/* Action Claim Button */}
@@ -1516,7 +1775,7 @@ export function ProductDetailView({ product, relatedProducts }: { product: Produ
                   color: homeSettings?.promotions?.catalogPromoButtonTextColor || "#ffffff"
                 }}
               >
-                <span>{homeSettings?.promotions?.catalogPromoButtonText || "¡Consíguelos Todos!"}</span>
+                <span>{homeSettings?.promotions?.catalogPromoButtonText || "¡Consíguelo!"}</span>
               </button>
 
             </div>
