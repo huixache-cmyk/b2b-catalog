@@ -67,14 +67,38 @@ export async function POST(request: Request) {
         if (cleanPhone.length === 10) destinationPhone = `52${cleanPhone}`;
 
         // Enviar mensaje de texto directo con la clave autogenerada
+        // Enviar plantilla de autenticación con la clave autogenerada (y botón para copiar código)
         const waPayload = {
           messaging_product: "whatsapp",
-          recipient_type: "individual",
           to: destinationPhone,
-          type: "text",
-          text: {
-            preview_url: false,
-            body: `¡Hola ${contact_name || 'Cliente'}! Tu solicitud B2B en GeekyStore ha sido registrada. Tu clave de acceso autogenerada es: *${access_key}*. Puedes iniciar sesión con tu correo corporativo y cambiar esta clave en tu perfil cuando ingreses.`
+          type: "template",
+          template: {
+            name: "acceso_b2b",
+            language: {
+              code: "es_MX"
+            },
+            components: [
+              {
+                type: "body",
+                parameters: [
+                  {
+                    type: "text",
+                    text: access_key
+                  }
+                ]
+              },
+              {
+                type: "button",
+                sub_type: "copy_code",
+                index: 0,
+                parameters: [
+                  {
+                    type: "text",
+                    text: access_key
+                  }
+                ]
+              }
+            ]
           }
         };
 

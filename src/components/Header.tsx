@@ -250,12 +250,19 @@ export function Header() {
   const [b2bRegCity, setB2bRegCity] = useState("");
   const [b2bRegAddress, setB2bRegAddress] = useState("");
   const [regErrors, setRegErrors] = useState<Record<string, string>>({});
-
   // B2B Client Password/Access Key Reset States
   const [isB2bResetting, setIsB2bResetting] = useState(false);
   const [b2bResetEmail, setB2bResetEmail] = useState("");
   const [b2bResetSuccess, setB2bResetSuccess] = useState(false);
   const [isB2bResetLoading, setIsB2bResetLoading] = useState(false);
+
+  // States for Key Resend and Background Feedback
+  const [registeredKey, setRegisteredKey] = useState("");
+  const [registeredPhone, setRegisteredPhone] = useState("");
+  const [registeredEmail, setRegisteredEmail] = useState("");
+  const [registeredContactName, setRegisteredContactName] = useState("");
+  const [isResending, setIsResending] = useState(false);
+  const [resendStatus, setResendStatus] = useState("");
 
   const handlePortalClick = () => {
     if (session) {
@@ -338,6 +345,13 @@ export function Header() {
       const contactName = contacts[0].name;
       const phone = contacts[0].phone;
 
+      // Save info for background resend (without displaying the key)
+      setRegisteredKey(accessKey);
+      setRegisteredPhone(phone || "");
+      setRegisteredEmail(emailTrimmed);
+      setRegisteredContactName(contactName || "");
+      setResendStatus("");
+
       await fetch("/api/send-access-key", {
         method: "POST",
         headers: {
@@ -357,6 +371,43 @@ export function Header() {
       setB2bLoginError(err.message || "Error al procesar la solicitud de recuperación.");
     } finally {
       setIsB2bResetLoading(false);
+    }
+  };
+
+  const handleBackgroundResend = async () => {
+    if (!registeredEmail || !registeredKey) {
+      setResendStatus("Error: No hay datos para el reenvío.");
+      return;
+    }
+
+    setIsResending(true);
+    setResendStatus("");
+
+    try {
+      const res = await fetch("/api/send-access-key", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          email: registeredEmail,
+          phone: registeredPhone,
+          contact_name: registeredContactName,
+          access_key: registeredKey
+        })
+      });
+
+      if (res.ok) {
+        setResendStatus("¡Clave reenviada con éxito por Correo y WhatsApp!");
+      } else {
+        const data = await res.json();
+        setResendStatus(`Error: ${data.error || "No se pudo completar el reenvío."}`);
+      }
+    } catch (err: any) {
+      console.error("Error reenviando clave:", err);
+      setResendStatus("Error de conexión al reenviar la clave.");
+    } finally {
+      setIsResending(false);
     }
   };
 
@@ -656,8 +707,15 @@ export function Header() {
         console.error("Failed to send access key notification:", waErr);
       }
 
+      // Save info for background resend (without displaying the key)
+      setRegisteredKey(generatedAccessKey);
+      setRegisteredPhone(b2bRegPhone.trim());
+      setRegisteredEmail(b2bRegEmail.trim().toLowerCase());
+      setRegisteredContactName(b2bRegContactName.trim());
+      setResendStatus("");
+
       setB2bRegSuccess(true);
-      // Reset forms
+
       setB2bRegBusinessName("");
       setB2bRegContactName("");
       setB2bRegEmail("");
@@ -1224,9 +1282,37 @@ export function Header() {
                       <KeyRound className="w-8 h-8 text-green-600 animate-bounce" />
                     </div>
                     <h4 className="text-lg font-bold text-gray-900">¡Clave Enviada!</h4>
-                    <p className="text-sm text-gray-500 leading-relaxed px-2">
-                      Hemos enviado tu clave de acceso a tu correo registrado y por WhatsApp. Revisa tu celular o bandeja de entrada a la brevedad.
+                    <p className="text-xs text-gray-500 leading-relaxed px-2">
+                      Hemos procesado tu solicitud. Tu clave de acceso ha sido enviada por **WhatsApp** y **correo electrónico** para que puedas copiarla e ingresar a tu cuenta.
                     </p>
+
+                    <div className="pt-2 pb-1">
+                      <button
+                        type="button"
+                        onClick={handleBackgroundResend}
+                        disabled={isResending}
+                        className="w-full flex items-center justify-center gap-2 bg-primary-600 hover:bg-primary-700 disabled:bg-primary-400 text-white rounded-lg py-2 px-4 font-bold transition-all text-[11px] cursor-pointer shadow-sm hover:shadow-md"
+                      >
+                        {isResending ? (
+                          <span className="flex items-center gap-1 justify-center">
+                            <svg className="animate-spin -ml-1 mr-1.5 h-3.5 w-3.5 text-white" fill="none" viewBox="0 0 24 24">
+                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                            </svg>
+                            Reenviando...
+                          </span>
+                        ) : (
+                          "Reenviar Clave (WhatsApp y Correo)"
+                        )}
+                      </button>
+
+                      {resendStatus && (
+                        <p className={`text-[10px] mt-2 font-semibold ${resendStatus.startsWith("Error") ? "text-red-500 bg-red-50 border border-red-100" : "text-green-600 bg-green-50 border border-green-100"} p-2 rounded-lg text-center transition-all duration-200`}>
+                          {resendStatus}
+                        </p>
+                      )}
+                    </div>
+
                     <button
                       type="button"
                       onClick={() => {
@@ -1234,8 +1320,9 @@ export function Header() {
                         setB2bResetSuccess(false);
                         setB2bResetEmail("");
                         setB2bLoginError("");
+                        setResendStatus("");
                       }}
-                      className="w-full bg-primary-600 hover:bg-primary-700 text-white rounded-lg py-2.5 font-bold transition-colors text-sm cursor-pointer"
+                      className="w-full mt-2 bg-gray-150 hover:bg-gray-200 text-gray-700 rounded-lg py-2.5 font-bold transition-colors text-xs cursor-pointer"
                     >
                       Volver al inicio de sesión
                     </button>
@@ -1291,19 +1378,48 @@ export function Header() {
                     <div className="w-16 h-16 bg-green-50 rounded-full flex items-center justify-center mx-auto border border-green-100 shadow-inner">
                       <Building2 className="w-8 h-8 text-green-600 animate-bounce" />
                     </div>
-                    <h4 className="text-lg font-bold text-gray-900">¡Solicitud Enviada!</h4>
-                    <p className="text-sm text-gray-500 leading-relaxed px-2">
-                      Hemos registrado tu información comercial. Un administrador evaluará tu solicitud para asignarte la clave de acceso personalizada. Te notificaremos a la brevedad.
+                    <h4 className="text-lg font-bold text-gray-900">¡Registro Exitoso!</h4>
+                    <p className="text-xs text-gray-500 leading-relaxed px-2">
+                      Hemos registrado tu información comercial. Tu clave de acceso personalizada ha sido enviada por **WhatsApp** y **correo electrónico** para que puedas copiarla e ingresar a tu cuenta.
                     </p>
+
+                    <div className="pt-2 pb-1">
+                      <button
+                        type="button"
+                        onClick={handleBackgroundResend}
+                        disabled={isResending}
+                        className="w-full flex items-center justify-center gap-2 bg-primary-600 hover:bg-primary-700 disabled:bg-primary-400 text-white rounded-lg py-2 px-4 font-bold transition-all text-[11px] cursor-pointer shadow-sm hover:shadow-md"
+                      >
+                        {isResending ? (
+                          <span className="flex items-center gap-1 justify-center">
+                            <svg className="animate-spin -ml-1 mr-1.5 h-3.5 w-3.5 text-white" fill="none" viewBox="0 0 24 24">
+                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                            </svg>
+                            Reenviando...
+                          </span>
+                        ) : (
+                          "Reenviar Clave (WhatsApp y Correo)"
+                        )}
+                      </button>
+
+                      {resendStatus && (
+                        <p className={`text-[10px] mt-2 font-semibold ${resendStatus.startsWith("Error") ? "text-red-500 bg-red-50 border border-red-100" : "text-green-600 bg-green-50 border border-green-100"} p-2 rounded-lg text-center transition-all duration-200`}>
+                          {resendStatus}
+                        </p>
+                      )}
+                    </div>
+
                     <button
                       type="button"
                       onClick={() => {
                         setShowB2BLogin(false);
                         setIsB2bRegistering(false);
                         setB2bRegSuccess(false);
+                        setResendStatus("");
                         router.push("/catalog");
                       }}
-                      className="w-full mt-4 bg-green-600 hover:bg-green-700 text-white rounded-lg py-2.5 font-bold transition-colors cursor-pointer text-sm"
+                      className="w-full mt-2 bg-gray-150 hover:bg-gray-200 text-gray-700 rounded-lg py-2 font-bold transition-colors cursor-pointer text-xs"
                     >
                       Aceptar y Cerrar
                     </button>
@@ -1443,13 +1559,13 @@ export function Header() {
 
                       {/* Dirección */}
                       <div className="md:col-span-2">
-                        <label className="block text-xs font-bold text-gray-700 mb-1">Dirección / Calle y número *</label>
+                        <label className="block text-xs font-bold text-gray-700 mb-1">Colonia / Calle y número *</label>
                         <input
                           type="text"
                           value={b2bRegAddress}
                           onChange={(e) => handleRegInputChange("address", e.target.value)}
                           onBlur={(e) => handleRegInputBlur("address", e.target.value)}
-                          placeholder="Av. Juárez 123, Col. Centro"
+                          placeholder="Colonia, Calle y número, No. int/ext"
                           className={`w-full border ${regErrors.address ? 'border-red-500 focus:ring-red-500 focus:border-red-500' : 'border-gray-300 focus:ring-primary-500'} rounded-lg p-2 text-sm outline-none transition-all`}
                           required
                         />
@@ -1489,9 +1605,9 @@ export function Header() {
                         <Link href="/soporte/aviso-privacidad" target="_blank" className="text-primary-600 font-bold hover:underline">
                           Política de privacidad y cookies
                         </Link>{" "}
-                        y nuestros{" "}
-                        <Link href="#" className="text-primary-600 font-bold hover:underline">
-                          Términos y condiciones
+                        y nuestras{" "}
+                        <Link href="/soporte/politicas-envio" target="_blank" className="text-primary-600 font-bold hover:underline">
+                          Políticas de Envío
                         </Link>
                         .
                       </div>
