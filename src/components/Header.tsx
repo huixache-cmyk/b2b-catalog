@@ -248,7 +248,11 @@ export function Header() {
   const [b2bRegZip, setB2bRegZip] = useState("");
   const [b2bRegState, setB2bRegState] = useState("");
   const [b2bRegCity, setB2bRegCity] = useState("");
-  const [b2bRegAddress, setB2bRegAddress] = useState("");
+  const [b2bRegStreet, setB2bRegStreet] = useState("");
+  const [b2bRegExtNum, setB2bRegExtNum] = useState("");
+  const [b2bRegIntNum, setB2bRegIntNum] = useState("");
+  const [b2bRegNeighborhood, setB2bRegNeighborhood] = useState("");
+  const [b2bRegReference, setB2bRegReference] = useState("");
   const [regErrors, setRegErrors] = useState<Record<string, string>>({});
   // B2B Client Password/Access Key Reset States
   const [isB2bResetting, setIsB2bResetting] = useState(false);
@@ -475,9 +479,21 @@ export function Header() {
       }
     }
     
-    if (field === "address") {
+    if (field === "street") {
       if (!value.trim()) {
-        errorMsg = "Ingrese su dirección.";
+        errorMsg = "Ingrese la calle.";
+      }
+    }
+    
+    if (field === "exterior_number") {
+      if (!value.trim()) {
+        errorMsg = "Ingrese el número exterior.";
+      }
+    }
+    
+    if (field === "neighborhood") {
+      if (!value.trim()) {
+        errorMsg = "Ingrese la colonia.";
       }
     }
     
@@ -528,8 +544,16 @@ export function Header() {
       setB2bRegCity(cities[0] || "");
     } else if (field === "city") {
       setB2bRegCity(cleanedValue);
-    } else if (field === "address") {
-      setB2bRegAddress(cleanedValue);
+    } else if (field === "street") {
+      setB2bRegStreet(cleanedValue);
+    } else if (field === "exterior_number") {
+      setB2bRegExtNum(cleanedValue);
+    } else if (field === "interior_number") {
+      setB2bRegIntNum(cleanedValue);
+    } else if (field === "neighborhood") {
+      setB2bRegNeighborhood(cleanedValue);
+    } else if (field === "reference") {
+      setB2bRegReference(cleanedValue);
     }
     
     if (field === "zip" && cleanedValue.length === 5) {
@@ -586,7 +610,9 @@ export function Header() {
     isValid = validateRegField("zip", b2bRegZip) && isValid;
     isValid = validateRegField("state", b2bRegState) && isValid;
     isValid = validateRegField("city", b2bRegCity) && isValid;
-    isValid = validateRegField("address", b2bRegAddress) && isValid;
+    isValid = validateRegField("street", b2bRegStreet) && isValid;
+    isValid = validateRegField("exterior_number", b2bRegExtNum) && isValid;
+    isValid = validateRegField("neighborhood", b2bRegNeighborhood) && isValid;
 
     if (!isValid || Object.keys(regErrors).length > 0) {
       setB2bLoginError("Por favor corrige los errores en el formulario.");
@@ -640,13 +666,15 @@ export function Header() {
           {
             customer_id: customer.id,
             address_type: 'both',
-            street: b2bRegAddress.trim(),
-            exterior_number: 'N/A',
-            neighborhood: 'N/A',
+            street: b2bRegStreet.trim(),
+            exterior_number: b2bRegExtNum.trim(),
+            interior_number: b2bRegIntNum.trim() || null,
+            neighborhood: b2bRegNeighborhood.trim(),
             city: b2bRegCity,
             state: b2bRegState,
             postal_code: b2bRegZip,
             country: 'México',
+            reference: b2bRegReference.trim() || null,
             is_default: true
           }
         ]);
@@ -684,7 +712,7 @@ export function Header() {
             customer_id: customer.id,
             activity_type: 'note',
             title: 'Solicitud de Registro B2B',
-            description: `El cliente solicitó registrarse como B2B. Correo: ${b2bRegEmail.trim()}, Teléfono: ${b2bRegPhone.trim()}. RFC: ${b2bRegRfc.trim() || 'N/A'}. Dirección: ${b2bRegAddress.trim()}, CP: ${b2bRegZip.trim()}, ${b2bRegCity}, ${b2bRegState}. Notas: ${b2bRegNotes.trim() || 'Ninguna'}`,
+            description: `El cliente solicitó registrarse como B2B. Correo: ${b2bRegEmail.trim()}, Teléfono: ${b2bRegPhone.trim()}. RFC: ${b2bRegRfc.trim() || 'N/A'}. Dirección: Calle ${b2bRegStreet.trim()} No. Ext ${b2bRegExtNum.trim()}${b2bRegIntNum.trim() ? ', Int ' + b2bRegIntNum.trim() : ''}, Col. ${b2bRegNeighborhood.trim()}, CP: ${b2bRegZip.trim()}, ${b2bRegCity}, ${b2bRegState}. Referencias: ${b2bRegReference.trim() || 'Ninguna'}. Notas: ${b2bRegNotes.trim() || 'Ninguna'}`,
             created_by: 'Sistema'
           }
         ]);
@@ -725,7 +753,11 @@ export function Header() {
       setB2bRegZip("");
       setB2bRegState("");
       setB2bRegCity("");
-      setB2bRegAddress("");
+      setB2bRegStreet("");
+      setB2bRegExtNum("");
+      setB2bRegIntNum("");
+      setB2bRegNeighborhood("");
+      setB2bRegReference("");
       setRegErrors({});
     } catch (err: any) {
       console.error("B2B Register Error:", err);
@@ -1557,19 +1589,73 @@ export function Header() {
                         {regErrors.city && <p className="text-red-500 text-[10px] mt-0.5">{regErrors.city}</p>}
                       </div>
 
-                      {/* Dirección */}
+                      {/* Calle */}
                       <div className="md:col-span-2">
-                        <label className="block text-xs font-bold text-gray-700 mb-1">Colonia / Calle y número *</label>
+                        <label className="block text-xs font-bold text-gray-700 mb-1">Calle *</label>
                         <input
                           type="text"
-                          value={b2bRegAddress}
-                          onChange={(e) => handleRegInputChange("address", e.target.value)}
-                          onBlur={(e) => handleRegInputBlur("address", e.target.value)}
-                          placeholder="Colonia, Calle y número, No. int/ext"
-                          className={`w-full border ${regErrors.address ? 'border-red-500 focus:ring-red-500 focus:border-red-500' : 'border-gray-300 focus:ring-primary-500'} rounded-lg p-2 text-sm outline-none transition-all`}
+                          value={b2bRegStreet}
+                          onChange={(e) => handleRegInputChange("street", e.target.value)}
+                          onBlur={(e) => handleRegInputBlur("street", e.target.value)}
+                          placeholder="Nombre de la calle"
+                          className={`w-full border ${regErrors.street ? 'border-red-500 focus:ring-red-500 focus:border-red-500' : 'border-gray-300 focus:ring-primary-500'} rounded-lg p-2 text-sm outline-none transition-all bg-white text-gray-900`}
                           required
                         />
-                        {regErrors.address && <p className="text-red-500 text-[10px] mt-0.5">{regErrors.address}</p>}
+                        {regErrors.street && <p className="text-red-500 text-[10px] mt-0.5">{regErrors.street}</p>}
+                      </div>
+
+                      {/* Número Exterior */}
+                      <div>
+                        <label className="block text-xs font-bold text-gray-700 mb-1">Núm Exterior *</label>
+                        <input
+                          type="text"
+                          value={b2bRegExtNum}
+                          onChange={(e) => handleRegInputChange("exterior_number", e.target.value)}
+                          onBlur={(e) => handleRegInputBlur("exterior_number", e.target.value)}
+                          placeholder="Ej. 123"
+                          className={`w-full border ${regErrors.exterior_number ? 'border-red-500 focus:ring-red-500 focus:border-red-500' : 'border-gray-300 focus:ring-primary-500'} rounded-lg p-2 text-sm outline-none transition-all bg-white text-gray-900`}
+                          required
+                        />
+                        {regErrors.exterior_number && <p className="text-red-500 text-[10px] mt-0.5">{regErrors.exterior_number}</p>}
+                      </div>
+
+                      {/* Número Interior */}
+                      <div>
+                        <label className="block text-xs font-bold text-gray-700 mb-1">Núm Interior (Opcional)</label>
+                        <input
+                          type="text"
+                          value={b2bRegIntNum}
+                          onChange={(e) => handleRegInputChange("interior_number", e.target.value)}
+                          placeholder="Ej. Depto 2B"
+                          className="w-full border border-gray-300 focus:ring-primary-500 rounded-lg p-2 text-sm outline-none transition-all bg-white text-gray-900"
+                        />
+                      </div>
+
+                      {/* Colonia */}
+                      <div className="md:col-span-2">
+                        <label className="block text-xs font-bold text-gray-700 mb-1">Colonia *</label>
+                        <input
+                          type="text"
+                          value={b2bRegNeighborhood}
+                          onChange={(e) => handleRegInputChange("neighborhood", e.target.value)}
+                          onBlur={(e) => handleRegInputBlur("neighborhood", e.target.value)}
+                          placeholder="Nombre de la colonia"
+                          className={`w-full border ${regErrors.neighborhood ? 'border-red-500 focus:ring-red-500 focus:border-red-500' : 'border-gray-300 focus:ring-primary-500'} rounded-lg p-2 text-sm outline-none transition-all bg-white text-gray-900`}
+                          required
+                        />
+                        {regErrors.neighborhood && <p className="text-red-500 text-[10px] mt-0.5">{regErrors.neighborhood}</p>}
+                      </div>
+
+                      {/* Referencias */}
+                      <div className="md:col-span-2">
+                        <label className="block text-xs font-bold text-gray-700 mb-1">Referencias (Opcional)</label>
+                        <input
+                          type="text"
+                          value={b2bRegReference}
+                          onChange={(e) => handleRegInputChange("reference", e.target.value)}
+                          placeholder="Entre calles, color de fachada, etc."
+                          className="w-full border border-gray-300 focus:ring-primary-500 rounded-lg p-2 text-sm outline-none transition-all bg-white text-gray-900"
+                        />
                       </div>
 
                       {/* ¿Qué tipo de proyecto estás buscando? */}
