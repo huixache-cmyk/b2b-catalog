@@ -903,7 +903,8 @@ Quedo en espera de confirmación de existencias.`;
         discountApplied: activeB2BSession ? {
           priceLevel: activeB2BSession.customer.price_level,
           assignedDiscountPercent: activeB2BSession.customer.assigned_discount_percent
-        } : null
+        } : null,
+        appliedCoupons: summaryBreakdown.activePromoCoupons.map((c: any) => c.category_id)
       },
       items: [...recalculatedItems],
       total: recalculatedTotal,

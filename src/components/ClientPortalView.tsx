@@ -807,13 +807,28 @@ export function ClientPortalView({ onBack }: { onBack?: () => void }) {
       });
 
       const finalY = (doc as any).lastAutoTable.finalY || 70;
+      let offset = 15;
+      const coupons = (quote.client as any).appliedCoupons;
+      if (Array.isArray(coupons) && coupons.length > 0) {
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(9);
+        doc.setTextColor(16, 124, 65); // green-ish color
+        const couponNames = coupons.map((code: string) => {
+          if (code === 'ENVIO_SIN_COSTO') return "Envío sin Costo";
+          if (code === 'MUESTRA_Y_ENVIO_GRATIS') return "Muestra Física y Envío Gratis";
+          return code;
+        }).join(", ");
+        doc.text(`Cupones Aplicados: ${couponNames}`, 14, finalY + 10);
+        offset = 20;
+      }
+      doc.setTextColor(50, 50, 50);
       doc.setFont("helvetica", "bold");
       doc.setFontSize(11);
-      doc.text(`Total Cotizado: ${formatCurrency(quote.total)} MXN`, 14, finalY + 15);
+      doc.text(`Total Cotizado: ${formatCurrency(quote.total)} MXN`, 14, finalY + offset);
 
       doc.setFont("helvetica", "italic");
       doc.setFontSize(8);
-      doc.text("* Esta es una copia digital de su solicitud de cotización.", 14, finalY + 25);
+      doc.text("* Esta es una copia digital de su solicitud de cotización.", 14, finalY + offset + 10);
 
       const pdfBlob = doc.output("blob");
       const url = URL.createObjectURL(pdfBlob);
@@ -1328,9 +1343,21 @@ export function ClientPortalView({ onBack }: { onBack?: () => void }) {
             </div>
 
             <div className="p-5 border-t border-gray-150 bg-gray-50 rounded-b-2xl flex justify-between items-center">
-              <div className="text-left">
-                <span className="text-xs text-gray-500">Total Cotizado</span>
-                <p className="text-xl font-black text-primary-900">{formatCurrency(viewingQuote.total)}</p>
+              <div className="text-left flex items-center gap-4">
+                <div>
+                  <span className="text-xs text-gray-500">Total Cotizado</span>
+                  <p className="text-xl font-black text-primary-900">{formatCurrency(viewingQuote.total)}</p>
+                </div>
+                {Array.isArray((viewingQuote.client as any).appliedCoupons) && (viewingQuote.client as any).appliedCoupons.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5 self-center">
+                    {(viewingQuote.client as any).appliedCoupons.map((code: string) => (
+                      <span key={code} className="bg-green-100 text-green-800 border border-green-200 text-[10px] font-bold px-2.5 py-1 rounded-full uppercase tracking-wider">
+                        {code === 'ENVIO_SIN_COSTO' ? 'Envío sin Costo' :
+                         code === 'MUESTRA_Y_ENVIO_GRATIS' ? 'Muestra + Envío Gratis' : code}
+                      </span>
+                    ))}
+                  </div>
+                )}
               </div>
               <button 
                 onClick={() => {

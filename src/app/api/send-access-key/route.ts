@@ -39,7 +39,7 @@ export async function POST(request: Request) {
             </p>
 
             <div style="border-top: 1px solid #eee; padding-top: 15px; margin-top: 25px; font-size: 12px; color: #888; text-align: center;">
-              Si tienes alguna duda o requieres asistencia, contáctanos por WhatsApp al 55 1234 5678.
+              Si tienes alguna duda o requieres asistencia, contáctanos por WhatsApp al 4492601779.
             </div>
           </div>
         `,
@@ -89,7 +89,7 @@ export async function POST(request: Request) {
               },
               {
                 type: "button",
-                sub_type: "copy_code",
+                sub_type: "url",
                 index: 0,
                 parameters: [
                   {

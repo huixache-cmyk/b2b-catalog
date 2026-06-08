@@ -1383,16 +1383,30 @@ export function Header() {
                       Hemos registrado tu información comercial. Tu clave de acceso personalizada ha sido enviada por **WhatsApp** y **correo electrónico** para que puedas copiarla e ingresar a tu cuenta.
                     </p>
 
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowB2BLogin(false);
+                        setIsB2bRegistering(false);
+                        setB2bRegSuccess(false);
+                        setResendStatus("");
+                        router.push("/catalog");
+                      }}
+                      className="w-full bg-primary-600 hover:bg-primary-700 text-white rounded-lg py-2.5 font-bold transition-all text-xs cursor-pointer shadow-sm hover:shadow-md uppercase tracking-wider"
+                    >
+                      Aceptar y Cerrar
+                    </button>
+
                     <div className="pt-2 pb-1">
                       <button
                         type="button"
                         onClick={handleBackgroundResend}
                         disabled={isResending}
-                        className="w-full flex items-center justify-center gap-2 bg-primary-600 hover:bg-primary-700 disabled:bg-primary-400 text-white rounded-lg py-2 px-4 font-bold transition-all text-[11px] cursor-pointer shadow-sm hover:shadow-md"
+                        className="w-full text-center text-xs font-bold text-gray-500 hover:text-gray-700 transition-colors py-1 cursor-pointer hover:underline"
                       >
                         {isResending ? (
-                          <span className="flex items-center gap-1 justify-center">
-                            <svg className="animate-spin -ml-1 mr-1.5 h-3.5 w-3.5 text-white" fill="none" viewBox="0 0 24 24">
+                          <span className="flex items-center gap-1 justify-center text-gray-400">
+                            <svg className="animate-spin -ml-1 mr-1.5 h-3 w-3 text-gray-450" fill="none" viewBox="0 0 24 24">
                               <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                               <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
                             </svg>
@@ -1409,20 +1423,6 @@ export function Header() {
                         </p>
                       )}
                     </div>
-
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setShowB2BLogin(false);
-                        setIsB2bRegistering(false);
-                        setB2bRegSuccess(false);
-                        setResendStatus("");
-                        router.push("/catalog");
-                      }}
-                      className="w-full mt-2 bg-gray-150 hover:bg-gray-200 text-gray-700 rounded-lg py-2 font-bold transition-colors cursor-pointer text-xs"
-                    >
-                      Aceptar y Cerrar
-                    </button>
                   </div>
                 ) : (
                   <form onSubmit={handleB2bRegisterSubmit} className="space-y-4 animate-in fade-in duration-300">

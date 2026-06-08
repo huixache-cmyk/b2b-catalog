@@ -77,6 +77,28 @@ export type HomeSettings = {
     tagTextColor?: string;
     tagTextSize?: string;
     tagIcon?: string;
+    // Client Promo Customizer
+    clientPromoPublished?: boolean;
+    clientPromoDelay?: number;
+    coupon3Discount?: string;
+    coupon3LeftNote?: string;
+    coupon3RightTitle?: string;
+    coupon3RightLimit?: string;
+    clientPromoButtonText?: string;
+    clientPromoFooterNote?: string;
+    clientPromoBgColorStart?: string;
+    clientPromoBgColorEnd?: string;
+    clientPromoTextColor?: string;
+    clientPromoCouponBgColor?: string;
+    clientPromoCouponBorderColor?: string;
+    clientPromoCouponTextColor?: string;
+    clientPromoButtonBgColor?: string;
+    clientPromoButtonTextColor?: string;
+    clientPromoIcon?: string;
+    clientPromoAlwaysShow?: boolean;
+    clientPromoPage?: string;
+    clientPromoTitle?: string;
+    clientPromoBadge?: string;
   };
 };
 
@@ -162,7 +184,29 @@ const DEFAULT_HOME_SETTINGS: HomeSettings = {
     tagBorderColor: "#cbf2e3",
     tagTextColor: "#0a6644",
     tagTextSize: "text-xs",
-    tagIcon: "Truck"
+    tagIcon: "Truck",
+    // Client Promo Defaults
+    clientPromoPublished: true,
+    clientPromoDelay: 5,
+    coupon3Discount: "ENVÍO SIN COSTO",
+    coupon3LeftNote: "Cliente B2B",
+    coupon3RightTitle: "Cupón de envío gratis",
+    coupon3RightLimit: "Sin mínimo de compra",
+    clientPromoButtonText: "Aplicar Cupón",
+    clientPromoFooterNote: "Ingresa tu correo registrado para activar",
+    clientPromoBgColorStart: "#f0fdf4",
+    clientPromoBgColorEnd: "#ffffff",
+    clientPromoTextColor: "#15803d",
+    clientPromoCouponBgColor: "#f0fdf4",
+    clientPromoCouponBorderColor: "#bbf7d0",
+    clientPromoCouponTextColor: "#166534",
+    clientPromoButtonBgColor: "#166534",
+    clientPromoButtonTextColor: "#ffffff",
+    clientPromoIcon: "GiftBow",
+    clientPromoAlwaysShow: false,
+    clientPromoPage: "Catálogo",
+    clientPromoTitle: "Cupón Especial para Clientes",
+    clientPromoBadge: "Clientes"
   }
 };
 

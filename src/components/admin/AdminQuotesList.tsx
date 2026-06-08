@@ -392,6 +392,24 @@ export function AdminQuotesList({
       doc.setFontSize(10);
       doc.setTextColor(50, 50, 50);
       
+      const coupons = (quote.client as any).appliedCoupons;
+      if (Array.isArray(coupons) && coupons.length > 0) {
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(9);
+        doc.setTextColor(16, 124, 65); // green-ish color
+        const couponNames = coupons.map((code: string) => {
+          if (code === 'ENVIO_SIN_COSTO') return "Envío sin Costo";
+          if (code === 'MUESTRA_Y_ENVIO_GRATIS') return "Muestra Física y Envío Gratis";
+          return code;
+        }).join(", ");
+        doc.text(`Cupones Aplicados: ${couponNames}`, 14, finalY + 12);
+        
+        // Reset styles for the following totals
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(10);
+        doc.setTextColor(50, 50, 50);
+      }
+
       let textY = finalY + 12;
       doc.text("Subtotal:", 140, textY);
       doc.text(formatCurrencyMXN(subtotal), rightAlignX, textY, { align: "right" });
@@ -694,6 +712,19 @@ export function AdminQuotesList({
                       )}
                       {viewingQuote.client.comments && (
                         <div><span className="text-gray-500 block text-xs uppercase font-semibold">Comentarios</span> <span className="text-gray-700 italic">{viewingQuote.client.comments}</span></div>
+                      )}
+                      {Array.isArray((viewingQuote.client as any).appliedCoupons) && (viewingQuote.client as any).appliedCoupons.length > 0 && (
+                        <div>
+                          <span className="text-gray-500 block text-xs uppercase font-semibold">Cupones Aplicados</span>
+                          <div className="flex flex-wrap gap-1 mt-1">
+                            {(viewingQuote.client as any).appliedCoupons.map((code: string) => (
+                              <span key={code} className="bg-green-100 text-green-800 border border-green-200 text-[9px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider">
+                                {code === 'ENVIO_SIN_COSTO' ? 'Envío sin Costo' :
+                                 code === 'MUESTRA_Y_ENVIO_GRATIS' ? 'Muestra + Envío Gratis' : code}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
                       )}
                     </div>
                   </div>

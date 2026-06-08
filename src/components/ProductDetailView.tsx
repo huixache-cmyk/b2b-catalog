@@ -361,24 +361,44 @@ export function ProductDetailView({ product, relatedProducts }: { product: Produ
   // Floating Catalog Promo Modal state
   const [showPromoPopup, setShowPromoPopup] = useState(false);
 
-  // Trigger catalog promotion popup for new users on product detail page
+  // Promocional Clientes State
+  const [showClientPromoPopup, setShowClientPromoPopup] = useState(false);
+  const [clientPromoEmail, setClientPromoEmail] = useState("");
+  const [clientPromoError, setClientPromoError] = useState("");
+  const [isSubmittingClientPromo, setIsSubmittingClientPromo] = useState(false);
+  const [clientPromoSuccess, setClientPromoSuccess] = useState(false);
+
+  // Signatures for dynamic localStorage keys to reset "first visit" status upon promotion changes
+  const catalogPromoSignature = useMemo(() => {
+    const p = homeSettings?.promotions;
+    return `${p?.catalogPromoTitle || ""}_${p?.coupon1Discount || ""}_${p?.coupon1LeftNote || ""}_${p?.coupon1RightTitle || ""}_${p?.coupon1RightLimit || ""}_${p?.catalogPromoBadge || ""}_${p?.catalogPromoButtonText || ""}_${p?.catalogPromoFooterNote || ""}`.replace(/[^a-zA-Z0-9]/g, "_");
+  }, [homeSettings?.promotions]);
+
+  const catalogPromoKey = useMemo(() => {
+    return `geekystore_first_visit_done_${catalogPromoSignature}`;
+  }, [catalogPromoSignature]);
+
+  const clientPromoSignature = useMemo(() => {
+    const p = homeSettings?.promotions;
+    return `${p?.clientPromoTitle || ""}_${p?.coupon3Discount || ""}_${p?.coupon3LeftNote || ""}_${p?.coupon3RightTitle || ""}_${p?.coupon3RightLimit || ""}_${p?.clientPromoBadge || ""}_${p?.clientPromoButtonText || ""}_${p?.clientPromoFooterNote || ""}`.replace(/[^a-zA-Z0-9]/g, "_");
+  }, [homeSettings?.promotions]);
+
+  const clientPromoKey = useMemo(() => {
+    return `geekystore_client_visit_done_${clientPromoSignature}`;
+  }, [clientPromoSignature]);
+
+  // Trigger catalog promotion popup for guest users (Nuevos Clientes) on first visit
   useEffect(() => {
-    if (typeof window !== "undefined") {
-      const targetAudience = homeSettings?.promotions?.catalogPromoTargetAudience ?? "new_clients";
-      const checkClaimed = targetAudience === "new_clients";
-
-      if (checkClaimed && hasEnvioSinCosto) return;
-
-      const promoKey = `b2b_catalog_promo_dismissed_${homeSettings?.promotions?.catalogPromoTitle || ""}_${homeSettings?.promotions?.coupon1Discount || ""}`;
-      const dismissed = localStorage.getItem(promoKey) === "true";
+    if (typeof window !== "undefined" && isLoaded && !session && !hasEnvioSinCosto) {
       const isPublished = homeSettings?.promotions?.catalogPromoPublished ?? true;
       const alwaysShow = homeSettings?.promotions?.catalogPromoAlwaysShow ?? false;
       const displayPage = homeSettings?.promotions?.catalogPromoPage ?? "Detalle de Producto";
 
       const shouldShowPage = displayPage === "Detalle de Producto" || displayPage === "Ambos";
+      const dismissed = localStorage.getItem(catalogPromoKey) === "true";
       const shouldShowDismissed = !dismissed || alwaysShow;
 
-      if (shouldShowDismissed && isPublished && shouldShowPage && isLoaded) {
+      if (isPublished && shouldShowPage && shouldShowDismissed) {
         const delaySeconds = homeSettings?.promotions?.catalogPromoDelay ?? 3;
         const timer = setTimeout(() => {
           setShowPromoPopup(true);
@@ -386,16 +406,47 @@ export function ProductDetailView({ product, relatedProducts }: { product: Produ
         return () => clearTimeout(timer);
       }
     }
-  }, [homeSettings, isLoaded, hasEnvioSinCosto]);
+  }, [homeSettings, isLoaded, session, hasEnvioSinCosto, catalogPromoKey]);
+
+  // Trigger client promotion popup for registered users (Promocional Clientes) on first visit
+  useEffect(() => {
+    if (typeof window !== "undefined" && isLoaded && session && !hasEnvioSinCosto) {
+      const isPublished = homeSettings?.promotions?.clientPromoPublished ?? true;
+      const alwaysShow = homeSettings?.promotions?.clientPromoAlwaysShow ?? false;
+      const displayPage = homeSettings?.promotions?.clientPromoPage ?? "Detalle de Producto";
+
+      const shouldShowPage = displayPage === "Detalle de Producto" || displayPage === "Ambos";
+      const dismissed = localStorage.getItem(clientPromoKey) === "true";
+      const shouldShowDismissed = !dismissed || alwaysShow;
+
+      if (isPublished && shouldShowPage && shouldShowDismissed) {
+        const delaySeconds = homeSettings?.promotions?.clientPromoDelay ?? 5;
+        const timer = setTimeout(() => {
+          setShowClientPromoPopup(true);
+        }, delaySeconds * 1000);
+        return () => clearTimeout(timer);
+      }
+    }
+  }, [homeSettings, isLoaded, session, hasEnvioSinCosto, clientPromoKey]);
 
   const handleClosePromoPopup = () => {
     setShowPromoPopup(false);
     if (typeof window !== "undefined") {
       try {
-        const promoKey = `b2b_catalog_promo_dismissed_${homeSettings?.promotions?.catalogPromoTitle || ""}_${homeSettings?.promotions?.coupon1Discount || ""}`;
-        localStorage.setItem(promoKey, "true");
+        localStorage.setItem(catalogPromoKey, "true");
       } catch (e) {
         console.warn("Could not save promo dismissal", e);
+      }
+    }
+  };
+
+  const handleCloseClientPromoPopup = () => {
+    setShowClientPromoPopup(false);
+    if (typeof window !== "undefined") {
+      try {
+        localStorage.setItem(clientPromoKey, "true");
+      } catch (e) {
+        console.warn("Could not save client promo dismissal", e);
       }
     }
   };
@@ -497,20 +548,6 @@ export function ProductDetailView({ product, relatedProducts }: { product: Produ
         }
       } catch (e) {
         console.error(e);
-      }
-    } else {
-      if (typeof window !== "undefined") {
-        try {
-          const claimed = JSON.parse(localStorage.getItem("geekystore_claimed_coupons") || "[]");
-          if (!claimed.includes("MUESTRA_Y_ENVIO_GRATIS")) {
-            claimed.push("MUESTRA_Y_ENVIO_GRATIS");
-            localStorage.setItem("geekystore_claimed_coupons", JSON.stringify(claimed));
-          }
-          // Dispatch event to open B2B registration modal
-          window.dispatchEvent(new CustomEvent("open_b2b_auth", { detail: { register: true } }));
-        } catch (e) {
-          console.warn(e);
-        }
       }
     }
     setShowSidePromo(false);
@@ -1458,7 +1495,8 @@ export function ProductDetailView({ product, relatedProducts }: { product: Produ
 
       {/* Side Promotion Drawer */}
       {homeSettings?.promotions?.sidePublished !== false && 
-       (homeSettings?.promotions?.sidePromoTargetAudience !== "new_clients" || !hasMuestraEnvio) && 
+       session && 
+       !hasMuestraEnvio && 
        (homeSettings?.promotions?.sidePromoPage === "Detalle de Producto" || 
         homeSettings?.promotions?.sidePromoPage === "Ambos" ||
         homeSettings?.promotions?.sidePromoPage === undefined) && (
@@ -1610,7 +1648,7 @@ export function ProductDetailView({ product, relatedProducts }: { product: Produ
       )}
 
       {/* Floating Catalog Promotion Popup (New Users) */}
-      {showPromoPopup && (homeSettings?.promotions?.catalogPromoTargetAudience !== "new_clients" || !hasEnvioSinCosto) && (
+      {showPromoPopup && !session && !hasEnvioSinCosto && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-xs z-50 flex items-center justify-center p-4">
           {/* Modal Container */}
           <div className="relative w-full max-w-[390px] flex flex-col items-center">
@@ -1786,6 +1824,210 @@ export function ProductDetailView({ product, relatedProducts }: { product: Produ
             <p className="text-[10px] text-white/95 text-center mt-3 tracking-wide drop-shadow-xs">
               {homeSettings?.promotions?.catalogPromoFooterNote || "Cupones confirmados después de iniciar sesión"}
             </p>
+          </div>
+        </div>
+      )}
+
+      {/* Floating Client Promotion Popup (Registered Clients) */}
+      {showClientPromoPopup && session && !hasEnvioSinCosto && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-xs z-50 flex items-center justify-center p-4">
+          <div className="relative w-full max-w-[390px] flex flex-col items-center">
+            {/* Close Button above the card */}
+            <button 
+              onClick={handleCloseClientPromoPopup} 
+              className="absolute -top-10 right-2 p-1.5 rounded-full border border-white/50 hover:border-white text-white hover:bg-white/10 transition-colors z-50 cursor-pointer"
+              title="Cerrar"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            {/* Main Card */}
+            <div 
+              className="rounded-3xl w-full p-5 pt-7 pb-6 relative shadow-2xl flex flex-col items-center border"
+              style={{
+                background: `linear-gradient(to bottom, ${homeSettings?.promotions?.clientPromoBgColorStart || "#f0fdf4"}, ${homeSettings?.promotions?.clientPromoBgColorEnd || "#ffffff"})`,
+                borderColor: homeSettings?.promotions?.clientPromoCouponBorderColor || "#bbf7d0"
+              }}
+            >
+              {/* Title Section */}
+              <h2 
+                className="font-bold text-center text-lg mt-1 mb-5"
+                style={{ color: homeSettings?.promotions?.clientPromoTextColor || "#15803d" }}
+              >
+                {homeSettings?.promotions?.clientPromoTitle || "Cupón Especial para Clientes"}
+              </h2>
+
+              {/* Coupon Container */}
+              <div className="w-full mb-6">
+                <div 
+                  className="relative flex rounded-2xl overflow-hidden p-4 min-h-[92px] shadow-sm border"
+                  style={{
+                    backgroundColor: homeSettings?.promotions?.clientPromoCouponBgColor || "#f0fdf4",
+                    borderColor: homeSettings?.promotions?.clientPromoCouponBorderColor || "#bbf7d0"
+                  }}
+                >
+                  {/* Left tag badge */}
+                  <div 
+                    className="absolute top-0 left-0 text-white text-[8px] font-extrabold px-2 py-0.5 rounded-br-xl tracking-wider uppercase"
+                    style={{ backgroundColor: homeSettings?.promotions?.clientPromoCouponTextColor || "#166534" }}
+                  >
+                    {homeSettings?.promotions?.clientPromoBadge || "Clientes"}
+                  </div>
+
+                  {/* Left content (discount) */}
+                  <div className="w-[38%] flex flex-col justify-center items-center pr-2 pt-2 text-center border-r border-dashed" style={{ borderColor: homeSettings?.promotions?.clientPromoCouponBorderColor || "#bbf7d0" }}>
+                    <span 
+                      className="text-sm sm:text-base font-black leading-none tracking-tight block text-center uppercase"
+                      style={{ color: homeSettings?.promotions?.clientPromoCouponTextColor || "#166534" }}
+                    >
+                      {homeSettings?.promotions?.coupon3Discount || "ENVÍO SIN COSTO"}
+                    </span>
+                    <span className="text-[8px] text-gray-550 mt-1 font-medium">
+                      {homeSettings?.promotions?.coupon3LeftNote || "Cliente B2B"}
+                    </span>
+                  </div>
+
+                  {/* Right content */}
+                  <div className="flex-1 pl-4 flex flex-col justify-center text-left">
+                    <span 
+                      className="text-xs sm:text-sm font-extrabold leading-snug"
+                      style={{ color: homeSettings?.promotions?.clientPromoCouponTextColor || "#166534" }}
+                    >
+                      {homeSettings?.promotions?.coupon3RightTitle || "Cupón de envío gratis"}
+                    </span>
+                    <span className="text-[9px] text-gray-500 mt-1">
+                      {homeSettings?.promotions?.coupon3RightLimit || "Sin mínimo de compra"}
+                    </span>
+                  </div>
+
+                  {/* Scalloped circle cutouts */}
+                  <div 
+                    className="absolute top-0 left-[38%] -translate-y-1/2 -translate-x-1/2 w-4 h-4 rounded-full border-b"
+                    style={{ 
+                      backgroundColor: homeSettings?.promotions?.clientPromoBgColorStart || "#f0fdf4",
+                      borderColor: homeSettings?.promotions?.clientPromoCouponBorderColor || "#bbf7d0"
+                    }}
+                  />
+                  <div 
+                    className="absolute bottom-0 left-[38%] translate-y-1/2 -translate-x-1/2 w-4 h-4 rounded-full border-t"
+                    style={{ 
+                      backgroundColor: homeSettings?.promotions?.clientPromoBgColorEnd || "#ffffff",
+                      borderColor: homeSettings?.promotions?.clientPromoCouponBorderColor || "#bbf7d0"
+                    }}
+                  />
+                </div>
+              </div>
+
+              {/* Form Input Email & Button */}
+              <div className="w-full space-y-3">
+                {clientPromoSuccess ? (
+                  <div className="text-center py-2 text-green-600 font-bold text-sm">
+                    ¡Cupón aplicado exitosamente!
+                  </div>
+                ) : (
+                  <>
+                    <div>
+                      <input 
+                        type="email" 
+                        value={clientPromoEmail}
+                        onChange={(e) => {
+                          setClientPromoEmail(e.target.value);
+                          setClientPromoError("");
+                        }}
+                        placeholder="Ingresa tu correo registrado"
+                        className="w-full border rounded-xl p-3 text-sm focus:outline-none focus:ring-2 font-medium bg-white text-gray-900 border-gray-300 focus:ring-green-500"
+                        disabled={isSubmittingClientPromo}
+                      />
+                      {clientPromoError && (
+                        <p className="text-red-500 text-xs mt-1.5 font-bold pl-1 uppercase tracking-wide">
+                          {clientPromoError}
+                        </p>
+                      )}
+                    </div>
+
+                    <button 
+                      onClick={async () => {
+                        const emailVal = clientPromoEmail.trim().toLowerCase();
+                        if (!emailVal) {
+                          setClientPromoError("Por favor ingresa tu correo.");
+                          return;
+                        }
+                        
+                        setIsSubmittingClientPromo(true);
+                        setClientPromoError("");
+                        try {
+                          // Query matching contact for logged-in customer in database
+                          const { data: contacts, error: conErr } = await supabase
+                            .from("customer_contacts")
+                            .select("*")
+                            .eq("customer_id", session.customer.id)
+                            .eq("email", emailVal);
+
+                          if (conErr) {
+                            throw conErr;
+                          }
+
+                          if (!contacts || contacts.length === 0) {
+                            setClientPromoError("no encontrado");
+                            setIsSubmittingClientPromo(false);
+                            return;
+                          }
+
+                          // Email registered for this client! Let's claim.
+                          const res = await fetch("/api/claim-coupon", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({
+                              customer_id: session.customer.id,
+                              coupon: "ENVIO_SIN_COSTO"
+                            })
+                          });
+                          const resData = await res.json();
+                          if (!res.ok || !resData.success) {
+                            throw new Error(resData.error || "Failed to claim coupon");
+                          }
+                          
+                          // Update active local session
+                          const updatedDiscounts = [...(session.discounts || []), {
+                            discount_type: 'promotion',
+                            category_id: 'ENVIO_SIN_COSTO',
+                            discount_percent: 0,
+                            active: true
+                          }];
+                          localStorage.setItem("geekystore_b2b_session", JSON.stringify({ ...session, discounts: updatedDiscounts }));
+                          window.dispatchEvent(new Event("b2b_session_updated"));
+                          
+                          setClientPromoSuccess(true);
+                          setTimeout(() => {
+                            setShowClientPromoPopup(false);
+                            setClientPromoSuccess(false);
+                            setClientPromoEmail("");
+                          }, 2000);
+                        } catch (e: any) {
+                          console.error(e);
+                          setClientPromoError(e.message || "Error al aplicar el cupón.");
+                        } finally {
+                          setIsSubmittingClientPromo(false);
+                        }
+                      }}
+                      disabled={isSubmittingClientPromo}
+                      className="w-full text-sm font-extrabold py-3 px-6 rounded-full shadow-lg hover:shadow-xl hover:brightness-110 active:scale-[0.98] transition-all uppercase tracking-wider cursor-pointer flex items-center justify-center gap-2"
+                      style={{
+                        backgroundColor: homeSettings?.promotions?.clientPromoButtonBgColor || "#166534",
+                        color: homeSettings?.promotions?.clientPromoButtonTextColor || "#ffffff"
+                      }}
+                    >
+                      {isSubmittingClientPromo ? "Verificando..." : (homeSettings?.promotions?.clientPromoButtonText || "Aplicar Cupón")}
+                    </button>
+                  </>
+                )}
+              </div>
+
+              {/* Footer Disclaimer Text */}
+              <p className="text-[10px] text-gray-500 text-center mt-3 tracking-wide">
+                {homeSettings?.promotions?.clientPromoFooterNote || "Ingresa tu correo registrado para activar"}
+              </p>
+            </div>
           </div>
         </div>
       )}

@@ -49,6 +49,16 @@ export function AdminPromotions({ homeSettings, updateHomeSettings }: AdminPromo
   const [catalogPromoButtonText, setCatalogPromoButtonText] = useState(currentPromo.catalogPromoButtonText ?? "¡Consíguelo!");
   const [catalogPromoFooterNote, setCatalogPromoFooterNote] = useState(currentPromo.catalogPromoFooterNote ?? "Cupones confirmados después de iniciar sesión");
 
+  // Client popup promotion states
+  const [clientPromoPublished, setClientPromoPublished] = useState(currentPromo.clientPromoPublished ?? true);
+  const [clientPromoDelay, setClientPromoDelay] = useState(currentPromo.clientPromoDelay ?? 5);
+  const [coupon3Discount, setCoupon3Discount] = useState(currentPromo.coupon3Discount ?? "ENVÍO SIN COSTO");
+  const [coupon3LeftNote, setCoupon3LeftNote] = useState(currentPromo.coupon3LeftNote ?? "Cliente B2B");
+  const [coupon3RightTitle, setCoupon3RightTitle] = useState(currentPromo.coupon3RightTitle ?? "Cupón de envío gratis");
+  const [coupon3RightLimit, setCoupon3RightLimit] = useState(currentPromo.coupon3RightLimit ?? "Sin mínimo de compra");
+  const [clientPromoButtonText, setClientPromoButtonText] = useState(currentPromo.clientPromoButtonText ?? "Aplicar Cupón");
+  const [clientPromoFooterNote, setClientPromoFooterNote] = useState(currentPromo.clientPromoFooterNote ?? "Ingresa tu correo registrado para activar");
+
   // Styling states for Side Drawer Promo
   const [sideBgColor, setSideBgColor] = useState(currentPromo.sideBgColor ?? "#ffeceb");
   const [sideTextColor, setSideTextColor] = useState(currentPromo.sideTextColor ?? "#222222");
@@ -77,6 +87,21 @@ export function AdminPromotions({ homeSettings, updateHomeSettings }: AdminPromo
   const [sideTextSizeTrigger, setSideTextSizeTrigger] = useState(currentPromo.sideTextSizeTrigger ?? "Mediano");
   const [sidePromoPage, setSidePromoPage] = useState(currentPromo.sidePromoPage ?? "Detalle de Producto");
   const [sidePromoTargetAudience, setSidePromoTargetAudience] = useState(currentPromo.sidePromoTargetAudience ?? "new_clients");
+
+  // Styling states for Client Promo
+  const [clientPromoBgColorStart, setClientPromoBgColorStart] = useState(currentPromo.clientPromoBgColorStart ?? "#f0fdf4");
+  const [clientPromoBgColorEnd, setClientPromoBgColorEnd] = useState(currentPromo.clientPromoBgColorEnd ?? "#ffffff");
+  const [clientPromoTextColor, setClientPromoTextColor] = useState(currentPromo.clientPromoTextColor ?? "#15803d");
+  const [clientPromoCouponBgColor, setClientPromoCouponBgColor] = useState(currentPromo.clientPromoCouponBgColor ?? "#f0fdf4");
+  const [clientPromoCouponBorderColor, setClientPromoCouponBorderColor] = useState(currentPromo.clientPromoCouponBorderColor ?? "#bbf7d0");
+  const [clientPromoCouponTextColor, setClientPromoCouponTextColor] = useState(currentPromo.clientPromoCouponTextColor ?? "#166534");
+  const [clientPromoButtonBgColor, setClientPromoButtonBgColor] = useState(currentPromo.clientPromoButtonBgColor ?? "#166534");
+  const [clientPromoButtonTextColor, setClientPromoButtonTextColor] = useState(currentPromo.clientPromoButtonTextColor ?? "#ffffff");
+  const [clientPromoIcon, setClientPromoIcon] = useState(currentPromo.clientPromoIcon ?? "GiftBow");
+  const [clientPromoAlwaysShow, setClientPromoAlwaysShow] = useState(currentPromo.clientPromoAlwaysShow ?? false);
+  const [clientPromoPage, setClientPromoPage] = useState(currentPromo.clientPromoPage ?? "Catálogo");
+  const [clientPromoTitle, setClientPromoTitle] = useState(currentPromo.clientPromoTitle ?? "Cupón Especial para Clientes");
+  const [clientPromoBadge, setClientPromoBadge] = useState(currentPromo.clientPromoBadge ?? "Clientes");
 
   const [isInitialized, setIsInitialized] = useState(false);
 
@@ -136,6 +161,31 @@ export function AdminPromotions({ homeSettings, updateHomeSettings }: AdminPromo
       setSideTextSizeTrigger(p.sideTextSizeTrigger ?? "Mediano");
       setSidePromoPage(p.sidePromoPage ?? "Detalle de Producto");
       setSidePromoTargetAudience(p.sidePromoTargetAudience ?? "new_clients");
+
+      // Client Promo
+      setClientPromoPublished(p.clientPromoPublished ?? true);
+      setClientPromoDelay(p.clientPromoDelay ?? 5);
+      setCoupon3Discount(p.coupon3Discount ?? "ENVÍO SIN COSTO");
+      setCoupon3LeftNote(p.coupon3LeftNote ?? "Cliente B2B");
+      setCoupon3RightTitle(p.coupon3RightTitle ?? "Cupón de envío gratis");
+      setCoupon3RightLimit(p.coupon3RightLimit ?? "Sin mínimo de compra");
+      setClientPromoButtonText(p.clientPromoButtonText ?? "Aplicar Cupón");
+      setClientPromoFooterNote(p.clientPromoFooterNote ?? "Ingresa tu correo registrado para activar");
+
+      setClientPromoBgColorStart(p.clientPromoBgColorStart ?? "#f0fdf4");
+      setClientPromoBgColorEnd(p.clientPromoBgColorEnd ?? "#ffffff");
+      setClientPromoTextColor(p.clientPromoTextColor ?? "#15803d");
+      setClientPromoCouponBgColor(p.clientPromoCouponBgColor ?? "#f0fdf4");
+      setClientPromoCouponBorderColor(p.clientPromoCouponBorderColor ?? "#bbf7d0");
+      setClientPromoCouponTextColor(p.clientPromoCouponTextColor ?? "#166534");
+      setClientPromoButtonBgColor(p.clientPromoButtonBgColor ?? "#166534");
+      setClientPromoButtonTextColor(p.clientPromoButtonTextColor ?? "#ffffff");
+      setClientPromoIcon(p.clientPromoIcon ?? "GiftBow");
+      setClientPromoAlwaysShow(p.clientPromoAlwaysShow ?? false);
+      setClientPromoPage(p.clientPromoPage ?? "Catálogo");
+      setClientPromoTitle(p.clientPromoTitle ?? "Cupón Especial para Clientes");
+      setClientPromoBadge(p.clientPromoBadge ?? "Clientes");
+
       setIsInitialized(true);
     }
   }, [homeSettings, isInitialized]);
@@ -203,7 +253,30 @@ export function AdminPromotions({ homeSettings, updateHomeSettings }: AdminPromo
         tagBorderColor,
         tagTextColor,
         tagTextSize,
-        tagIcon
+        tagIcon,
+        // Client promo fields
+        clientPromoPublished,
+        clientPromoDelay,
+        coupon3Discount,
+        coupon3LeftNote,
+        coupon3RightTitle,
+        coupon3RightLimit,
+        clientPromoButtonText,
+        clientPromoFooterNote,
+        // Client promo styles
+        clientPromoBgColorStart,
+        clientPromoBgColorEnd,
+        clientPromoTextColor,
+        clientPromoCouponBgColor,
+        clientPromoCouponBorderColor,
+        clientPromoCouponTextColor,
+        clientPromoButtonBgColor,
+        clientPromoButtonTextColor,
+        clientPromoIcon,
+        clientPromoAlwaysShow,
+        clientPromoPage,
+        clientPromoTitle,
+        clientPromoBadge
       }
     };
 
@@ -378,7 +451,7 @@ export function AdminPromotions({ homeSettings, updateHomeSettings }: AdminPromo
           <div className="flex justify-between items-center border-b pb-2">
             <div className="flex items-center gap-2 text-primary-700 font-bold">
               <PanelLeft className="w-5 h-5" />
-              <h3>Panel Promocional Lateral (Desplegable Derecho)</h3>
+              <h3>Promocional Muestras (Desplegable Lateral - Solo Clientes Registrados)</h3>
             </div>
             <button
               type="submit"
@@ -400,7 +473,7 @@ export function AdminPromotions({ homeSettings, updateHomeSettings }: AdminPromo
                 className="rounded text-primary-600 focus:ring-primary-500 h-4 w-4 cursor-pointer"
               />
               <label htmlFor="sidePublished" className="text-sm font-semibold text-gray-700 cursor-pointer">
-                Activar panel promocional lateral
+                Activar Promocional Muestras lateral
               </label>
             </div>
           </div>
@@ -418,20 +491,6 @@ export function AdminPromotions({ homeSettings, updateHomeSettings }: AdminPromo
                 <option value="Detalle de Producto">Solo Detalle de Producto</option>
                 <option value="Catálogo">Solo Catálogo</option>
                 <option value="Ambos">Ambos (Catálogo y Detalle de Producto)</option>
-              </select>
-            </div>
-
-            <div className="space-y-1">
-              <label htmlFor="sidePromoTargetAudience" className="block text-xs font-bold text-gray-700 uppercase">Público Objetivo (Aplicar a)</label>
-              <select
-                id="sidePromoTargetAudience"
-                value={sidePromoTargetAudience}
-                onChange={(e) => setSidePromoTargetAudience(e.target.value)}
-                disabled={!sidePublished}
-                className="w-full bg-white border border-gray-300 rounded-lg p-2.5 text-sm font-semibold focus:ring-primary-500 focus:border-primary-500 disabled:bg-gray-100"
-              >
-                <option value="new_clients">Solo nuevos clientes (ocultar si ya se reclamó)</option>
-                <option value="all_clients">Todos los clientes (mostrar siempre, incluso si ya tienen el cupón)</option>
               </select>
             </div>
             <div className="space-y-1">
@@ -659,7 +718,7 @@ export function AdminPromotions({ homeSettings, updateHomeSettings }: AdminPromo
           <div className="flex justify-between items-center border-b pb-2">
             <div className="flex items-center gap-2 text-primary-700 font-bold">
               <Gift className="w-5 h-5" />
-              <h3>Ventana Flotante de Promociones (Catálogo - Nuevos Usuarios)</h3>
+              <h3>Promocional Nuevos Clientes (Ventana Flotante - Solo Invitados)</h3>
             </div>
             <button
               type="submit"
@@ -682,7 +741,7 @@ export function AdminPromotions({ homeSettings, updateHomeSettings }: AdminPromo
                   className="rounded text-primary-600 focus:ring-primary-500 h-4 w-4"
                 />
                 <label htmlFor="catalogPromoPublished" className="text-sm font-semibold text-gray-700 cursor-pointer">
-                  Activar ventana flotante promocional
+                  Activar Promocional Nuevos Clientes
                 </label>
               </div>
               
@@ -725,19 +784,6 @@ export function AdminPromotions({ homeSettings, updateHomeSettings }: AdminPromo
                 <option value="Catálogo">Solo Catálogo</option>
                 <option value="Detalle de Producto">Solo Detalle de Producto</option>
                 <option value="Ambos">Ambos (Catálogo y Detalle de Producto)</option>
-              </select>
-            </div>
-
-            <div className="space-y-1">
-              <label className="block text-xs font-bold text-gray-700 uppercase">Público Objetivo (Aplicar a):</label>
-              <select
-                value={catalogPromoTargetAudience}
-                onChange={(e) => setCatalogPromoTargetAudience(e.target.value)}
-                disabled={!catalogPromoPublished}
-                className="w-full bg-white border border-gray-300 rounded-lg p-2.5 text-sm font-semibold focus:ring-primary-500"
-              >
-                <option value="new_clients">Solo nuevos clientes (ocultar si ya se reclamó el cupón)</option>
-                <option value="all_clients">Todos los clientes (mostrar siempre, incluso si ya tienen el cupón)</option>
               </select>
             </div>
 
@@ -1006,6 +1052,352 @@ export function AdminPromotions({ homeSettings, updateHomeSettings }: AdminPromo
                       value={catalogPromoButtonTextColor}
                       onChange={(e) => setCatalogPromoButtonTextColor(e.target.value)}
                       disabled={!catalogPromoPublished}
+                      className="w-full border border-gray-300 rounded p-1.5 text-xs font-mono uppercase"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Section 4: Floating Client Promo Modal */}
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6 space-y-4">
+          <div className="flex justify-between items-center border-b pb-2">
+            <div className="flex items-center gap-2 text-primary-700 font-bold">
+              <Gift className="w-5 h-5" />
+              <h3>Promocional Clientes (Ventana Flotante - Solo Clientes Registrados)</h3>
+            </div>
+            <button
+              type="submit"
+              disabled={isSaving}
+              className="bg-primary-600 hover:bg-primary-700 text-white font-bold py-1.5 px-4 rounded-lg text-xs transition-all flex items-center gap-1.5 cursor-pointer shadow-sm"
+            >
+              <Save className="w-3.5 h-3.5" />
+              {isSaving ? "Guardando..." : "Actualizar"}
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="flex flex-col md:flex-row gap-4 items-start md:items-center col-span-1 md:col-span-2 border-b pb-3 border-gray-100">
+              <div className="flex items-center gap-2">
+                <input
+                  id="clientPromoPublished"
+                  type="checkbox"
+                  checked={clientPromoPublished}
+                  onChange={(e) => setClientPromoPublished(e.target.checked)}
+                  className="rounded text-primary-600 focus:ring-primary-500 h-4 w-4 text-center shrink-0 cursor-pointer"
+                />
+                <label htmlFor="clientPromoPublished" className="text-sm font-semibold text-gray-700 cursor-pointer">
+                  Activar Promocional Clientes
+                </label>
+              </div>
+              
+              <div className="flex items-center gap-2">
+                <input
+                  id="clientPromoAlwaysShow"
+                  type="checkbox"
+                  checked={clientPromoAlwaysShow}
+                  onChange={(e) => setClientPromoAlwaysShow(e.target.checked)}
+                  disabled={!clientPromoPublished}
+                  className="rounded text-primary-600 focus:ring-primary-500 h-4 w-4 cursor-pointer"
+                />
+                <label htmlFor="clientPromoAlwaysShow" className="text-sm font-semibold text-gray-700 cursor-pointer disabled:text-gray-400">
+                  Mostrar siempre (ignorar descarte del usuario)
+                </label>
+              </div>
+            </div>
+
+            <div className="space-y-1">
+              <label className="block text-xs font-bold text-gray-700 uppercase">Tiempo de Retardo para Mostrar (Segundos)</label>
+              <input
+                type="number"
+                min="0"
+                value={clientPromoDelay}
+                onChange={(e) => setClientPromoDelay(parseInt(e.target.value) || 0)}
+                disabled={!clientPromoPublished}
+                className="w-full border border-gray-300 rounded-lg p-2.5 text-sm focus:ring-primary-500 focus:border-primary-500 disabled:bg-gray-100"
+                required
+              />
+            </div>
+
+            <div className="space-y-1">
+              <label className="block text-xs font-bold text-gray-700 uppercase">Página de Visualización</label>
+              <select
+                value={clientPromoPage}
+                onChange={(e) => setClientPromoPage(e.target.value)}
+                disabled={!clientPromoPublished}
+                className="w-full bg-white border border-gray-300 rounded-lg p-2.5 text-sm font-semibold focus:ring-primary-500"
+              >
+                <option value="Catálogo">Solo Catálogo</option>
+                <option value="Detalle de Producto">Solo Detalle de Producto</option>
+                <option value="Ambos">Ambos (Catálogo y Detalle de Producto)</option>
+              </select>
+            </div>
+
+            <div className="space-y-1">
+              <label className="block text-xs font-bold text-gray-700 uppercase">Título de la Ventana Flotante</label>
+              <input
+                type="text"
+                value={clientPromoTitle}
+                onChange={(e) => setClientPromoTitle(e.target.value)}
+                disabled={!clientPromoPublished}
+                placeholder="Ej. Cupón Especial para Clientes"
+                className="w-full border border-gray-300 rounded-lg p-2.5 text-sm focus:ring-primary-500 focus:border-primary-500 disabled:bg-gray-100"
+                required
+              />
+            </div>
+
+            <div className="space-y-1">
+              <label className="block text-xs font-bold text-gray-700 uppercase">Etiqueta de Cupón (Badge)</label>
+              <input
+                type="text"
+                value={clientPromoBadge}
+                onChange={(e) => setClientPromoBadge(e.target.value)}
+                disabled={!clientPromoPublished}
+                placeholder="Ej. Clientes"
+                className="w-full border border-gray-300 rounded-lg p-2.5 text-sm focus:ring-primary-500 focus:border-primary-500 disabled:bg-gray-100"
+                required
+              />
+            </div>
+
+            <div className="space-y-1">
+              <label className="block text-xs font-bold text-gray-700 uppercase">Texto del Botón Principal</label>
+              <input
+                type="text"
+                value={clientPromoButtonText}
+                onChange={(e) => setClientPromoButtonText(e.target.value)}
+                disabled={!clientPromoPublished}
+                className="w-full border border-gray-300 rounded-lg p-2.5 text-sm focus:ring-primary-500 focus:border-primary-500 disabled:bg-gray-100"
+                required
+              />
+            </div>
+
+            <div className="space-y-1 col-span-1 md:col-span-2">
+              <label className="block text-xs font-bold text-gray-700 uppercase">Nota de Pie de Página (Disclaimer)</label>
+              <input
+                type="text"
+                value={clientPromoFooterNote}
+                onChange={(e) => setClientPromoFooterNote(e.target.value)}
+                disabled={!clientPromoPublished}
+                className="w-full border border-gray-300 rounded-lg p-2.5 text-sm focus:ring-primary-500 focus:border-primary-500 disabled:bg-gray-100"
+                required
+              />
+            </div>
+
+            {/* Coupon 3 Config */}
+            <div className="border border-gray-100 rounded-lg p-4 bg-gray-50/50 space-y-3 col-span-1 md:col-span-2">
+              <h4 className="font-bold text-xs text-gray-700 uppercase border-b pb-1">Configuración del Cupón para Clientes</h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label className="block text-[10px] font-bold text-gray-550 uppercase">Texto de Descuento (Izquierda)</label>
+                  <input
+                    type="text"
+                    value={coupon3Discount}
+                    onChange={(e) => setCoupon3Discount(e.target.value)}
+                    disabled={!clientPromoPublished}
+                    className="w-full bg-white border border-gray-300 rounded-lg p-2 text-xs focus:ring-primary-500"
+                    required
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="block text-[10px] font-bold text-gray-550 uppercase">Nota de Descuento (Izquierda)</label>
+                  <input
+                    type="text"
+                    value={coupon3LeftNote}
+                    onChange={(e) => setCoupon3LeftNote(e.target.value)}
+                    disabled={!clientPromoPublished}
+                    className="w-full bg-white border border-gray-300 rounded-lg p-2 text-xs focus:ring-primary-500"
+                    required
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="block text-[10px] font-bold text-gray-550 uppercase">Título del Cupón (Derecha)</label>
+                  <input
+                    type="text"
+                    value={coupon3RightTitle}
+                    onChange={(e) => setCoupon3RightTitle(e.target.value)}
+                    disabled={!clientPromoPublished}
+                    className="w-full bg-white border border-gray-300 rounded-lg p-2 text-xs focus:ring-primary-500"
+                    required
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="block text-[10px] font-bold text-gray-550 uppercase">Restricción / Límite (Derecha)</label>
+                  <input
+                    type="text"
+                    value={coupon3RightLimit}
+                    onChange={(e) => setCoupon3RightLimit(e.target.value)}
+                    disabled={!clientPromoPublished}
+                    className="w-full bg-white border border-gray-300 rounded-lg p-2 text-xs focus:ring-primary-500"
+                    required
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Customizer Sub-section for Section 4 */}
+            <div className="border-t border-gray-150 pt-4 mt-4 space-y-4 col-span-1 md:col-span-2">
+              <div className="flex items-center gap-1.5 text-gray-700 font-bold text-xs uppercase tracking-wider">
+                <Sliders className="w-4 h-4 text-primary-600" />
+                <h4>Diseño, Colores e Iconos (Modal Clientes)</h4>
+              </div>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="space-y-1">
+                  <label className="block text-[10px] font-bold text-gray-550 uppercase">Fondo Gradiente Inicio</label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="color"
+                      value={clientPromoBgColorStart}
+                      onChange={(e) => setClientPromoBgColorStart(e.target.value)}
+                      disabled={!clientPromoPublished}
+                      className="w-10 h-10 border border-gray-300 rounded cursor-pointer shrink-0"
+                    />
+                    <input
+                      type="text"
+                      value={clientPromoBgColorStart}
+                      onChange={(e) => setClientPromoBgColorStart(e.target.value)}
+                      disabled={!clientPromoPublished}
+                      className="w-full border border-gray-300 rounded p-1.5 text-xs font-mono uppercase"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="block text-[10px] font-bold text-gray-550 uppercase">Fondo Gradiente Fin</label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="color"
+                      value={clientPromoBgColorEnd}
+                      onChange={(e) => setClientPromoBgColorEnd(e.target.value)}
+                      disabled={!clientPromoPublished}
+                      className="w-10 h-10 border border-gray-300 rounded cursor-pointer shrink-0"
+                    />
+                    <input
+                      type="text"
+                      value={clientPromoBgColorEnd}
+                      onChange={(e) => setClientPromoBgColorEnd(e.target.value)}
+                      disabled={!clientPromoPublished}
+                      className="w-full border border-gray-300 rounded p-1.5 text-xs font-mono uppercase"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="block text-[10px] font-bold text-gray-550 uppercase">Color Texto Título</label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="color"
+                      value={clientPromoTextColor}
+                      onChange={(e) => setClientPromoTextColor(e.target.value)}
+                      disabled={!clientPromoPublished}
+                      className="w-10 h-10 border border-gray-300 rounded cursor-pointer shrink-0"
+                    />
+                    <input
+                      type="text"
+                      value={clientPromoTextColor}
+                      onChange={(e) => setClientPromoTextColor(e.target.value)}
+                      disabled={!clientPromoPublished}
+                      className="w-full border border-gray-300 rounded p-1.5 text-xs font-mono uppercase"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="block text-[10px] font-bold text-gray-550 uppercase">Fondo del Cupón</label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="color"
+                      value={clientPromoCouponBgColor}
+                      onChange={(e) => setClientPromoCouponBgColor(e.target.value)}
+                      disabled={!clientPromoPublished}
+                      className="w-10 h-10 border border-gray-300 rounded cursor-pointer shrink-0"
+                    />
+                    <input
+                      type="text"
+                      value={clientPromoCouponBgColor}
+                      onChange={(e) => setClientPromoCouponBgColor(e.target.value)}
+                      disabled={!clientPromoPublished}
+                      className="w-full border border-gray-300 rounded p-1.5 text-xs font-mono uppercase"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="block text-[10px] font-bold text-gray-550 uppercase">Borde del Cupón</label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="color"
+                      value={clientPromoCouponBorderColor}
+                      onChange={(e) => setClientPromoCouponBorderColor(e.target.value)}
+                      disabled={!clientPromoPublished}
+                      className="w-10 h-10 border border-gray-300 rounded cursor-pointer shrink-0"
+                    />
+                    <input
+                      type="text"
+                      value={clientPromoCouponBorderColor}
+                      onChange={(e) => setClientPromoCouponBorderColor(e.target.value)}
+                      disabled={!clientPromoPublished}
+                      className="w-full border border-gray-300 rounded p-1.5 text-xs font-mono uppercase"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="block text-[10px] font-bold text-gray-550 uppercase">Color Descuento Cupón</label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="color"
+                      value={clientPromoCouponTextColor}
+                      onChange={(e) => setClientPromoCouponTextColor(e.target.value)}
+                      disabled={!clientPromoPublished}
+                      className="w-10 h-10 border border-gray-300 rounded cursor-pointer shrink-0"
+                    />
+                    <input
+                      type="text"
+                      value={clientPromoCouponTextColor}
+                      onChange={(e) => setClientPromoCouponTextColor(e.target.value)}
+                      disabled={!clientPromoPublished}
+                      className="w-full border border-gray-300 rounded p-1.5 text-xs font-mono uppercase"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="block text-[10px] font-bold text-gray-550 uppercase">Fondo Botón Acción</label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="color"
+                      value={clientPromoButtonBgColor}
+                      onChange={(e) => setClientPromoButtonBgColor(e.target.value)}
+                      disabled={!clientPromoPublished}
+                      className="w-10 h-10 border border-gray-300 rounded cursor-pointer shrink-0"
+                    />
+                    <input
+                      type="text"
+                      value={clientPromoButtonBgColor}
+                      onChange={(e) => setClientPromoButtonBgColor(e.target.value)}
+                      disabled={!clientPromoPublished}
+                      className="w-full border border-gray-300 rounded p-1.5 text-xs font-mono uppercase"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="block text-[10px] font-bold text-gray-550 uppercase">Texto Botón Acción</label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="color"
+                      value={clientPromoButtonTextColor}
+                      onChange={(e) => setClientPromoButtonTextColor(e.target.value)}
+                      disabled={!clientPromoPublished}
+                      className="w-10 h-10 border border-gray-300 rounded cursor-pointer shrink-0"
+                    />
+                    <input
+                      type="text"
+                      value={clientPromoButtonTextColor}
+                      onChange={(e) => setClientPromoButtonTextColor(e.target.value)}
+                      disabled={!clientPromoPublished}
                       className="w-full border border-gray-300 rounded p-1.5 text-xs font-mono uppercase"
                     />
                   </div>
