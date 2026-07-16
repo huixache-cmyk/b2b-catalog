@@ -3,6 +3,7 @@ import "./globals.css";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
 import { CanonicalLink } from "@/components/CanonicalLink";
+import { FloatingAdminButton } from "@/components/FloatingAdminButton";
 
 export const metadata: Metadata = {
   metadataBase: new URL('https://www.geekystore.mx'),
@@ -34,6 +35,7 @@ export default function RootLayout({
         <Header />
         <main className="flex-grow">{children}</main>
         <Footer />
+        <FloatingAdminButton />
       </body>
     </html>
   );

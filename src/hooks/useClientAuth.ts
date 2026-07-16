@@ -120,6 +120,7 @@ export function useClientAuth() {
           const claimedStr = localStorage.getItem("geekystore_claimed_coupons");
           if (claimedStr) {
             const claimed = JSON.parse(claimedStr) as string[];
+            const successfullyClaimed: string[] = [];
             for (const coupon of claimed) {
               const { data: existing } = await supabase
                 .from("customer_discounts")
@@ -129,17 +130,40 @@ export function useClientAuth() {
                 .eq("category_id", coupon);
                 
               if (!existing || existing.length === 0) {
-                await fetch("/api/claim-coupon", {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({
-                    customer_id: activeCustomer.id,
-                    coupon: coupon
-                  })
-                });
+                try {
+                  const res = await fetch("/api/claim-coupon", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                      customer_id: activeCustomer.id,
+                      coupon: coupon
+                    })
+                  });
+                  if (res.ok) {
+                    const data = await res.json();
+                    if (data.success) {
+                      successfullyClaimed.push(coupon);
+                    } else {
+                      console.warn(`Server failed to claim coupon ${coupon}:`, data.error);
+                    }
+                  } else {
+                    console.warn(`Server responded with status ${res.status} when claiming coupon ${coupon}`);
+                  }
+                } catch (err) {
+                  console.error(`Failed to request claiming coupon ${coupon}:`, err);
+                }
+              } else {
+                successfullyClaimed.push(coupon);
               }
             }
-            localStorage.removeItem("geekystore_claimed_coupons");
+            if (successfullyClaimed.length > 0) {
+              const remaining = claimed.filter(c => !successfullyClaimed.includes(c));
+              if (remaining.length > 0) {
+                localStorage.setItem("geekystore_claimed_coupons", JSON.stringify(remaining));
+              } else {
+                localStorage.removeItem("geekystore_claimed_coupons");
+              }
+            }
           }
         } catch (e) {
           console.warn("Failed to sync guest coupons on login:", e);

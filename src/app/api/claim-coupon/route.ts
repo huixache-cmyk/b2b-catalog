@@ -26,20 +26,21 @@ export async function POST(request: Request) {
     // Use service role client to bypass RLS securely on server
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // Verify if discount already exists
+    // Verify if discount already exists and is active
     const { data: existing, error: checkError } = await supabase
       .from('customer_discounts')
       .select('*')
       .eq('customer_id', customer_id)
       .eq('discount_type', 'promotion')
-      .eq('category_id', coupon);
+      .eq('category_id', coupon)
+      .eq('active', true);
 
     if (checkError) {
       return NextResponse.json({ error: checkError.message }, { status: 500 });
     }
 
     if (existing && existing.length > 0) {
-      return NextResponse.json({ success: true, message: 'El cupón ya está registrado' });
+      return NextResponse.json({ success: true, message: 'El cupón ya está activo' });
     }
 
     // Insert new promotion discount

@@ -212,7 +212,7 @@ export function CatalogView({
 
   const hasEnvioSinCosto = useMemo(() => {
     if (session) {
-      return session.discounts?.some((d: any) => d.discount_type === 'promotion' && d.category_id === 'ENVIO_SIN_COSTO');
+      return session.discounts?.some((d: any) => d.discount_type === 'promotion' && d.category_id === 'ENVIO_SIN_COSTO' && d.active);
     }
     if (typeof window !== "undefined") {
       try {
@@ -227,7 +227,7 @@ export function CatalogView({
 
   const hasMuestraEnvio = useMemo(() => {
     if (session) {
-      return session.discounts?.some((d: any) => d.discount_type === 'promotion' && d.category_id === 'MUESTRA_Y_ENVIO_GRATIS');
+      return session.discounts?.some((d: any) => d.discount_type === 'promotion' && d.category_id === 'MUESTRA_Y_ENVIO_GRATIS' && d.active);
     }
     if (typeof window !== "undefined") {
       try {
@@ -365,7 +365,8 @@ export function CatalogView({
           .select("*")
           .eq("customer_id", session.customer.id)
           .eq("discount_type", "promotion")
-          .eq("category_id", "ENVIO_SIN_COSTO");
+          .eq("category_id", "ENVIO_SIN_COSTO")
+          .eq("active", true);
           
         if (!existing || existing.length === 0) {
           const res = await fetch("/api/claim-coupon", {
@@ -392,7 +393,7 @@ export function CatalogView({
           window.dispatchEvent(new Event("b2b_session_updated"));
           alert("¡Felicidades! El cupón de Envío sin Costo ha sido agregado a tu cuenta B2B.");
         } else {
-          alert("Ya has reclamado o usado este cupón.");
+          alert("Ya tienes este cupón activo.");
         }
       } catch (e) {
         console.error(e);
@@ -423,7 +424,8 @@ export function CatalogView({
           .select("*")
           .eq("customer_id", session.customer.id)
           .eq("discount_type", "promotion")
-          .eq("category_id", "MUESTRA_Y_ENVIO_GRATIS");
+          .eq("category_id", "MUESTRA_Y_ENVIO_GRATIS")
+          .eq("active", true);
           
         if (!existing || existing.length === 0) {
           const res = await fetch("/api/claim-coupon", {
@@ -448,9 +450,9 @@ export function CatalogView({
           }];
           localStorage.setItem("geekystore_b2b_session", JSON.stringify({ ...session, discounts: updatedDiscounts }));
           window.dispatchEvent(new Event("b2b_session_updated"));
-          alert("¡Felicidades! El cupón de Muestra Física y Envío Gratis ha sido agregado a tu cuenta B2B.");
+          alert("¡Felicidades! El cupón de Muestras ha sido agregado a tu cuenta B2B.");
         } else {
-          alert("Ya has reclamado o usado este cupón.");
+          alert("Ya tienes este cupón activo.");
         }
       } catch (e) {
         console.error(e);

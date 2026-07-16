@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Search, Menu, Phone, Mail, ShoppingCart, User, Download, FileText, X, Edit, Plus, ChevronUp, ChevronDown, Trash2, Building2, KeyRound } from "lucide-react";
+import { Search, Menu, Phone, Mail, ShoppingCart, User, Download, FileText, X, Edit, Plus, ChevronUp, ChevronDown, Trash2, Building2, KeyRound, Sliders } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useSettings } from "@/hooks/useSettings";
@@ -687,17 +687,39 @@ export function Header() {
           const claimedStr = localStorage.getItem("geekystore_claimed_coupons");
           if (claimedStr) {
             const claimed = JSON.parse(claimedStr) as string[];
+            const successfullyClaimed: string[] = [];
             for (const coupon of claimed) {
-              await fetch("/api/claim-coupon", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                  customer_id: customer.id,
-                  coupon: coupon
-                })
-              });
+              try {
+                const res = await fetch("/api/claim-coupon", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    customer_id: customer.id,
+                    coupon: coupon
+                  })
+                });
+                if (res.ok) {
+                  const data = await res.json();
+                  if (data.success) {
+                    successfullyClaimed.push(coupon);
+                  } else {
+                    console.warn(`Server failed to claim coupon ${coupon}:`, data.error);
+                  }
+                } else {
+                  console.warn(`Server responded with status ${res.status} when claiming coupon ${coupon}`);
+                }
+              } catch (err) {
+                console.error(`Failed to request claiming coupon ${coupon}:`, err);
+              }
             }
-            localStorage.removeItem("geekystore_claimed_coupons");
+            if (successfullyClaimed.length > 0) {
+              const remaining = claimed.filter(c => !successfullyClaimed.includes(c));
+              if (remaining.length > 0) {
+                localStorage.setItem("geekystore_claimed_coupons", JSON.stringify(remaining));
+              } else {
+                localStorage.removeItem("geekystore_claimed_coupons");
+              }
+            }
           }
         } catch (e) {
           console.warn("Failed to sync guest coupons on register:", e);
@@ -1114,16 +1136,28 @@ export function Header() {
             })}
 
             {isAdmin && (
-              <li>
-                <button
-                  onClick={() => setShowCategoryEditModal(true)}
-                  className="flex items-center gap-1.5 text-primary-600 hover:text-primary-800 font-bold py-2 md:py-0 transition-colors"
-                  title="Editar categorías del menú"
-                >
-                  <Edit className="w-4 h-4" />
-                  <span>Editar Menú</span>
-                </button>
-              </li>
+              <>
+                <li>
+                  <button
+                    onClick={() => setShowCategoryEditModal(true)}
+                    className="flex items-center gap-1.5 text-primary-600 hover:text-primary-800 font-bold py-2 md:py-0 transition-colors"
+                    title="Editar categorías del menú"
+                  >
+                    <Edit className="w-4 h-4" />
+                    <span>Editar Menú</span>
+                  </button>
+                </li>
+                <li>
+                  <Link
+                    href="/admin"
+                    className="flex items-center gap-1.5 text-emerald-600 hover:text-emerald-800 font-extrabold py-2 md:py-0 transition-colors border-l pl-4 border-gray-200"
+                    title="Ir al Panel de Administración"
+                  >
+                    <Sliders className="w-4 h-4" />
+                    <span>Panel Admin</span>
+                  </Link>
+                </li>
+              </>
             )}
             
             {/* Mobile-only menu items */}
@@ -1713,7 +1747,7 @@ export function Header() {
                 )
               ) : (
                 /* LOGIN FLOW */
-                <form onSubmit={handleB2bLoginSubmit} className="space-y-4 animate-in fade-in duration-350">
+                <form onSubmit={handleB2bLoginSubmit} className="space-y-4 animate-in fade-in duration-350" autoComplete="off">
                   <div>
                     <label className="block text-xs font-bold text-gray-700 mb-1">Correo Registrado</label>
                     <input
@@ -1723,6 +1757,7 @@ export function Header() {
                       placeholder="correo@empresa.com"
                       className="w-full border border-gray-300 rounded-lg p-2.5 text-sm focus:ring-primary-500 outline-none"
                       required
+                      autoComplete="email-disabled"
                     />
                   </div>
                   <div>
@@ -1746,6 +1781,7 @@ export function Header() {
                       placeholder="GS-B2B-XXXX"
                       className="w-full border border-gray-300 rounded-lg p-2.5 text-sm focus:ring-primary-500 font-mono outline-none"
                       required
+                      autoComplete="new-password"
                     />
                   </div>
                   {b2bLoginError && (
