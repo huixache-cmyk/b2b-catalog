@@ -186,21 +186,28 @@ export async function GET(request: Request) {
     // ----------------------------------------------------
     try {
       const { result: response, latency } = await measureTime(
-        fetch('https://status.vercel.com/api/v2/status.json')
+        fetch('https://www.vercel-status.com/api/v2/status.json')
       );
-      const data = await response.json();
+      const text = await response.text();
+      let data: any = {};
+      try {
+        data = JSON.parse(text);
+      } catch (pErr) {
+        throw new Error("Respuesta de estado no es JSON válido");
+      }
+
       if (response.ok) {
         const isOk = data.status?.indicator === 'none';
         results['vercel'] = {
           status: isOk ? 'OK' : 'WARNING',
           latency,
-          message: isOk ? 'Servidores globales estables' : `Incidencia: ${data.status?.description || 'Alerta minor'}`
+          message: isOk ? 'Servidores estables' : `Incidencia: ${data.status?.description || 'Alerta minor'}`
         };
       } else {
-        results['vercel'] = { status: 'WARNING', latency, message: 'No se pudo consultar estado global' };
+        results['vercel'] = { status: 'WARNING', latency, message: 'No se pudo consultar estado' };
       }
     } catch (err: any) {
-      results['vercel'] = { status: 'WARNING', latency: 0, message: `Error de red: ${err.message}` };
+      results['vercel'] = { status: 'WARNING', latency: 0, message: `Error: ${err.message}` };
     }
 
 
