@@ -58,8 +58,9 @@ export async function POST(request: Request) {
     }
     const quote = validation.data as QuoteRequest;
 
-    // Fetch dynamic print prices from settings
+    // Fetch dynamic print prices and api credentials from settings
     let dynamicPrices: Record<string, number> = {};
+    let apiCredentials: any = {};
     try {
       const { data: settingsData } = await supabase
         .from('settings')
@@ -69,8 +70,11 @@ export async function POST(request: Request) {
       if (settingsData?.home_settings?.print_prices) {
         dynamicPrices = settingsData.home_settings.print_prices;
       }
+      if (settingsData?.home_settings?.api_credentials) {
+        apiCredentials = settingsData.home_settings.api_credentials;
+      }
     } catch (e) {
-      console.error("Error fetching print prices for email:", e);
+      console.error("Error fetching print prices or credentials for email:", e);
     }
 
     const printPrices: Record<string, number> = {
@@ -157,8 +161,10 @@ export async function POST(request: Request) {
       </div>
     `;
 
-    if (process.env.RESEND_API_KEY) {
-      const { data, error } = await resend.emails.send({
+    const resendKey = apiCredentials.RESEND_API_KEY || process.env.RESEND_API_KEY;
+    if (resendKey && resendKey !== 're_dummy') {
+      const resendInstance = new Resend(resendKey);
+      const { data, error } = await resendInstance.emails.send({
         from: 'GeekyStore B2B <ventas@geekystore.mx>',
         to: ['ventas@geekystore.mx', quote.client.email],
         subject: `Cotización B2B - ${quote.client.company}`,
@@ -169,13 +175,13 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: error.message }, { status: 500 });
       }
     } else {
-      console.warn("RESEND_API_KEY no encontrada. Simulando envío de correo...");
+      console.warn("RESEND_API_KEY no encontrada o es dummy. Simulando envío de correo...");
     }
 
     // --- NEW: WhatsApp Cloud API ---
     // Enviar WhatsApp de confirmación al cliente
-    const waToken = process.env.WA_TOKEN;
-    const waPhoneId = process.env.WA_PHONE_NUMBER_ID;
+    const waToken = apiCredentials.WA_TOKEN || process.env.WA_TOKEN;
+    const waPhoneId = apiCredentials.WA_PHONE_NUMBER_ID || process.env.WA_PHONE_NUMBER_ID;
     
     if (waToken && waPhoneId && quote.client.phone) {
       // Limpiar el teléfono para que solo tenga números

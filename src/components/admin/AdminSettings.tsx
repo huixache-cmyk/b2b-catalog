@@ -161,7 +161,8 @@ export function AdminSettings({
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
           {/* Categories */}
           <div className="bg-white rounded-xl shadow-sm border border-gray-255 p-6">
-            <h3 className="text-lg font-bold text-gray-900 mb-6">Categorías de Producto</h3>
+            <h3 className="text-lg font-bold text-gray-900 mb-1">Categorías de Producto (Menú)</h3>
+            <p className="text-xs text-gray-500 mb-6">Edita, elimina y reordena las categorías que se muestran en la barra de navegación superior.</p>
             <div className="flex gap-2 mb-6">
               <input 
                 type="text" 

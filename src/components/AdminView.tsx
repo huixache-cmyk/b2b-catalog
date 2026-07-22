@@ -4,7 +4,22 @@ import { useState, useEffect } from "react";
 import { useProducts } from "@/hooks/useProducts";
 import { useSettings } from "@/hooks/useSettings";
 import { useQuotes } from "@/hooks/useQuotes";
-import { User } from "lucide-react";
+import { 
+  User, 
+  Package, 
+  Settings as SettingsIcon, 
+  Truck, 
+  Home as HomeIcon, 
+  FileText, 
+  Cpu, 
+  Sparkles, 
+  Tag, 
+  Users, 
+  FileSpreadsheet, 
+  LogOut, 
+  BrainCircuit,
+  Sliders
+} from "lucide-react";
 import dynamic from "next/dynamic";
 import { supabase } from "@/lib/supabase";
 
@@ -18,11 +33,12 @@ const AgentIntegrationView = dynamic(() => import('./AgentIntegrationView').then
 const B2BAgentCRM = dynamic(() => import('./B2BAgentCRM').then(mod => mod.B2BAgentCRM), { ssr: false });
 const AdminCRM = dynamic(() => import('./admin/AdminCRM').then(mod => mod.AdminCRM), { ssr: false });
 const AdminFacturacion = dynamic(() => import('./admin/AdminFacturacion').then(mod => mod.AdminFacturacion), { ssr: false });
+const AdminDiagnostics = dynamic(() => import('./admin/AdminDiagnostics').then(mod => mod.AdminDiagnostics), { ssr: false });
 
 export function AdminView() {
   const { products, isLoaded, addProduct, updateProduct, deleteProduct } = useProducts();
   const { quotes, isLoaded: quotesLoaded, updateQuoteStatus, deleteQuote, updateQuote } = useQuotes();
-  const [activeTab, setActiveTab] = useState<'products' | 'settings' | 'suppliers' | 'home' | 'quotes' | 'agent' | 'b2b-agent' | 'promotions' | 'b2b-crm' | 'factura'>('products');
+  const [activeTab, setActiveTab] = useState<'products' | 'settings' | 'suppliers' | 'home' | 'quotes' | 'agent' | 'b2b-agent' | 'promotions' | 'b2b-crm' | 'factura' | 'diagnostics'>('products');
   const { 
     categories, 
     seasons, 
@@ -199,176 +215,231 @@ export function AdminView() {
   }
 
   const productSuppliers = homeSettings?.product_suppliers || [];
+  const tabItems = [
+    { id: "products", name: "Productos", icon: Package, color: "amber" },
+    { id: "settings", name: "Ajustes / Catálogos", icon: SettingsIcon, color: "emerald" },
+    { id: "suppliers", name: "Proveedores", icon: Truck, color: "indigo" },
+    { id: "home", name: "Página de Inicio", icon: HomeIcon, color: "rose" },
+    { id: "quotes", name: "Cotizaciones", icon: FileText, color: "sky" },
+    { id: "agent", name: "Inteligencia IA", icon: BrainCircuit, color: "violet" },
+    { id: "b2b-agent", name: "Agente B2B", icon: Sparkles, color: "fuchsia" },
+    { id: "promotions", name: "Promociones", icon: Tag, color: "red" },
+    { id: "b2b-crm", name: "Clientes / CRM", icon: Users, color: "teal" },
+    { id: "factura", name: "Facturación", icon: FileSpreadsheet, color: "cyan" },
+    { id: "diagnostics", name: "Diagnósticos", icon: Sliders, color: "red" },
+  ] as const;
+
+  const colorStyles = {
+    amber: {
+      active: "bg-amber-100/90 text-amber-900 border-amber-500",
+      inactive: "bg-amber-50/20 text-gray-500 hover:bg-amber-50 hover:text-amber-700 border-transparent",
+      bottomLine: "bg-amber-500"
+    },
+    emerald: {
+      active: "bg-emerald-100/90 text-emerald-900 border-emerald-500",
+      inactive: "bg-emerald-50/20 text-gray-500 hover:bg-emerald-50 hover:text-emerald-700 border-transparent",
+      bottomLine: "bg-emerald-500"
+    },
+    indigo: {
+      active: "bg-indigo-100/90 text-indigo-900 border-indigo-500",
+      inactive: "bg-indigo-50/20 text-gray-500 hover:bg-indigo-50 hover:text-indigo-700 border-transparent",
+      bottomLine: "bg-indigo-500"
+    },
+    rose: {
+      active: "bg-rose-100/90 text-rose-900 border-rose-500",
+      inactive: "bg-rose-50/20 text-gray-500 hover:bg-rose-50 hover:text-rose-700 border-transparent",
+      bottomLine: "bg-rose-500"
+    },
+    sky: {
+      active: "bg-sky-100/90 text-sky-900 border-sky-500",
+      inactive: "bg-sky-50/20 text-gray-500 hover:bg-sky-50 hover:text-sky-700 border-transparent",
+      bottomLine: "bg-sky-500"
+    },
+    violet: {
+      active: "bg-violet-100/90 text-violet-900 border-violet-500",
+      inactive: "bg-violet-50/20 text-gray-500 hover:bg-violet-50 hover:text-violet-700 border-transparent",
+      bottomLine: "bg-violet-500"
+    },
+    fuchsia: {
+      active: "bg-fuchsia-100/90 text-fuchsia-900 border-fuchsia-500",
+      inactive: "bg-fuchsia-50/20 text-gray-500 hover:bg-fuchsia-50 hover:text-fuchsia-700 border-transparent",
+      bottomLine: "bg-fuchsia-500"
+    },
+    red: {
+      active: "bg-red-100/90 text-red-900 border-red-500",
+      inactive: "bg-red-50/20 text-gray-500 hover:bg-red-50 hover:text-red-700 border-transparent",
+      bottomLine: "bg-red-500"
+    },
+    teal: {
+      active: "bg-teal-100/90 text-teal-900 border-teal-500",
+      inactive: "bg-teal-50/20 text-gray-500 hover:bg-teal-50 hover:text-teal-700 border-transparent",
+      bottomLine: "bg-teal-500"
+    },
+    cyan: {
+      active: "bg-cyan-100/90 text-cyan-900 border-cyan-500",
+      inactive: "bg-cyan-50/20 text-gray-500 hover:bg-cyan-50 hover:text-cyan-700 border-transparent",
+      bottomLine: "bg-cyan-500"
+    }
+  } as const;
+
+  const renderTabContent = () => {
+    switch (activeTab) {
+      case 'products':
+        return (
+          <AdminProductList 
+            products={products}
+            isLoaded={isLoaded}
+            addProduct={addProduct}
+            updateProduct={updateProduct}
+            deleteProduct={deleteProduct}
+            categories={categories}
+            seasons={seasons}
+            homeSettings={homeSettings}
+            productSuppliers={productSuppliers}
+          />
+        );
+      case 'settings':
+        return (
+          <AdminSettings 
+            viewType="settings"
+            categories={categories}
+            seasons={seasons}
+            featuredSeason={featuredSeason}
+            updateFeaturedSeason={updateFeaturedSeason}
+            addCategory={addCategory}
+            removeCategory={removeCategory}
+            addSeason={addSeason}
+            removeSeason={removeSeason}
+            updateCategories={updateCategories}
+            updateSeasons={updateSeasons}
+            homeSettings={homeSettings}
+            updateHomeSettings={updateHomeSettings}
+          />
+        );
+      case 'suppliers':
+        return (
+          <AdminSuppliers 
+            homeSettings={homeSettings}
+            updateHomeSettings={updateHomeSettings}
+            products={products}
+            updateProduct={updateProduct}
+          />
+        );
+      case 'home':
+        return (
+          <AdminSettings 
+            viewType="home"
+            categories={categories}
+            seasons={seasons}
+            featuredSeason={featuredSeason}
+            updateFeaturedSeason={updateFeaturedSeason}
+            addCategory={addCategory}
+            removeCategory={removeCategory}
+            addSeason={addSeason}
+            removeSeason={removeSeason}
+            updateCategories={updateCategories}
+            updateSeasons={updateSeasons}
+            homeSettings={homeSettings}
+            updateHomeSettings={updateHomeSettings}
+          />
+        );
+      case 'quotes':
+        return (
+          <AdminQuotesList 
+            quotes={quotes}
+            updateQuoteStatus={updateQuoteStatus}
+            deleteQuote={deleteQuote}
+            updateQuote={updateQuote}
+            homeSettings={homeSettings}
+          />
+        );
+      case 'agent':
+        return <AgentIntegrationView />;
+      case 'b2b-agent':
+        return <B2BAgentCRM />;
+      case 'promotions':
+        return (
+          <AdminPromotions 
+            homeSettings={homeSettings}
+            updateHomeSettings={updateHomeSettings}
+          />
+        );
+      case 'b2b-crm':
+        return <AdminCRM />;
+      case 'factura':
+        return (
+          <div className="p-0 sm:p-2">
+            <AdminFacturacion showBackButton={false} />
+          </div>
+        );
+      case 'diagnostics':
+        return <AdminDiagnostics />;
+      default:
+        return null;
+    }
+  };
+
+  const activeColor = tabItems.find(t => t.id === activeTab)?.color || "amber";
 
   return (
-    <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden relative">
-      {/* Tabs */}
-      <div className="flex border-b border-gray-200 bg-gray-50 px-6 pt-4 flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <div className="flex flex-wrap">
-          <button 
-            onClick={() => setActiveTab('products')}
-            className={`px-6 py-3 font-bold text-sm border-b-2 transition-colors ${activeTab === 'products' ? 'border-primary-600 text-primary-700' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}`}
+    <div className="bg-white rounded-2xl shadow-md border border-gray-150 overflow-hidden min-h-[75vh] flex flex-col">
+      {/* Console Header */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center p-6 bg-white border-b border-gray-150 gap-4">
+        <div className="flex items-center gap-2">
+          <svg className="w-6 h-6 flex-shrink-0" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="256" cy="256" r="256" fill="#00b3a9"/>
+            <path d="M200 180 L110 256 L200 332" stroke="white" strokeWidth="46" strokeLinecap="round" strokeLinejoin="round"/>
+            <path d="M250 360 L310 150" stroke="white" strokeWidth="42" strokeLinecap="round"/>
+            <path d="M350 180 L440 256 L350 332" stroke="white" strokeWidth="46" strokeLinecap="round" strokeLinejoin="round"/>
+          </svg>
+          <span className="font-extrabold text-lg text-primary-900" style={{ fontFamily: 'Museo, sans-serif' }}>geekystore</span>
+        </div>
+        
+        <div className="flex items-center gap-4 w-full sm:w-auto justify-between sm:justify-end">
+          <div className="text-left">
+            <p className="text-xs font-bold text-gray-700">geroti@hotmail.com</p>
+            <p className="text-[9px] text-gray-400 uppercase font-semibold">Administrador</p>
+          </div>
+          <button
+            onClick={async () => {
+              await supabase.auth.signOut();
+            }}
+            className="text-xs bg-red-50 hover:bg-red-100 text-red-700 font-bold px-3 py-2 rounded-lg border border-red-200/50 transition-colors flex items-center gap-1.5 shadow-sm"
           >
-            Productos
-          </button>
-          <button 
-            onClick={() => setActiveTab('settings')}
-            className={`px-6 py-3 font-bold text-sm border-b-2 transition-colors ${activeTab === 'settings' ? 'border-primary-600 text-primary-700' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}`}
-          >
-            Ajustes / Catálogos
-          </button>
-          <button 
-            onClick={() => setActiveTab('suppliers')}
-            className={`px-6 py-3 font-bold text-sm border-b-2 transition-colors ${activeTab === 'suppliers' ? 'border-primary-600 text-primary-700' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}`}
-          >
-            Proveedores
-          </button>
-          <button 
-            onClick={() => setActiveTab('home')}
-            className={`px-6 py-3 font-bold text-sm border-b-2 transition-colors ${activeTab === 'home' ? 'border-primary-600 text-primary-700' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}`}
-          >
-            Página de Inicio
-          </button>
-          <button 
-            onClick={() => setActiveTab('quotes')}
-            className={`px-6 py-3 font-bold text-sm border-b-2 transition-colors ${activeTab === 'quotes' ? 'border-primary-600 text-primary-700' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}`}
-          >
-            Cotizaciones
-          </button>
-          <button 
-            onClick={() => setActiveTab('agent')}
-            className={`px-6 py-3 font-bold text-sm border-b-2 transition-colors ${activeTab === 'agent' ? 'border-primary-600 text-primary-700' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}`}
-          >
-            Inteligencia IA
-          </button>
-          <button 
-            onClick={() => setActiveTab('b2b-agent')}
-            className={`px-6 py-3 font-bold text-sm border-b-2 transition-colors ${activeTab === 'b2b-agent' ? 'border-primary-600 text-primary-700' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}`}
-          >
-            Agente B2B
-          </button>
-          <button 
-            onClick={() => setActiveTab('promotions')}
-            className={`px-6 py-3 font-bold text-sm border-b-2 transition-colors ${activeTab === 'promotions' ? 'border-primary-600 text-primary-700' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}`}
-          >
-            Promociones
-          </button>
-          <button 
-            onClick={() => setActiveTab('b2b-crm')}
-            className={`px-6 py-3 font-bold text-sm border-b-2 transition-colors ${activeTab === 'b2b-crm' ? 'border-primary-600 text-primary-700' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}`}
-          >
-            Clientes / CRM
-          </button>
-          <button 
-            onClick={() => setActiveTab('factura')}
-            className={`px-6 py-3 font-bold text-sm border-b-2 transition-colors ${activeTab === 'factura' ? 'border-primary-600 text-primary-700' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}`}
-          >
-            Facturación
+            <LogOut className="w-4 h-4" /> <span className="hidden sm:inline">Cerrar Sesión</span>
           </button>
         </div>
-        <button
-          onClick={async () => {
-            await supabase.auth.signOut();
-          }}
-          className="text-xs bg-red-50 hover:bg-red-100 text-red-700 font-bold px-3 py-1.5 rounded-lg border border-red-200/60 transition-colors flex items-center gap-1.5 mb-2 self-end sm:self-auto"
-        >
-          Cerrar Sesión
-        </button>
       </div>
 
-      {activeTab === 'products' && (
-        <AdminProductList 
-          products={products}
-          isLoaded={isLoaded}
-          addProduct={addProduct}
-          updateProduct={updateProduct}
-          deleteProduct={deleteProduct}
-          categories={categories}
-          seasons={seasons}
-          homeSettings={homeSettings}
-          productSuppliers={productSuppliers}
-        />
-      )}
-
-      {activeTab === 'settings' && (
-        <AdminSettings 
-          viewType="settings"
-          categories={categories}
-          seasons={seasons}
-          featuredSeason={featuredSeason}
-          updateFeaturedSeason={updateFeaturedSeason}
-          addCategory={addCategory}
-          removeCategory={removeCategory}
-          addSeason={addSeason}
-          removeSeason={removeSeason}
-          updateCategories={updateCategories}
-          updateSeasons={updateSeasons}
-          homeSettings={homeSettings}
-          updateHomeSettings={updateHomeSettings}
-        />
-      )}
-
-      {activeTab === 'home' && (
-        <AdminSettings 
-          viewType="home"
-          categories={categories}
-          seasons={seasons}
-          featuredSeason={featuredSeason}
-          updateFeaturedSeason={updateFeaturedSeason}
-          addCategory={addCategory}
-          removeCategory={removeCategory}
-          addSeason={addSeason}
-          removeSeason={removeSeason}
-          updateCategories={updateCategories}
-          updateSeasons={updateSeasons}
-          homeSettings={homeSettings}
-          updateHomeSettings={updateHomeSettings}
-        />
-      )}
-
-      {activeTab === 'suppliers' && (
-        <AdminSuppliers 
-          homeSettings={homeSettings}
-          updateHomeSettings={updateHomeSettings}
-          products={products}
-          updateProduct={updateProduct}
-        />
-      )}
-
-      {activeTab === 'quotes' && (
-        <AdminQuotesList 
-          quotes={quotes}
-          updateQuoteStatus={updateQuoteStatus}
-          deleteQuote={deleteQuote}
-          updateQuote={updateQuote}
-          homeSettings={homeSettings}
-        />
-      )}
-
-      {activeTab === 'agent' && (
-        <AgentIntegrationView />
-      )}
-
-      {activeTab === 'b2b-agent' && (
-        <B2BAgentCRM />
-      )}
-
-      {activeTab === 'promotions' && (
-        <AdminPromotions 
-          homeSettings={homeSettings}
-          updateHomeSettings={updateHomeSettings}
-        />
-      )}
-
-      {activeTab === 'b2b-crm' && (
-        <AdminCRM />
-      )}
-      
-      {activeTab === 'factura' && (
-        <div className="p-6">
-          <AdminFacturacion showBackButton={false} />
+      {/* Binder Folders Tab Row */}
+      <div className="bg-gray-50/50 pt-4 px-4 border-b border-gray-250 overflow-x-auto scrollbar-none flex-shrink-0">
+        <div className="flex gap-1.5 z-10 relative -mb-[1px]">
+          {tabItems.map((item) => {
+            const Icon = item.icon;
+            const isActive = activeTab === item.id;
+            const style = colorStyles[item.color];
+            return (
+              <button
+                key={item.id}
+                onClick={() => setActiveTab(item.id)}
+                className={`flex flex-col items-center justify-center pt-3 pb-2 px-5 text-xs font-bold rounded-t-xl transition-all border-t-2 border-x border-b-0 min-w-[110px] flex-shrink-0 relative ${
+                  isActive 
+                    ? `${style.active} border-gray-200 border-t-4 z-10 translate-y-[1px]` 
+                    : `${style.inactive} border-transparent hover:border-gray-200/40 hover:translate-y-[-1px]`
+                }`}
+              >
+                <Icon className={`w-5 h-5 mb-1.5 ${isActive ? "scale-110 transition-transform" : "opacity-80"}`} />
+                <span className="text-[11px] tracking-tight">{item.name}</span>
+              </button>
+            );
+          })}
         </div>
-      )}
+      </div>
+
+      {/* Content Container */}
+      <div className="p-6 sm:p-8 bg-white flex-grow overflow-y-auto">
+        {renderTabContent()}
+      </div>
     </div>
   );
 }

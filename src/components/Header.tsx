@@ -1135,30 +1135,7 @@ export function Header() {
               );
             })}
 
-            {isAdmin && (
-              <>
-                <li>
-                  <button
-                    onClick={() => setShowCategoryEditModal(true)}
-                    className="flex items-center gap-1.5 text-primary-600 hover:text-primary-800 font-bold py-2 md:py-0 transition-colors"
-                    title="Editar categorías del menú"
-                  >
-                    <Edit className="w-4 h-4" />
-                    <span>Editar Menú</span>
-                  </button>
-                </li>
-                <li>
-                  <Link
-                    href="/admin"
-                    className="flex items-center gap-1.5 text-emerald-600 hover:text-emerald-800 font-extrabold py-2 md:py-0 transition-colors border-l pl-4 border-gray-200"
-                    title="Ir al Panel de Administración"
-                  >
-                    <Sliders className="w-4 h-4" />
-                    <span>Panel Admin</span>
-                  </Link>
-                </li>
-              </>
-            )}
+
             
             {/* Mobile-only menu items */}
             <li className="md:hidden border-t pt-4 mt-2 w-full">

@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
 import { Resend } from 'resend';
-
-const resend = new Resend(process.env.RESEND_API_KEY || 're_dummy');
+import { supabase } from '@/lib/supabase';
 
 export async function POST(request: Request) {
   try {
@@ -12,9 +11,29 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Faltan parámetros requeridos' }, { status: 400 });
     }
 
+    // Resolve dynamic credentials from Supabase settings table (id=1)
+    let apiCredentials: any = {};
+    try {
+      const { data: settingsData } = await supabase
+        .from('settings')
+        .select('home_settings')
+        .eq('id', 1)
+        .single();
+      if (settingsData?.home_settings?.api_credentials) {
+        apiCredentials = settingsData.home_settings.api_credentials;
+      }
+    } catch (dbErr) {
+      console.warn("Could not fetch dynamic credentials from settings DB:", dbErr);
+    }
+
+    const resendKey = apiCredentials.RESEND_API_KEY || process.env.RESEND_API_KEY;
+    const waToken = apiCredentials.WA_TOKEN || process.env.WA_TOKEN;
+    const waPhoneId = apiCredentials.WA_PHONE_NUMBER_ID || process.env.WA_PHONE_NUMBER_ID;
+
     // 1. Send Email via Resend
     let emailSent = false;
-    if (process.env.RESEND_API_KEY) {
+    if (resendKey && resendKey !== 're_dummy') {
+      const resend = new Resend(resendKey);
       const { error: emailError } = await resend.emails.send({
         from: 'GeekyStore B2B <ventas@geekystore.mx>',
         to: email,
@@ -51,15 +70,13 @@ export async function POST(request: Request) {
         emailSent = true;
       }
     } else {
-      console.warn("Simulación de correo: RESEND_API_KEY no configurada. Destinatario:", email, "Clave:", access_key);
+      console.warn("Simulación de correo: RESEND_API_KEY no configurada o es dummy. Destinatario:", email, "Clave:", access_key);
       emailSent = true;
     }
 
     // 2. Send WhatsApp if phone exists
     let waSent = false;
     if (phone) {
-      const waToken = process.env.WA_TOKEN;
-      const waPhoneId = process.env.WA_PHONE_NUMBER_ID;
 
       if (waToken && waPhoneId) {
         const cleanPhone = phone.replace(/\D/g, '');

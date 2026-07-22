@@ -22,6 +22,10 @@ import {
 } from "lucide-react";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
+import { useCRM } from "@/hooks/useCRM";
+import { useProducts } from "@/hooks/useProducts";
+import { supabase } from "@/lib/supabase";
+
 
 // Interface Definitions
 interface InvoiceItem {
@@ -225,6 +229,9 @@ interface AdminFacturacionProps {
 }
 
 export function AdminFacturacion({ showBackButton = true }: AdminFacturacionProps) {
+  const { customers } = useCRM();
+  const { products } = useProducts();
+
   // Issuer details (Gerardo Rodriguez Tiscareño)
   const emisor = {
     rfc: "ROTG730313B35",
@@ -300,11 +307,34 @@ export function AdminFacturacion({ showBackButton = true }: AdminFacturacionProp
     }
   ]);
 
+  // Combine custom products from database and preset fallback products
+  const availableProducts = useMemo(() => {
+    if (products && products.length > 0) {
+      return products.map(p => ({
+        claveSat: p.category.toLowerCase().includes("tecnolo") ? "43211700" :
+                  p.category.toLowerCase().includes("taza") || p.category.toLowerCase().includes("hogar") ? "48101600" :
+                  p.category.toLowerCase().includes("escr") || p.category.toLowerCase().includes("ofic") ? "44121700" :
+                  p.category.toLowerCase().includes("bolsa") || p.category.toLowerCase().includes("moch") ? "53121600" :
+                  p.category.toLowerCase().includes("servic") || p.category.toLowerCase().includes("impres") ? "82121500" :
+                  p.category.toLowerCase().includes("cuidado") || p.category.toLowerCase().includes("tocad") ? "49221500" : "80141605",
+        noIdentificacion: p.sku || `PROM-${p.id.substring(0, 5).toUpperCase()}`,
+        descripcion: p.name,
+        valorUnitario: p.price,
+        unidad: p.category.toLowerCase().includes("serv") ? "Servicio" : "Pieza",
+        claveUnidad: p.category.toLowerCase().includes("serv") ? "E48" : "H87"
+      }));
+    }
+    return PRESET_PRODUCTS;
+  }, [products]);
+
   // Concept inputs state (for adding a new one)
   const [newItemProduct, setNewItemProduct] = useState(0);
   const [newItemCantidad, setNewItemCantidad] = useState(1);
   const [newItemPrecio, setNewItemPrecio] = useState(0);
   const [newItemDesc, setNewItemDesc] = useState("");
+  const [newItemClaveSat, setNewItemClaveSat] = useState("48101600");
+  const [newItemClaveUnidad, setNewItemClaveUnidad] = useState("H87");
+  const [newItemUnidad, setNewItemUnidad] = useState("Pieza");
 
   // Sync date of emission on load
   useEffect(() => {
@@ -314,12 +344,12 @@ export function AdminFacturacion({ showBackButton = true }: AdminFacturacionProp
   }, []);
 
   // Update receiver fields when template changes
-  const handleClientTemplateChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+  const handleClientTemplateChange = async (e: React.ChangeEvent<HTMLSelectElement>) => {
     const val = e.target.value;
     if (val === "custom") {
       setClientType("custom");
-    } else {
-      const idx = parseInt(val);
+    } else if (val.startsWith("tpl_")) {
+      const idx = parseInt(val.replace("tpl_", ""));
       const tpl = CLIENT_TEMPLATES[idx];
       setClientType(tpl.tipo);
       setClientRfc(tpl.rfc);
@@ -327,6 +357,37 @@ export function AdminFacturacion({ showBackButton = true }: AdminFacturacionProp
       setClientRegimen(tpl.regimenFiscal);
       setClientCp(tpl.codigoPostal);
       setClientUso(tpl.usoCfdi);
+    } else {
+      const customer = customers.find(c => c.id === val);
+      if (customer) {
+        setClientRazonSocial(customer.business_name.toUpperCase());
+        const rfc = customer.rfc || "";
+        setClientRfc(rfc.toUpperCase());
+        const type = rfc.length === 12 ? "moral" : "fisica";
+        setClientType(type);
+        if (type === "moral") {
+          setClientRegimen("601 - General de Ley Personas Morales");
+          setClientUso("G03 - Gastos en general");
+        } else {
+          setClientRegimen("625 - Régimen Simplificado de Confianza");
+          setClientUso("CP01 - Sin efectos fiscales");
+        }
+        try {
+          const { data: addrs, error } = await supabase
+            .from("customer_addresses")
+            .select("*")
+            .eq("customer_id", customer.id);
+          
+          if (!error && addrs && addrs.length > 0) {
+            const defAddr = addrs.find(a => a.is_default) || addrs[0];
+            if (defAddr && defAddr.postal_code) {
+              setClientCp(defAddr.postal_code);
+            }
+          }
+        } catch (err) {
+          console.error("Error fetching customer address:", err);
+        }
+      }
     }
   };
 
@@ -334,41 +395,55 @@ export function AdminFacturacion({ showBackButton = true }: AdminFacturacionProp
   const handlePresetSelectChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const idx = parseInt(e.target.value);
     setNewItemProduct(idx);
-    const prod = PRESET_PRODUCTS[idx];
-    setNewItemPrecio(prod.valorUnitario);
-    setNewItemDesc(prod.descripcion);
+    const prod = availableProducts[idx];
+    if (prod) {
+      setNewItemPrecio(prod.valorUnitario);
+      setNewItemDesc(prod.descripcion);
+      setNewItemClaveSat(prod.claveSat);
+      setNewItemClaveUnidad(prod.claveUnidad);
+      setNewItemUnidad(prod.unidad);
+    }
   };
 
   // Set initial preset values
   useEffect(() => {
-    const prod = PRESET_PRODUCTS[0];
-    setNewItemPrecio(prod.valorUnitario);
-    setNewItemDesc(prod.descripcion);
-  }, []);
+    const prod = availableProducts[0];
+    if (prod) {
+      setNewItemPrecio(prod.valorUnitario);
+      setNewItemDesc(prod.descripcion);
+      setNewItemClaveSat(prod.claveSat);
+      setNewItemClaveUnidad(prod.claveUnidad);
+      setNewItemUnidad(prod.unidad);
+    }
+  }, [availableProducts]);
 
   // Add Item to concepts
   const handleAddItem = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newItemDesc || newItemCantidad <= 0 || newItemPrecio <= 0) return;
 
-    const prod = PRESET_PRODUCTS[newItemProduct];
+    const prod = availableProducts[newItemProduct];
     const item: InvoiceItem = {
       id: Math.random().toString(36).substring(2, 9),
-      claveSat: prod.claveSat,
-      noIdentificacion: prod.noIdentificacion,
+      claveSat: newItemClaveSat || (prod ? prod.claveSat : "48101600"),
+      noIdentificacion: prod ? prod.noIdentificacion : "PROM-GEN-01",
       cantidad: newItemCantidad,
-      claveUnidad: prod.claveUnidad,
-      unidad: prod.unidad,
+      claveUnidad: newItemClaveUnidad || (prod ? prod.claveUnidad : "H87"),
+      unidad: newItemUnidad || (prod ? prod.unidad : "Pieza"),
       descripcion: newItemDesc,
       valorUnitario: newItemPrecio
     };
 
     setItems([...items, item]);
     setNewItemCantidad(1);
-    // Reset to preset values
-    const resetProd = PRESET_PRODUCTS[newItemProduct];
-    setNewItemPrecio(resetProd.valorUnitario);
-    setNewItemDesc(resetProd.descripcion);
+    const resetProd = availableProducts[newItemProduct];
+    if (resetProd) {
+      setNewItemPrecio(resetProd.valorUnitario);
+      setNewItemDesc(resetProd.descripcion);
+      setNewItemClaveSat(resetProd.claveSat);
+      setNewItemClaveUnidad(resetProd.claveUnidad);
+      setNewItemUnidad(resetProd.unidad);
+    }
   };
 
   // Remove Item
@@ -833,15 +908,26 @@ export function AdminFacturacion({ showBackButton = true }: AdminFacturacionProp
             
             <div className="space-y-4">
               <div>
-                <label className="text-sm font-semibold text-gray-700 block mb-1">Cargar Plantilla de Cliente</label>
+                <label className="text-sm font-semibold text-gray-700 block mb-1">Cargar Cliente / Receptor</label>
                 <select 
                   onChange={handleClientTemplateChange}
                   className="w-full rounded-lg border border-gray-300 p-2 text-sm focus:border-primary-500 focus:ring-1 focus:ring-primary-500 focus:outline-none"
                 >
-                  {CLIENT_TEMPLATES.map((t, idx) => (
-                    <option key={idx} value={idx}>{t.name}</option>
-                  ))}
-                  <option value="custom">-- Cliente Personalizado / Manual --</option>
+                  <option value="custom">-- Seleccionar o ingresar manual --</option>
+                  {customers.length > 0 && (
+                    <optgroup label="Clientes del CRM">
+                      {customers.map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {c.commercial_name ? `${c.commercial_name} (${c.business_name})` : c.business_name}
+                        </option>
+                      ))}
+                    </optgroup>
+                  )}
+                  <optgroup label="Plantillas de Ejemplo">
+                    {CLIENT_TEMPLATES.map((t, idx) => (
+                      <option key={`tpl_${idx}`} value={`tpl_${idx}`}>{t.name}</option>
+                    ))}
+                  </optgroup>
                 </select>
               </div>
 
@@ -969,20 +1055,20 @@ export function AdminFacturacion({ showBackButton = true }: AdminFacturacionProp
             
             <form onSubmit={handleAddItem} className="space-y-4">
               <div>
-                <label className="text-xs font-semibold text-gray-600 block mb-1">Seleccionar Producto Base</label>
+                <label className="text-xs font-semibold text-gray-700 block mb-1">Seleccionar Producto del Catálogo</label>
                 <select 
                   value={newItemProduct}
                   onChange={handlePresetSelectChange}
-                  className="w-full rounded-lg border border-gray-300 p-2 text-xs focus:border-primary-500 focus:ring-1 focus:ring-primary-500 focus:outline-none"
+                  className="w-full rounded-lg border border-gray-300 p-2 text-xs focus:border-primary-500 focus:ring-1 focus:ring-primary-500 focus:outline-none font-semibold text-gray-700"
                 >
-                  {PRESET_PRODUCTS.map((p, idx) => (
+                  {availableProducts.map((p, idx) => (
                     <option key={idx} value={idx}>{p.noIdentificacion} - {p.descripcion.substring(0, 45)}...</option>
                   ))}
                 </select>
               </div>
 
               <div>
-                <label className="text-xs font-semibold text-gray-600 block mb-1">Descripción Detallada del Artículo</label>
+                <label className="text-xs font-semibold text-gray-600 block mb-1">Descripción Detallada del Concepto</label>
                 <textarea 
                   value={newItemDesc}
                   onChange={(e) => setNewItemDesc(e.target.value)}
@@ -1011,7 +1097,43 @@ export function AdminFacturacion({ showBackButton = true }: AdminFacturacionProp
                     value={newItemPrecio}
                     onChange={(e) => setNewItemPrecio(parseFloat(e.target.value) || 0)}
                     min={0.01}
+                    className="w-full rounded-lg border border-gray-300 p-2 text-xs focus:border-primary-500 focus:ring-1 focus:ring-primary-500 focus:outline-none font-mono"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="text-xs font-semibold text-gray-600 block mb-1">Clave SAT (Prod/Serv)</label>
+                  <input 
+                    type="text" 
+                    value={newItemClaveSat}
+                    onChange={(e) => setNewItemClaveSat(e.target.value)}
+                    className="w-full rounded-lg border border-gray-300 p-2 text-xs focus:border-primary-500 focus:ring-1 focus:ring-primary-500 focus:outline-none font-mono"
+                    placeholder="48101600"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-gray-600 block mb-1">Clave Unidad SAT</label>
+                  <input 
+                    type="text" 
+                    value={newItemClaveUnidad}
+                    onChange={(e) => setNewItemClaveUnidad(e.target.value)}
+                    className="w-full rounded-lg border border-gray-300 p-2 text-xs focus:border-primary-500 focus:ring-1 focus:ring-primary-500 focus:outline-none font-mono"
+                    placeholder="H87"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="text-xs font-semibold text-gray-600 block mb-1">Nombre Unidad</label>
+                  <input 
+                    type="text" 
+                    value={newItemUnidad}
+                    onChange={(e) => setNewItemUnidad(e.target.value)}
                     className="w-full rounded-lg border border-gray-300 p-2 text-xs focus:border-primary-500 focus:ring-1 focus:ring-primary-500 focus:outline-none"
+                    placeholder="Pieza"
                   />
                 </div>
               </div>
