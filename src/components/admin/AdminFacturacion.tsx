@@ -18,7 +18,8 @@ import {
   User,
   Building,
   AlertTriangle,
-  Eye
+  Eye,
+  Lock
 } from "lucide-react";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
@@ -342,6 +343,177 @@ export function AdminFacturacion({ showBackButton = true }: AdminFacturacionProp
     const dateStr = now.toISOString().slice(0, 19).replace('T', ' ');
     setFechaExpedicion(dateStr);
   }, []);
+
+  // Real Facturapi states
+  const [stampedInvoice, setStampedInvoice] = useState<any>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isCancelling, setIsCancelling] = useState(false);
+  const [isCreatingNC, setIsCreatingNC] = useState(false);
+  const [isCreatingREP, setIsCreatingREP] = useState(false);
+  
+  // Input fields for related operations
+  const [ncAmount, setNcAmount] = useState("");
+  const [ncDesc, setNcDesc] = useState("Descuento sobre factura original");
+  const [repAmount, setRepAmount] = useState("");
+  const [repForm, setRepForm] = useState("03");
+  const [repInstallment, setRepInstallment] = useState("1");
+  const [cancelMotive, setCancelMotive] = useState("02"); // SAT 02 - Comprobante emitido con errores sin relación
+  const [cancelSubstitution, setCancelSubstitution] = useState("");
+  
+  // Feedback toast/message
+  const [apiFeedback, setApiFeedback] = useState<{ text: string; type: "success" | "error" | "info" | "" }>({ text: "", type: "" });
+
+  const handleEmitRealInvoice = async () => {
+    setIsSubmitting(true);
+    setApiFeedback({ text: "Conectando con el SAT y timbrando comprobante...", type: "info" });
+    try {
+      const payload = {
+        client: {
+          razonSocial: clientRazonSocial,
+          name: clientRazonSocial,
+          rfc: clientRfc,
+          regimenFiscal: clientRegimen.split(" - ")[0], // Extract SAT code (e.g. 601)
+          codigoPostal: clientCp,
+          usoCfdi: clientUso.split(" - ")[0] // Extract SAT code (e.g. G03)
+        },
+        items: items.map(item => ({
+          cantidad: item.cantidad,
+          descripcion: item.descripcion,
+          valorUnitario: item.valorUnitario,
+          claveSat: item.claveSat,
+          claveUnidad: item.claveUnidad
+        })),
+        payment_form: formaPago,
+        payment_method: metodoPago,
+        use: clientUso.split(" - ")[0]
+      };
+
+      const res = await fetch("/api/facturacion/crear", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || "Error al emitir factura.");
+      }
+
+      setStampedInvoice(data.invoice);
+      setApiFeedback({ text: "¡Factura CFDI 4.0 timbrada con éxito en Sandbox!", type: "success" });
+    } catch (err: any) {
+      console.error(err);
+      setApiFeedback({ text: `Error al timbrar: ${err.message}`, type: "error" });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleCheckStatus = async () => {
+    if (!stampedInvoice?.id) return;
+    setApiFeedback({ text: "Consultando estatus en el SAT...", type: "info" });
+    try {
+      const res = await fetch(`/api/facturacion/estatus?id=${stampedInvoice.id}`);
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || "Error al consultar estatus.");
+      }
+      setStampedInvoice(data.invoice);
+      setApiFeedback({ text: `Estatus actual: ${data.invoice.status === 'valid' ? 'VIGENTE' : 'CANCELADO'}`, type: "success" });
+    } catch (err: any) {
+      setApiFeedback({ text: `Error de estatus: ${err.message}`, type: "error" });
+    }
+  };
+
+  const handleCancelInvoice = async () => {
+    if (!stampedInvoice?.id) return;
+    if (!confirm("¿Estás seguro de que deseas solicitar la cancelación de esta factura ante el SAT?")) return;
+    setIsCancelling(true);
+    setApiFeedback({ text: "Enviando solicitud de cancelación al SAT...", type: "info" });
+    try {
+      const res = await fetch("/api/facturacion/cancelar", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: stampedInvoice.id,
+          motive: cancelMotive,
+          substitution: cancelSubstitution || undefined
+        })
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || "Error al cancelar factura.");
+      }
+      setStampedInvoice(data.invoice);
+      setApiFeedback({ text: "¡Solicitud de cancelación aceptada y procesada ante el SAT!", type: "success" });
+    } catch (err: any) {
+      setApiFeedback({ text: `Error al cancelar: ${err.message}`, type: "error" });
+    } finally {
+      setIsCancelling(false);
+    }
+  };
+
+  const handleCreateCreditNote = async () => {
+    if (!stampedInvoice?.id) return;
+    if (!ncAmount || Number(ncAmount) <= 0) {
+      alert("Por favor ingresa un monto válido para la nota de crédito.");
+      return;
+    }
+    setIsCreatingNC(true);
+    setApiFeedback({ text: "Emitiendo Nota de Crédito (Egreso) relacionada...", type: "info" });
+    try {
+      const res = await fetch("/api/facturacion/nota-credito", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          original_invoice_id: stampedInvoice.id,
+          amount: ncAmount,
+          description: ncDesc
+        })
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || "Error al emitir nota de crédito.");
+      }
+      setApiFeedback({ text: `¡Nota de Crédito emitida con éxito! Folio SAT: ${data.invoice.uuid}`, type: "success" });
+      setNcAmount("");
+    } catch (err: any) {
+      setApiFeedback({ text: `Error en Nota de Crédito: ${err.message}`, type: "error" });
+    } finally {
+      setIsCreatingNC(false);
+    }
+  };
+
+  const handleCreatePaymentComplement = async () => {
+    if (!stampedInvoice?.id) return;
+    if (!repAmount || Number(repAmount) <= 0) {
+      alert("Por favor ingresa un monto de pago válido.");
+      return;
+    }
+    setIsCreatingREP(true);
+    setApiFeedback({ text: "Emitiendo Complemento para Recepción de Pagos (REP)...", type: "info" });
+    try {
+      const res = await fetch("/api/facturacion/complemento", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          original_invoice_id: stampedInvoice.id,
+          payment_form: repForm,
+          amount: repAmount,
+          installment_number: repInstallment
+        })
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || "Error al emitir complemento de pago.");
+      }
+      setApiFeedback({ text: `¡Complemento de Pago timbrado con éxito! Folio SAT: ${data.invoice.uuid}`, type: "success" });
+      setRepAmount("");
+    } catch (err: any) {
+      setApiFeedback({ text: `Error en Complemento de Pago: ${err.message}`, type: "error" });
+    } finally {
+      setIsCreatingREP(false);
+    }
+  };
 
   // Update receiver fields when template changes
   const handleClientTemplateChange = async (e: React.ChangeEvent<HTMLSelectElement>) => {
@@ -862,6 +1034,26 @@ export function AdminFacturacion({ showBackButton = true }: AdminFacturacionProp
       )}
 
       {/* Main Grid: Inputs (Left) and CFDI Preview (Right) */}
+      {/* API Feedback Notification */}
+      {apiFeedback.text && (
+        <div className={`mb-6 p-4 rounded-xl border flex items-center justify-between transition-all duration-300 ${
+          apiFeedback.type === 'error' ? 'bg-red-50 border-red-200 text-red-800' :
+          apiFeedback.type === 'success' ? 'bg-green-50 border-green-200 text-green-800' :
+          'bg-blue-50 border-blue-200 text-blue-800'
+        }`}>
+          <div className="flex items-center gap-2.5">
+            <CheckCircle2 className="w-5 h-5 flex-shrink-0" />
+            <span className="text-xs sm:text-sm font-semibold">{apiFeedback.text}</span>
+          </div>
+          <button 
+            onClick={() => setApiFeedback({ text: "", type: "" })} 
+            className="text-xs font-bold hover:underline ml-2"
+          >
+            Cerrar
+          </button>
+        </div>
+      )}
+
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
         
         {/* Simulator Form Control (5 Columns) */}
@@ -1180,6 +1372,177 @@ export function AdminFacturacion({ showBackButton = true }: AdminFacturacionProp
                 </select>
               </div>
             </div>
+          </div>
+
+          {/* Real Invoicing Panel */}
+          <div className="bg-white rounded-xl shadow-md border-2 border-primary-500/30 p-6">
+            <div className="flex items-center gap-2 mb-4">
+              <Lock className="w-5 h-5 text-primary-600" />
+              <h2 className="text-lg font-bold text-gray-900">Timbrado Real SAT (Sandbox)</h2>
+            </div>
+            
+            {stampedInvoice ? (
+              <div className="space-y-4 text-xs">
+                <div className="bg-emerald-50 border border-emerald-200 text-emerald-800 p-3 rounded-lg flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+                  <div>
+                    <span className="font-bold block">¡Comprobante Timbrado!</span>
+                    <span className="font-mono text-[10px] break-all">{stampedInvoice.uuid}</span>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <a 
+                    href={stampedInvoice.files.xml} 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold p-2 rounded-lg flex items-center justify-center gap-1 border border-gray-300 transition-all text-center"
+                  >
+                    <FileCode className="w-4 h-4" /> XML Oficial
+                  </a>
+                  <a 
+                    href={stampedInvoice.files.pdf} 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold p-2 rounded-lg flex items-center justify-center gap-1 shadow-sm transition-all text-center"
+                  >
+                    <Download className="w-4 h-4" /> PDF Oficial
+                  </a>
+                </div>
+
+                <div className="border-t border-gray-200 pt-4 space-y-4">
+                  {/* Status check */}
+                  <div className="flex items-center justify-between">
+                    <span>Estatus SAT: <strong className={stampedInvoice.status === 'valid' ? 'text-emerald-600' : 'text-red-600'}>{stampedInvoice.status.toUpperCase()}</strong></span>
+                    <button 
+                      onClick={handleCheckStatus}
+                      className="text-primary-600 hover:underline font-bold flex items-center gap-1"
+                    >
+                      <RefreshCw className="w-3 h-3" /> Actualizar Estatus
+                    </button>
+                  </div>
+
+                  {/* Complement of payment (REP) (Only if payment method is PPD) */}
+                  {metodoPago === 'PPD' && stampedInvoice.status === 'valid' && (
+                    <div className="bg-gray-50 p-3 rounded-lg border border-gray-200 space-y-2">
+                      <span className="font-bold text-gray-700 block text-left">Emitir Complemento de Pago (REP)</span>
+                      <div className="grid grid-cols-2 gap-2 text-left">
+                        <div>
+                          <label className="text-[10px] text-gray-500 block">Monto Pagado</label>
+                          <input 
+                            type="number" 
+                            value={repAmount} 
+                            onChange={(e) => setRepAmount(e.target.value)} 
+                            placeholder="Monto"
+                            className="w-full border border-gray-300 rounded p-1.5"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-[10px] text-gray-500 block">Parcialidad</label>
+                          <input 
+                            type="number" 
+                            value={repInstallment} 
+                            onChange={(e) => setRepInstallment(e.target.value)} 
+                            className="w-full border border-gray-300 rounded p-1.5"
+                          />
+                        </div>
+                      </div>
+                      <button
+                        onClick={handleCreatePaymentComplement}
+                        disabled={isCreatingREP}
+                        className="w-full bg-primary-750 hover:bg-primary-850 text-white rounded p-1.5 font-bold transition-all disabled:opacity-50"
+                      >
+                        {isCreatingREP ? "Emitiendo..." : "Emitir REP en SAT"}
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Credit Note (Egreso) */}
+                  {stampedInvoice.status === 'valid' && (
+                    <div className="bg-gray-50 p-3 rounded-lg border border-gray-200 space-y-2">
+                      <span className="font-bold text-gray-700 block text-left">Emitir Nota de Crédito (Egreso)</span>
+                      <div className="space-y-1.5 text-left">
+                        <label className="text-[10px] text-gray-500 block">Monto del Descuento</label>
+                        <input 
+                          type="number" 
+                          value={ncAmount} 
+                          onChange={(e) => setNcAmount(e.target.value)} 
+                          placeholder="Monto"
+                          className="w-full border border-gray-300 rounded p-1.5"
+                        />
+                      </div>
+                      <button
+                        onClick={handleCreateCreditNote}
+                        disabled={isCreatingNC}
+                        className="w-full bg-primary-750 hover:bg-primary-850 text-white rounded p-1.5 font-bold transition-all disabled:opacity-50"
+                      >
+                        {isCreatingNC ? "Emitiendo..." : "Emitir Nota de Crédito"}
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Cancellation */}
+                  {stampedInvoice.status === 'valid' && (
+                    <div className="bg-red-50 p-3 rounded-lg border border-red-200 space-y-2">
+                      <span className="font-bold text-red-800 block text-left">Cancelar Comprobante ante el SAT</span>
+                      <div className="text-left">
+                        <label className="text-[10px] text-gray-500 block">Motivo SAT</label>
+                        <select 
+                          value={cancelMotive} 
+                          onChange={(e) => setCancelMotive(e.target.value)} 
+                          className="w-full border border-gray-300 rounded p-1.5 bg-white text-gray-700"
+                        >
+                          <option value="02">02 - Comprobante emitido con errores sin relación</option>
+                          <option value="03">03 - No se llevó a cabo la operación</option>
+                          <option value="04">04 - Operación nominativa relacionada en una factura global</option>
+                          <option value="01">01 - Comprobante emitido con errores con relación</option>
+                        </select>
+                      </div>
+                      {cancelMotive === '01' && (
+                        <div className="text-left">
+                          <label className="text-[10px] text-gray-500 block">Folio Sustituto (UUID)</label>
+                          <input 
+                            type="text" 
+                            value={cancelSubstitution} 
+                            onChange={(e) => setCancelSubstitution(e.target.value)} 
+                            placeholder="UUID de la factura de reemplazo"
+                            className="w-full border border-gray-300 rounded p-1.5"
+                          />
+                        </div>
+                      )}
+                      <button
+                        onClick={handleCancelInvoice}
+                        disabled={isCancelling}
+                        className="w-full bg-red-600 hover:bg-red-700 text-white rounded p-1.5 font-bold transition-all disabled:opacity-50"
+                      >
+                        {isCancelling ? "Cancelando..." : "Solicitar Cancelación"}
+                      </button>
+                    </div>
+                  )}
+
+                  <button
+                    onClick={() => setStampedInvoice(null)}
+                    className="w-full border border-gray-300 text-gray-600 rounded p-1.5 font-semibold hover:bg-gray-50 text-center"
+                  >
+                    Nueva Factura (Reset)
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-4 text-xs">
+                <p className="text-gray-500 text-left">
+                  Usa este botón para realizar un <strong>timbrado real en el Sandbox del SAT</strong>. Esto generará un folio fiscal (UUID) de prueba y enlaces de descarga a archivos PDF/XML válidos ante la estructura CFDI 4.0.
+                </p>
+                <button
+                  onClick={handleEmitRealInvoice}
+                  disabled={isSubmitting || items.length === 0}
+                  className="w-full bg-primary-600 hover:bg-primary-700 disabled:opacity-50 text-white rounded-lg p-3 font-bold transition-all shadow-sm flex items-center justify-center gap-1.5"
+                >
+                  <FileText className="w-4 h-4" /> 
+                  {isSubmitting ? "Timbrando en SAT..." : "Emitir Factura SAT Real"}
+                </button>
+              </div>
+            )}
           </div>
 
         </div>
