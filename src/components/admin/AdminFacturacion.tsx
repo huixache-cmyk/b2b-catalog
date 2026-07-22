@@ -593,12 +593,12 @@ export function AdminFacturacion({ showBackButton = true }: AdminFacturacionProp
   const handleImportQuote = async (quoteId: string) => {
     if (!quoteId) return;
     const quote = quotes.find(q => q.id === quoteId);
-    if (!quote) return;
+    if (!quote || !quote.client) return;
 
     setApiFeedback({ text: `Cargando datos de la cotización comercial...`, type: "info" });
 
     // 1. Relate the client
-    const clientName = quote.client.company || quote.client.name;
+    const clientName = quote.client.company || quote.client.name || "";
     const clientEmail = quote.client.email || "";
     
     let matchedCustomer = customers.find(c => 
@@ -648,7 +648,8 @@ export function AdminFacturacion({ showBackButton = true }: AdminFacturacionProp
     }
 
     // 2. Map items
-    const mappedItems = quote.items.map((ci, index) => {
+    const quoteItems = quote.items && Array.isArray(quote.items) ? quote.items : [];
+    const mappedItems = quoteItems.map((ci, index) => {
       const matchedProd = availableProducts.find(ap => 
         ap.noIdentificacion.toLowerCase() === ci.sku.toLowerCase() ||
         ap.descripcion.toLowerCase() === ci.productName.toLowerCase()
@@ -1215,11 +1216,17 @@ export function AdminFacturacion({ showBackButton = true }: AdminFacturacionProp
                   defaultValue=""
                 >
                   <option value="">-- Vincular con Cotización --</option>
-                  {quotes.map((q) => (
-                    <option key={q.id} value={q.id}>
-                      {q.client.company || q.client.name} - ${q.total.toLocaleString()} ({new Date(q.date).toLocaleDateString()})
-                    </option>
-                  ))}
+                  {quotes && quotes.map((q) => {
+                    if (!q || !q.client) return null;
+                    const clientLabel = q.client.company || q.client.name || 'Cliente sin nombre';
+                    const formattedTotal = typeof q.total === 'number' ? q.total.toLocaleString() : '0';
+                    const dateLabel = q.date ? new Date(q.date).toLocaleDateString() : '';
+                    return (
+                      <option key={q.id} value={q.id}>
+                        {clientLabel} - ${formattedTotal} {dateLabel ? `(${dateLabel})` : ''}
+                      </option>
+                    );
+                  })}
                 </select>
               </div>
 
