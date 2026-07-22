@@ -31,18 +31,17 @@ export async function POST(request: Request) {
     }
 
     // 2. Construir la URL de cancelación con parámetros
-    // Facturapi DELETE request: https://api.facturapi.io/v1/invoices/{id}?motive={motive}&substitution={substitution}
-    let cancelUrl = `https://api.facturapi.io/v1/invoices/${id}?motive=${motive}`;
+    // Facturapi DELETE request: https://www.facturapi.io/v2/invoices/{id}?motive={motive}&substitution={substitution}
+    let cancelUrl = `https://www.facturapi.io/v2/invoices/${id}?motive=${motive}`;
     if (motive === '01' && substitution) {
       cancelUrl += `&substitution=${substitution}`;
     }
 
     // 3. Ejecutar la llamada DELETE
-    const authHeader = `Basic ${Buffer.from(facturapiKey + ':').toString('base64')}`;
     const response = await fetch(cancelUrl, {
       method: 'DELETE',
       headers: {
-        'Authorization': authHeader
+        'Authorization': `Bearer ${facturapiKey}`
       }
     });
 

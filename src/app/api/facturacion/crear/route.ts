@@ -75,11 +75,10 @@ export async function POST(request: Request) {
     }
 
     // 3. Llamar a Facturapi
-    const authHeader = `Basic ${Buffer.from(facturapiKey + ':').toString('base64')}`;
-    const response = await fetch('https://api.facturapi.io/v1/invoices', {
+    const response = await fetch('https://www.facturapi.io/v2/invoices', {
       method: 'POST',
       headers: {
-        'Authorization': authHeader,
+        'Authorization': `Bearer ${facturapiKey}`,
         'Content-Type': 'application/json'
       },
       body: JSON.stringify(facturapiPayload)

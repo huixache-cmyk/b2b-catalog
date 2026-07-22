@@ -279,9 +279,9 @@ export async function GET(request: Request) {
     if (facturapiKey) {
       try {
         const { result: response, latency } = await measureTime(
-          fetch('https://api.facturapi.io/v1/organizations', {
+          fetch('https://www.facturapi.io/v2/organizations', {
             headers: {
-              'Authorization': `Basic ${Buffer.from(facturapiKey + ':').toString('base64')}`
+              'Authorization': `Bearer ${facturapiKey}`
             }
           })
         );

@@ -30,10 +30,10 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Falta configurar la FACTURAPI_KEY en el panel de Diagnósticos.' }, { status: 400 });
     }
 
-    const authHeader = `Basic ${Buffer.from(facturapiKey + ':').toString('base64')}`;
+    const authHeader = `Bearer ${facturapiKey}`;
 
     // 2. Obtener la factura de ingreso original para copiar el cliente y sus datos fiscales
-    const originalRes = await fetch(`https://api.facturapi.io/v1/invoices/${original_invoice_id}`, {
+    const originalRes = await fetch(`https://www.facturapi.io/v2/invoices/${original_invoice_id}`, {
       method: 'GET',
       headers: {
         'Authorization': authHeader
@@ -91,7 +91,7 @@ export async function POST(request: Request) {
     };
 
     // 4. Crear la Nota de Crédito en Facturapi
-    const response = await fetch('https://api.facturapi.io/v1/invoices', {
+    const response = await fetch('https://www.facturapi.io/v2/invoices', {
       method: 'POST',
       headers: {
         'Authorization': authHeader,

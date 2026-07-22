@@ -31,11 +31,10 @@ export async function GET(request: Request) {
     }
 
     // 2. Consultar Facturapi
-    const authHeader = `Basic ${Buffer.from(facturapiKey + ':').toString('base64')}`;
-    const response = await fetch(`https://api.facturapi.io/v1/invoices/${id}`, {
+    const response = await fetch(`https://www.facturapi.io/v2/invoices/${id}`, {
       method: 'GET',
       headers: {
-        'Authorization': authHeader
+        'Authorization': `Bearer ${facturapiKey}`
       }
     });
 
