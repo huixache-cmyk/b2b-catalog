@@ -52,6 +52,9 @@ export async function GET(request: Request) {
 
   } catch (error: any) {
     console.error('Error in estatus-factura API:', error);
-    return NextResponse.json({ error: error.message || 'Error interno' }, { status: 500 });
+    const detail = error.cause ? ` (${error.cause.code || error.cause.message || error.cause})` : '';
+    return NextResponse.json({ 
+      error: `Error al conectar con Facturapi: ${error.message}${detail}. Verifica la conexión a internet de la máquina o servidor.` 
+    }, { status: 500 });
   }
 }

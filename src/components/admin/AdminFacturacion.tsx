@@ -25,6 +25,7 @@ import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import { useCRM } from "@/hooks/useCRM";
 import { useProducts } from "@/hooks/useProducts";
+import { useQuotes } from "@/hooks/useQuotes";
 import { supabase } from "@/lib/supabase";
 
 
@@ -232,6 +233,7 @@ interface AdminFacturacionProps {
 export function AdminFacturacion({ showBackButton = true }: AdminFacturacionProps) {
   const { customers } = useCRM();
   const { products } = useProducts();
+  const { quotes } = useQuotes();
 
   // Issuer details (Gerardo Rodriguez Tiscareño)
   const emisor = {
@@ -362,6 +364,19 @@ export function AdminFacturacion({ showBackButton = true }: AdminFacturacionProp
   
   // Feedback toast/message
   const [apiFeedback, setApiFeedback] = useState<{ text: string; type: "success" | "error" | "info" | "" }>({ text: "", type: "" });
+
+  // Product Search State
+  const [prodSearchQuery, setProdSearchQuery] = useState("");
+  const [isProdDropdownOpen, setIsProdDropdownOpen] = useState(false);
+
+  const filteredProducts = useMemo(() => {
+    if (!prodSearchQuery) return availableProducts;
+    const query = prodSearchQuery.toLowerCase();
+    return availableProducts.filter(p => 
+      p.noIdentificacion.toLowerCase().includes(query) ||
+      p.descripcion.toLowerCase().includes(query)
+    );
+  }, [availableProducts, prodSearchQuery]);
 
   const handleEmitRealInvoice = async () => {
     setIsSubmitting(true);
@@ -563,6 +578,98 @@ export function AdminFacturacion({ showBackButton = true }: AdminFacturacionProp
     }
   };
 
+  const handleSelectProduct = (idx: number) => {
+    setNewItemProduct(idx);
+    const prod = availableProducts[idx];
+    if (prod) {
+      setNewItemPrecio(prod.valorUnitario);
+      setNewItemDesc(prod.descripcion);
+      setNewItemClaveSat(prod.claveSat);
+      setNewItemClaveUnidad(prod.claveUnidad);
+      setNewItemUnidad(prod.unidad);
+    }
+  };
+
+  const handleImportQuote = async (quoteId: string) => {
+    if (!quoteId) return;
+    const quote = quotes.find(q => q.id === quoteId);
+    if (!quote) return;
+
+    setApiFeedback({ text: `Cargando datos de la cotización comercial...`, type: "info" });
+
+    // 1. Relate the client
+    const clientName = quote.client.company || quote.client.name;
+    const clientEmail = quote.client.email || "";
+    
+    let matchedCustomer = customers.find(c => 
+      (c.commercial_name && c.commercial_name.toLowerCase() === clientName.toLowerCase()) ||
+      (c.business_name && c.business_name.toLowerCase() === clientName.toLowerCase()) ||
+      ((c as any).primary_contact_email && (c as any).primary_contact_email.toLowerCase() === clientEmail.toLowerCase())
+    );
+
+    if (matchedCustomer) {
+      setClientRazonSocial(matchedCustomer.business_name.toUpperCase());
+      const rfc = matchedCustomer.rfc || "";
+      setClientRfc(rfc.toUpperCase());
+      const type = rfc.length === 12 ? "moral" : "fisica";
+      setClientType(type);
+      if (type === "moral") {
+        setClientRegimen("601 - General de Ley Personas Morales");
+        setClientUso("G03 - Gastos en general");
+      } else {
+        setClientRegimen("625 - Régimen Simplificado de Confianza");
+        setClientUso("CP01 - Sin efectos fiscales");
+      }
+      
+      // Load address
+      try {
+        const { data: addrs, error } = await supabase
+          .from("customer_addresses")
+          .select("*")
+          .eq("customer_id", matchedCustomer.id);
+        
+        if (!error && addrs && addrs.length > 0) {
+          const defAddr = addrs.find(a => a.is_default) || addrs[0];
+          if (defAddr && defAddr.postal_code) {
+            setClientCp(defAddr.postal_code);
+          }
+        }
+      } catch (err) {
+        console.error("Error fetching customer address for quote import:", err);
+      }
+    } else {
+      // Fallback: Copy raw quote details directly
+      setClientRazonSocial(clientName.toUpperCase());
+      setClientRfc("XAXX010101000"); // SAT generic public RFC
+      setClientCp(quote.client.zip || "01000");
+      setClientType("fisica");
+      setClientRegimen("625 - Régimen Simplificado de Confianza");
+      setClientUso("CP01 - Sin efectos fiscales");
+    }
+
+    // 2. Map items
+    const mappedItems = quote.items.map((ci, index) => {
+      const matchedProd = availableProducts.find(ap => 
+        ap.noIdentificacion.toLowerCase() === ci.sku.toLowerCase() ||
+        ap.descripcion.toLowerCase() === ci.productName.toLowerCase()
+      );
+      
+      return {
+        id: String(index + 1),
+        claveSat: matchedProd?.claveSat || "84111506",
+        noIdentificacion: ci.sku || `PROM-${ci.id.substring(0, 5).toUpperCase()}`,
+        cantidad: ci.quantity,
+        claveUnidad: matchedProd?.claveUnidad || "H87",
+        unidad: matchedProd?.unidad || "Pieza",
+        descripcion: ci.productName,
+        valorUnitario: ci.unitPrice
+      };
+    });
+
+    setItems(mappedItems);
+    setApiFeedback({ text: `Cotización de ${clientName} cargada con éxito en el simulador.`, type: "success" });
+  };
+
   // Preset product select change handler
   const handlePresetSelectChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const idx = parseInt(e.target.value);
@@ -586,6 +693,7 @@ export function AdminFacturacion({ showBackButton = true }: AdminFacturacionProp
       setNewItemClaveSat(prod.claveSat);
       setNewItemClaveUnidad(prod.claveUnidad);
       setNewItemUnidad(prod.unidad);
+      setProdSearchQuery(`${prod.noIdentificacion} - ${prod.descripcion}`);
     }
   }, [availableProducts]);
 
@@ -1100,6 +1208,22 @@ export function AdminFacturacion({ showBackButton = true }: AdminFacturacionProp
             
             <div className="space-y-4">
               <div>
+                <label className="text-sm font-semibold text-gray-700 block mb-1">Cargar desde Cotización Comercial</label>
+                <select 
+                  onChange={(e) => handleImportQuote(e.target.value)}
+                  className="w-full rounded-lg border border-gray-300 p-2 text-sm focus:border-primary-500 focus:ring-1 focus:ring-primary-500 focus:outline-none bg-white font-semibold text-gray-700"
+                  defaultValue=""
+                >
+                  <option value="">-- Vincular con Cotización --</option>
+                  {quotes.map((q) => (
+                    <option key={q.id} value={q.id}>
+                      {q.client.company || q.client.name} - ${q.total.toLocaleString()} ({new Date(q.date).toLocaleDateString()})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
                 <label className="text-sm font-semibold text-gray-700 block mb-1">Cargar Cliente / Receptor</label>
                 <select 
                   onChange={handleClientTemplateChange}
@@ -1247,16 +1371,47 @@ export function AdminFacturacion({ showBackButton = true }: AdminFacturacionProp
             
             <form onSubmit={handleAddItem} className="space-y-4">
               <div>
-                <label className="text-xs font-semibold text-gray-700 block mb-1">Seleccionar Producto del Catálogo</label>
-                <select 
-                  value={newItemProduct}
-                  onChange={handlePresetSelectChange}
-                  className="w-full rounded-lg border border-gray-300 p-2 text-xs focus:border-primary-500 focus:ring-1 focus:ring-primary-500 focus:outline-none font-semibold text-gray-700"
-                >
-                  {availableProducts.map((p, idx) => (
-                    <option key={idx} value={idx}>{p.noIdentificacion} - {p.descripcion.substring(0, 45)}...</option>
-                  ))}
-                </select>
+                <label className="text-xs font-semibold text-gray-700 block mb-1">Seleccionar Producto del Catálogo (Autocompletado)</label>
+                <div className="relative">
+                  <input
+                    type="text"
+                    value={prodSearchQuery}
+                    onChange={(e) => {
+                      setProdSearchQuery(e.target.value);
+                      setIsProdDropdownOpen(true);
+                    }}
+                    onFocus={() => setIsProdDropdownOpen(true)}
+                    onBlur={() => setTimeout(() => setIsProdDropdownOpen(false), 250)}
+                    placeholder="Escribe SKU o nombre para buscar..."
+                    className="w-full rounded-lg border border-gray-300 p-2 text-xs focus:border-primary-500 focus:ring-1 focus:ring-primary-500 focus:outline-none font-semibold text-gray-700"
+                  />
+                  {isProdDropdownOpen && (
+                    <div className="absolute z-30 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                      {filteredProducts.length > 0 ? (
+                        filteredProducts.map((p, idx) => {
+                          const origIdx = availableProducts.findIndex(ap => ap.noIdentificacion === p.noIdentificacion);
+                          return (
+                            <button
+                              key={idx}
+                              type="button"
+                              onClick={() => {
+                                handleSelectProduct(origIdx);
+                                setProdSearchQuery(`${p.noIdentificacion} - ${p.descripcion}`);
+                                setIsProdDropdownOpen(false);
+                              }}
+                              className="w-full text-left px-3 py-2 text-xs hover:bg-gray-50 border-b border-gray-50 flex flex-col transition-colors"
+                            >
+                              <span className="font-bold text-gray-900">{p.noIdentificacion}</span>
+                              <span className="text-gray-500 truncate">{p.descripcion}</span>
+                            </button>
+                          );
+                        })
+                      ) : (
+                        <div className="p-3 text-xs text-gray-500 text-center">No se encontraron productos</div>
+                      )}
+                    </div>
+                  )}
+                </div>
               </div>
 
               <div>
