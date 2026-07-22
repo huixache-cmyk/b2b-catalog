@@ -1555,7 +1555,7 @@ export function AdminFacturacion({ showBackButton = true }: AdminFacturacionProp
 
                 <div className="grid grid-cols-2 gap-2">
                   <a 
-                    href={stampedInvoice.files.xml} 
+                    href={`/api/facturacion/descargar?id=${stampedInvoice.id}&format=xml`} 
                     target="_blank" 
                     rel="noopener noreferrer"
                     className="bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold p-2 rounded-lg flex items-center justify-center gap-1 border border-gray-300 transition-all text-center"
@@ -1563,7 +1563,7 @@ export function AdminFacturacion({ showBackButton = true }: AdminFacturacionProp
                     <FileCode className="w-4 h-4" /> XML Oficial
                   </a>
                   <a 
-                    href={stampedInvoice.files.pdf} 
+                    href={`/api/facturacion/descargar?id=${stampedInvoice.id}&format=pdf`} 
                     target="_blank" 
                     rel="noopener noreferrer"
                     className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold p-2 rounded-lg flex items-center justify-center gap-1 shadow-sm transition-all text-center"
