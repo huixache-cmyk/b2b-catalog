@@ -17,7 +17,7 @@ export async function GET(request: Request) {
       const { data: settingsData, error } = await supabase
         .from('settings')
         .select('home_settings')
-        .eq('id', 'global')
+        .eq('id', 1)
         .single();
       if (settingsData?.home_settings?.api_credentials) {
         apiCredentials = settingsData.home_settings.api_credentials;
