@@ -58,6 +58,7 @@ export async function GET(request: Request) {
     const geminiKey = apiCredentials.GEMINI_API_KEY || process.env.GOOGLE_GENERATIVE_AI_API_KEY || process.env.GEMINI_API_KEY;
     const hunterKey = apiCredentials.HUNTER_API_KEY || process.env.HUNTER_API_KEY;
     const vercelToken = apiCredentials.VERCEL_TOKEN || process.env.VERCEL_TOKEN;
+    const facturapiKey = apiCredentials.FACTURAPI_KEY || process.env.FACTURAPI_KEY;
 
     const results: Record<string, { status: 'OK' | 'WARNING' | 'ERROR'; latency: number; message: string }> = {};
 
@@ -270,6 +271,41 @@ export async function GET(request: Request) {
       } catch (err: any) {
         results['vercel'] = { status: 'WARNING', latency: 0, message: `Error: ${err.message}` };
       }
+    }
+
+    // ----------------------------------------------------
+    // CHECK 7: FACTURAPI
+    // ----------------------------------------------------
+    if (facturapiKey) {
+      try {
+        const { result: response, latency } = await measureTime(
+          fetch('https://api.facturapi.io/v1/organizations', {
+            headers: {
+              'Authorization': `Basic ${Buffer.from(facturapiKey + ':').toString('base64')}`
+            }
+          })
+        );
+        if (response.ok) {
+          const data = await response.json();
+          const orgName = data.data?.[0]?.name || 'GeekyStore';
+          results['facturapi'] = {
+            status: 'OK',
+            latency,
+            message: `Llave activa (Sandbox). Org: ${orgName}`
+          };
+        } else {
+          const errData = await response.json().catch(() => ({}));
+          results['facturapi'] = {
+            status: 'ERROR',
+            latency,
+            message: `Error: [${response.status}] ${errData.message || 'Clave inválida'}`
+          };
+        }
+      } catch (err: any) {
+        results['facturapi'] = { status: 'ERROR', latency: 0, message: `Error de red: ${err.message}` };
+      }
+    } else {
+      results['facturapi'] = { status: 'WARNING', latency: 0, message: 'FACTURAPI_KEY no configurada' };
     }
 
 

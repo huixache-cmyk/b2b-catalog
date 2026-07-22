@@ -24,7 +24,8 @@ import {
   ChevronRight,
   Sparkles,
   Database,
-  Globe
+  Globe,
+  FileText
 } from "lucide-react";
 
 type ServiceHealth = {
@@ -64,13 +65,15 @@ export function AdminDiagnostics() {
   const [geminiKey, setGeminiKey] = useState("");
   const [hunterKey, setHunterKey] = useState("");
   const [vercelToken, setVercelToken] = useState("");
+  const [facturapiStateKey, setFacturapiStateKey] = useState("");
   
   const [showKeys, setShowKeys] = useState<Record<string, boolean>>({
     waToken: false,
     resendKey: false,
     geminiKey: false,
     hunterKey: false,
-    vercelToken: false
+    vercelToken: false,
+    facturapiStateKey: false
   });
 
   // Table Filters
@@ -92,6 +95,7 @@ export function AdminDiagnostics() {
     setGeminiKey(creds.GEMINI_API_KEY || "");
     setHunterKey(creds.HUNTER_API_KEY || "");
     setVercelToken(creds.VERCEL_TOKEN || "");
+    setFacturapiStateKey(creds.FACTURAPI_KEY || "");
   }, [homeSettings]);
 
   const fetchHealthFromDB = async () => {
@@ -180,7 +184,8 @@ export function AdminDiagnostics() {
         RESEND_API_KEY: resendKey.trim(),
         GEMINI_API_KEY: geminiKey.trim(),
         HUNTER_API_KEY: hunterKey.trim(),
-        VERCEL_TOKEN: vercelToken.trim()
+        VERCEL_TOKEN: vercelToken.trim(),
+        FACTURAPI_KEY: facturapiStateKey.trim()
       };
 
       const updatedSettings = {
@@ -291,7 +296,8 @@ export function AdminDiagnostics() {
     { id: 'resend', name: 'Resend Email', icon: Mail, providerUrl: 'https://resend.com' },
     { id: 'whatsapp', name: 'WhatsApp Cloud API', icon: MessageSquare, providerUrl: 'https://developers.facebook.com' },
     { id: 'gemini', name: 'Google AI Studio', icon: BrainCircuit, providerUrl: 'https://aistudio.google.com' },
-    { id: 'hunter', name: 'Hunter.io API', icon: ShieldAlert, providerUrl: 'https://hunter.io' }
+    { id: 'hunter', name: 'Hunter.io API', icon: ShieldAlert, providerUrl: 'https://hunter.io' },
+    { id: 'facturapi', name: 'Facturapi API', icon: FileText, providerUrl: 'https://facturapi.io' }
   ];
 
   return (
@@ -659,6 +665,27 @@ export function AdminDiagnostics() {
                     className="absolute right-2.5 top-2 text-gray-400 hover:text-gray-600"
                   >
                     {showKeys.vercelToken ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+              </div>
+
+              {/* Facturapi Key */}
+              <div>
+                <label className="block text-[11px] font-bold text-gray-700 uppercase mb-1">Facturapi Test Key</label>
+                <div className="relative">
+                  <input
+                    type={showKeys.facturapiStateKey ? "text" : "password"}
+                    value={facturapiStateKey}
+                    onChange={(e) => setFacturapiStateKey(e.target.value)}
+                    placeholder="sk_test_..."
+                    className="w-full border border-gray-300 rounded-lg py-2 px-3 text-xs pr-10 focus:ring-primary-500 focus:border-primary-500"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowKeys(prev => ({ ...prev, facturapiStateKey: !prev.facturapiStateKey }))}
+                    className="absolute right-2.5 top-2 text-gray-400 hover:text-gray-600"
+                  >
+                    {showKeys.facturapiStateKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </button>
                 </div>
               </div>
