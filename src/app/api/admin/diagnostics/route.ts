@@ -57,6 +57,7 @@ export async function GET(request: Request) {
     const waPhoneId = apiCredentials.WA_PHONE_NUMBER_ID || process.env.WA_PHONE_NUMBER_ID;
     const geminiKey = apiCredentials.GEMINI_API_KEY || process.env.GOOGLE_GENERATIVE_AI_API_KEY || process.env.GEMINI_API_KEY;
     const hunterKey = apiCredentials.HUNTER_API_KEY || process.env.HUNTER_API_KEY;
+    const vercelToken = apiCredentials.VERCEL_TOKEN || process.env.VERCEL_TOKEN;
 
     const results: Record<string, { status: 'OK' | 'WARNING' | 'ERROR'; latency: number; message: string }> = {};
 
@@ -184,30 +185,91 @@ export async function GET(request: Request) {
     // ----------------------------------------------------
     // CHECK 6: VERCEL HOSTING
     // ----------------------------------------------------
-    try {
-      const { result: response, latency } = await measureTime(
-        fetch('https://www.vercel-status.com/api/v2/status.json')
-      );
-      const text = await response.text();
-      let data: any = {};
+    if (vercelToken && vercelToken !== 'dummy_token') {
       try {
-        data = JSON.parse(text);
-      } catch (pErr) {
-        throw new Error("Respuesta de estado no es JSON válido");
-      }
+        const { result: userRes, latency } = await measureTime(
+          fetch('https://api.vercel.com/v2/user', {
+            headers: { 'Authorization': `Bearer ${vercelToken}` }
+          })
+        );
+        if (userRes.ok) {
+          const userData = await userRes.json();
+          let plan = userData.user?.billing?.plan || userData.user?.plan || 'hobby';
+          let ownerName = userData.user?.name || userData.user?.username || 'Usuario';
+          
+          // Check teams if user is hobby (since they might have upgraded a team instead)
+          if (plan.toLowerCase() === 'hobby') {
+            try {
+              const teamsRes = await fetch('https://api.vercel.com/v2/teams', {
+                headers: { 'Authorization': `Bearer ${vercelToken}` }
+              });
+              if (teamsRes.ok) {
+                const teamsData = await teamsRes.json();
+                const firstTeam = teamsData.teams?.[0];
+                if (firstTeam) {
+                  const teamPlan = firstTeam.billing?.plan || firstTeam.plan;
+                  if (teamPlan) {
+                    plan = teamPlan;
+                    ownerName = `${firstTeam.name || firstTeam.slug}`;
+                  }
+                }
+              }
+            } catch (teamErr) {
+              console.warn("Could not fetch Vercel teams:", teamErr);
+            }
+          }
 
-      if (response.ok) {
-        const isOk = data.status?.indicator === 'none';
-        results['vercel'] = {
-          status: isOk ? 'OK' : 'WARNING',
-          latency,
-          message: isOk ? 'Servidores estables' : `Incidencia: ${data.status?.description || 'Alerta minor'}`
+          const isPro = plan.toLowerCase() === 'pro' || plan.toLowerCase() === 'enterprise';
+          results['vercel'] = {
+            status: isPro ? 'OK' : 'WARNING',
+            latency,
+            message: isPro 
+              ? `Plan actual: Pro (${ownerName}). ¡Servidores estables y sin límites de Hobby!`
+              : `Plan actual: Hobby (${ownerName}). Límite de transferencia de 10GB activo (Alerta: Excedido o cercano al límite).`
+          };
+        } else {
+          results['vercel'] = { 
+            status: 'WARNING', 
+            latency, 
+            message: `Token de Vercel inválido (Código HTTP ${userRes.status}).` 
+          };
+        }
+      } catch (err: any) {
+        results['vercel'] = { 
+          status: 'WARNING', 
+          latency: 0, 
+          message: `Error de red consultando cuenta: ${err.message}` 
         };
-      } else {
-        results['vercel'] = { status: 'WARNING', latency, message: 'No se pudo consultar estado' };
       }
-    } catch (err: any) {
-      results['vercel'] = { status: 'WARNING', latency: 0, message: `Error: ${err.message}` };
+    } else {
+      // Fallback: Global Vercel status page check
+      try {
+        const { result: response, latency } = await measureTime(
+          fetch('https://www.vercel-status.com/api/v2/status.json')
+        );
+        const text = await response.text();
+        let data: any = {};
+        try {
+          data = JSON.parse(text);
+        } catch (pErr) {
+          throw new Error("Respuesta de estado no es JSON válido");
+        }
+
+        if (response.ok) {
+          const isOk = data.status?.indicator === 'none';
+          results['vercel'] = {
+            status: isOk ? 'OK' : 'WARNING',
+            latency,
+            message: isOk 
+              ? 'Servidores globales estables. (Ingresa tu Token de Vercel para monitorear tu plan).' 
+              : `Incidencia global: ${data.status?.description || 'Alerta minor'}`
+          };
+        } else {
+          results['vercel'] = { status: 'WARNING', latency, message: 'No se pudo consultar estado' };
+        }
+      } catch (err: any) {
+        results['vercel'] = { status: 'WARNING', latency: 0, message: `Error: ${err.message}` };
+      }
     }
 
 

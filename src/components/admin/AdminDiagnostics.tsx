@@ -63,12 +63,14 @@ export function AdminDiagnostics() {
   const [resendKey, setResendKey] = useState("");
   const [geminiKey, setGeminiKey] = useState("");
   const [hunterKey, setHunterKey] = useState("");
+  const [vercelToken, setVercelToken] = useState("");
   
   const [showKeys, setShowKeys] = useState<Record<string, boolean>>({
     waToken: false,
     resendKey: false,
     geminiKey: false,
-    hunterKey: false
+    hunterKey: false,
+    vercelToken: false
   });
 
   // Table Filters
@@ -89,6 +91,7 @@ export function AdminDiagnostics() {
     setResendKey(creds.RESEND_API_KEY || "");
     setGeminiKey(creds.GEMINI_API_KEY || "");
     setHunterKey(creds.HUNTER_API_KEY || "");
+    setVercelToken(creds.VERCEL_TOKEN || "");
   }, [homeSettings]);
 
   const fetchHealthFromDB = async () => {
@@ -176,7 +179,8 @@ export function AdminDiagnostics() {
         WA_PHONE_NUMBER_ID: waPhoneId.trim(),
         RESEND_API_KEY: resendKey.trim(),
         GEMINI_API_KEY: geminiKey.trim(),
-        HUNTER_API_KEY: hunterKey.trim()
+        HUNTER_API_KEY: hunterKey.trim(),
+        VERCEL_TOKEN: vercelToken.trim()
       };
 
       const updatedSettings = {
@@ -634,6 +638,27 @@ export function AdminDiagnostics() {
                     className="absolute right-2.5 top-2 text-gray-400 hover:text-gray-600"
                   >
                     {showKeys.hunterKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+              </div>
+
+              {/* Vercel Token */}
+              <div>
+                <label className="block text-[11px] font-bold text-gray-700 uppercase mb-1">Vercel API Token</label>
+                <div className="relative">
+                  <input
+                    type={showKeys.vercelToken ? "text" : "password"}
+                    value={vercelToken}
+                    onChange={(e) => setVercelToken(e.target.value)}
+                    placeholder="lpv_..."
+                    className="w-full border border-gray-300 rounded-lg py-2 px-3 text-xs pr-10 focus:ring-primary-500 focus:border-primary-500"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowKeys(prev => ({ ...prev, vercelToken: !prev.vercelToken }))}
+                    className="absolute right-2.5 top-2 text-gray-400 hover:text-gray-600"
+                  >
+                    {showKeys.vercelToken ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </button>
                 </div>
               </div>
