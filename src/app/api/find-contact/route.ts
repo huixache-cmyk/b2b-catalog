@@ -23,9 +23,24 @@ export async function POST(request: Request) {
     }
     const { company_id, company_name, opp_id } = validation.data;
 
-    const HUNTER_API_KEY = process.env.HUNTER_API_KEY;
+    // Resolve dynamic credentials from Supabase settings table (id=1)
+    let apiCredentials: any = {};
+    try {
+      const { data: settingsData } = await supabase
+        .from('settings')
+        .select('home_settings')
+        .eq('id', 1)
+        .single();
+      if (settingsData?.home_settings?.api_credentials) {
+        apiCredentials = settingsData.home_settings.api_credentials;
+      }
+    } catch (dbErr) {
+      console.warn("Could not fetch dynamic credentials from settings DB:", dbErr);
+    }
+
+    const HUNTER_API_KEY = apiCredentials.HUNTER_API_KEY || process.env.HUNTER_API_KEY;
     if (!HUNTER_API_KEY) {
-      return NextResponse.json({ error: 'Falta HUNTER_API_KEY' }, { status: 500 });
+      return NextResponse.json({ error: 'Falta configurar HUNTER_API_KEY en tu pestaña de Diagnósticos.' }, { status: 400 });
     }
 
     // 1. Clearbit para el Dominio
@@ -49,7 +64,11 @@ export async function POST(request: Request) {
     const hunterRes = await fetch(hunterUrl);
     
     if (!hunterRes.ok) {
-      return NextResponse.json({ error: 'Error en la API de Hunter.io' }, { status: 500 });
+      const errData = await hunterRes.json().catch(() => ({}));
+      const details = errData.errors?.[0]?.details || `Código HTTP: ${hunterRes.status}`;
+      return NextResponse.json({ 
+        error: `Límite o error de Hunter.io: ${details}. Tu plan gratuito mensual de 25 consultas se ha agotado o la clave de API es inválida. Te sugerimos ingresar el contacto comercial de forma manual en la oportunidad.` 
+      }, { status: 400 });
     }
 
     const hunterData = await hunterRes.json();

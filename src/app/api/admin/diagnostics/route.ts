@@ -181,6 +181,29 @@ export async function GET(request: Request) {
       results['hunter'] = { status: 'WARNING', latency: 0, message: 'HUNTER_API_KEY no configurada' };
     }
 
+    // ----------------------------------------------------
+    // CHECK 6: VERCEL HOSTING
+    // ----------------------------------------------------
+    try {
+      const { result: response, latency } = await measureTime(
+        fetch('https://status.vercel.com/api/v2/status.json')
+      );
+      const data = await response.json();
+      if (response.ok) {
+        const isOk = data.status?.indicator === 'none';
+        results['vercel'] = {
+          status: isOk ? 'OK' : 'WARNING',
+          latency,
+          message: isOk ? 'Servidores globales estables' : `Incidencia: ${data.status?.description || 'Alerta minor'}`
+        };
+      } else {
+        results['vercel'] = { status: 'WARNING', latency, message: 'No se pudo consultar estado global' };
+      }
+    } catch (err: any) {
+      results['vercel'] = { status: 'WARNING', latency: 0, message: `Error de red: ${err.message}` };
+    }
+
+
     // 3. Write results to Supabase `service_health` table to store status history
     try {
       const upsertRows = Object.entries(results).map(([id, check]) => ({

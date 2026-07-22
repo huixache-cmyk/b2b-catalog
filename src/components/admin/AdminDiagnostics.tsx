@@ -23,7 +23,8 @@ import {
   ExternalLink,
   ChevronRight,
   Sparkles,
-  Database
+  Database,
+  Globe
 } from "lucide-react";
 
 type ServiceHealth = {
@@ -281,6 +282,7 @@ export function AdminDiagnostics() {
   };
 
   const serviceList = [
+    { id: 'vercel', name: 'Vercel Hosting', icon: Globe, providerUrl: 'https://vercel.com' },
     { id: 'supabase', name: 'Supabase DB', icon: Database, providerUrl: 'https://supabase.com' },
     { id: 'resend', name: 'Resend Email', icon: Mail, providerUrl: 'https://resend.com' },
     { id: 'whatsapp', name: 'WhatsApp Cloud API', icon: MessageSquare, providerUrl: 'https://developers.facebook.com' },

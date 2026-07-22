@@ -411,25 +411,24 @@ export function AdminView() {
         </div>
       </div>
 
-      {/* Binder Folders Tab Row */}
-      <div className="bg-gray-50/50 pt-4 px-4 border-b border-gray-250 overflow-x-auto scrollbar-none flex-shrink-0">
-        <div className="flex gap-1.5 z-10 relative -mb-[1px]">
+      {/* Modern wrapping card pills menu (no scrollbars) */}
+      <div className="bg-gray-50/80 p-4 border-b border-gray-200 flex-shrink-0">
+        <div className="flex flex-wrap gap-2 z-10 relative">
           {tabItems.map((item) => {
             const Icon = item.icon;
             const isActive = activeTab === item.id;
-            const style = colorStyles[item.color];
             return (
               <button
                 key={item.id}
                 onClick={() => setActiveTab(item.id)}
-                className={`flex flex-col items-center justify-center pt-3 pb-2 px-5 text-xs font-bold rounded-t-xl transition-all border-t-2 border-x border-b-0 min-w-[110px] flex-shrink-0 relative ${
+                className={`flex items-center gap-2 py-2 px-3.5 text-xs font-bold rounded-lg border transition-all shadow-sm ${
                   isActive 
-                    ? `${style.active} border-gray-200 border-t-4 z-10 translate-y-[1px]` 
-                    : `${style.inactive} border-transparent hover:border-gray-200/40 hover:translate-y-[-1px]`
+                    ? "bg-white text-gray-900 border-gray-300 ring-2 ring-primary-500/10 scale-102 font-extrabold" 
+                    : "bg-gray-100 hover:bg-gray-200/70 text-gray-600 border-gray-200/50"
                 }`}
               >
-                <Icon className={`w-5 h-5 mb-1.5 ${isActive ? "scale-110 transition-transform" : "opacity-80"}`} />
-                <span className="text-[11px] tracking-tight">{item.name}</span>
+                <Icon className={`w-4 h-4 ${isActive ? "text-primary-700 scale-110" : "text-gray-500"}`} />
+                <span className="text-[11px] tracking-tight whitespace-nowrap">{item.name}</span>
               </button>
             );
           })}
