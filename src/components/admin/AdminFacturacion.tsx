@@ -2591,7 +2591,7 @@ export function AdminFacturacion({ showBackButton = true }: AdminFacturacionProp
                               </div>
 
                               {/* Tarjeta de cálculo de saldo insoluto de esta factura padre */}
-                              {inv.payment_method === 'PPD' && (
+                              {(inv.payment_method === 'PPD' || (inv.relatedMovements && inv.relatedMovements.length > 0)) && (
                                 <div className="bg-primary-50/50 border border-primary-200/50 p-3 rounded-lg text-[10px] text-primary-900 flex justify-between font-bold w-full max-w-lg mt-2">
                                   <div className="text-center">
                                     <span className="text-gray-400 block text-[9px] uppercase tracking-wider font-extrabold">Monto Original</span>

@@ -1012,7 +1012,7 @@ export function AdminCRM() {
                               )}
 
                               {/* Balance Summary for individual PPD invoice */}
-                              {inv.payment_method === 'PPD' && (
+                              {(inv.payment_method === 'PPD' || (inv.relatedMovements && inv.relatedMovements.length > 0)) && (
                                 <div className="border-t pt-1.5 flex justify-between text-[9px] text-gray-450 font-bold bg-white/55 p-1.5 rounded">
                                   <span>Pendiente:</span>
                                   <span className="text-red-700 text-xs font-mono font-extrabold">
