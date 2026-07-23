@@ -391,6 +391,10 @@ export function AdminFacturacion({ showBackButton = true }: AdminFacturacionProp
   // Feedback toast/message
   const [apiFeedback, setApiFeedback] = useState<{ text: string; type: "success" | "error" | "info" | "" }>({ text: "", type: "" });
 
+  // CFDI Sustitución (Relación 04)
+  const [isSubstitution, setIsSubstitution] = useState(false);
+  const [substitutionUuid, setSubstitutionUuid] = useState("");
+
   // Product Search State
   const [prodSearchQuery, setProdSearchQuery] = useState("");
   const [isProdDropdownOpen, setIsProdDropdownOpen] = useState(false);
@@ -426,7 +430,8 @@ export function AdminFacturacion({ showBackButton = true }: AdminFacturacionProp
         })),
         payment_form: formaPago,
         payment_method: metodoPago,
-        use: clientUso.split(" - ")[0]
+        use: clientUso.split(" - ")[0],
+        relation: isSubstitution && substitutionUuid ? { uuid: substitutionUuid } : undefined
       };
 
       const res = await fetch("/api/facturacion/crear", {
@@ -607,6 +612,43 @@ export function AdminFacturacion({ showBackButton = true }: AdminFacturacionProp
         }
       }
     }
+  };
+
+  const handleLoadForSubstitution = (inv: any) => {
+    if (!inv) return;
+    
+    // Load Client Info
+    setClientRazonSocial((inv.customer?.legal_name || "").toUpperCase());
+    setClientRfc((inv.customer?.tax_id || "").toUpperCase());
+    setClientCp(inv.customer?.address?.zip || "01000");
+    setClientRegimen(inv.customer?.tax_system ? `${inv.customer.tax_system} - Regimen` : "601 - General de Ley Personas Morales");
+    setClientType(inv.customer?.tax_id?.length === 12 ? "moral" : "fisica");
+    
+    // Load Items if available in inv.items
+    if (inv.items && Array.isArray(inv.items)) {
+      const mapped = inv.items.map((ci: any, index: number) => {
+        const prodData = ci.product || {};
+        return {
+          id: String(index + 1),
+          claveSat: prodData.product_key || "84111506",
+          noIdentificacion: prodData.noIdentificacion || `PROM-${index}`,
+          cantidad: ci.quantity || 1,
+          claveUnidad: prodData.unit_key || "H87",
+          unidad: prodData.unit_name || "Pieza",
+          descripcion: prodData.description || ci.description || "",
+          valorUnitario: prodData.price || ci.price || 0
+        };
+      });
+      setItems(mapped);
+    }
+    
+    // Enable Substitution
+    setIsSubstitution(true);
+    setSubstitutionUuid(inv.uuid || "");
+    
+    // Scroll to form configuration
+    window.scrollTo({ top: 300, behavior: 'smooth' });
+    setApiFeedback({ text: `Factura ${inv.uuid} cargada para Sustitución. Configura los conceptos y vuelve a timbrar.`, type: "info" });
   };
 
   const handleSelectProduct = (idx: number) => {
@@ -1564,6 +1606,37 @@ export function AdminFacturacion({ showBackButton = true }: AdminFacturacionProp
                   <option value="99">99 - Por definir</option>
                 </select>
               </div>
+
+              {/* Related Documents / CFDI Sustitucion 04 */}
+              <div className="col-span-2 border-t border-gray-150 pt-3 mt-1 text-left space-y-2">
+                <label className="flex items-center gap-1.5 font-bold text-gray-700 cursor-pointer select-none text-xs">
+                  <input 
+                    type="checkbox" 
+                    checked={isSubstitution} 
+                    onChange={(e) => setIsSubstitution(e.target.checked)} 
+                    className="rounded border-gray-300 text-primary-600 focus:ring-primary-500 w-3.5 h-3.5"
+                  />
+                  <span>Esta factura sustituye a un CFDI previo (Relación 04)</span>
+                </label>
+                
+                {isSubstitution && (
+                  <div className="animate-fadeIn space-y-1">
+                    <label className="font-semibold text-gray-600 block text-[10px]">UUID de la Factura Original a Sustituir</label>
+                    <input 
+                      type="text" 
+                      value={substitutionUuid} 
+                      onChange={(e) => setSubstitutionUuid(e.target.value.trim())} 
+                      placeholder="Escribe o pega el UUID de 36 caracteres"
+                      className="w-full rounded-lg border border-gray-300 p-2 font-mono text-xs focus:border-primary-500 focus:ring-1 focus:ring-primary-500 focus:outline-none"
+                      maxLength={36}
+                    />
+                    <p className="text-[9px] text-gray-400 font-semibold leading-tight">
+                      SAT: La nueva factura se timbrará vinculándola al UUID cancelado con Tipo de Relación "04 - Sustitución de los CFDI previos".
+                    </p>
+                  </div>
+                )}
+              </div>
+
             </div>
           </div>
 
@@ -1581,6 +1654,34 @@ export function AdminFacturacion({ showBackButton = true }: AdminFacturacionProp
                   <div>
                     <span className="font-bold block">¡Comprobante Timbrado!</span>
                     <span className="font-mono text-[10px] break-all">{stampedInvoice.uuid}</span>
+                  </div>
+                </div>
+
+                {/* Active Invoice Info Summary */}
+                <div className="bg-gray-50 border border-gray-200 rounded-lg p-3 space-y-1.5 text-[11px] text-gray-600 text-left font-semibold">
+                  <div className="flex justify-between border-b border-gray-200 pb-1">
+                    <span className="text-gray-400 font-bold">Cliente Receptor:</span>
+                    <span className="font-bold text-gray-800 text-right max-w-[150px] truncate" title={stampedInvoice.customer?.legal_name}>
+                      {stampedInvoice.customer?.legal_name || "Público en General"}
+                    </span>
+                  </div>
+                  <div className="flex justify-between border-b border-gray-200 pb-1">
+                    <span className="text-gray-400 font-bold">RFC Receptor:</span>
+                    <span className="font-mono font-bold text-gray-800">{stampedInvoice.customer?.tax_id || "N/A"}</span>
+                  </div>
+                  <div className="flex justify-between border-b border-gray-200 pb-1">
+                    <span className="text-gray-400 font-bold">Tipo de Factura:</span>
+                    <span className="font-bold text-gray-800">
+                      {stampedInvoice.type === 'I' ? 'Ingreso' : stampedInvoice.type === 'E' ? 'Nota de Crédito (Egreso)' : 'Complemento de Pago (REP)'}
+                    </span>
+                  </div>
+                  <div className="flex justify-between border-b border-gray-200 pb-1">
+                    <span className="text-gray-400 font-bold">Monto Facturado:</span>
+                    <span className="font-sans font-extrabold text-primary-700">${stampedInvoice.total?.toLocaleString("es-MX", { minimumFractionDigits: 2 })}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-400 font-bold">Método / Forma:</span>
+                    <span className="font-bold text-gray-800">{stampedInvoice.payment_method || "PUE"} / {stampedInvoice.payment_form || "03"}</span>
                   </div>
                 </div>
 
@@ -1616,7 +1717,7 @@ export function AdminFacturacion({ showBackButton = true }: AdminFacturacionProp
                   </div>
 
                   {/* Complement of payment (REP) (Only if payment method is PPD) */}
-                  {metodoPago === 'PPD' && stampedInvoice.status === 'valid' && (
+                  {(stampedInvoice.payment_method === 'PPD' || metodoPago === 'PPD') && stampedInvoice.status === 'valid' && (
                     <div className="bg-gray-50 p-3 rounded-lg border border-gray-200 space-y-2">
                       <span className="font-bold text-gray-700 block text-left">Emitir Complemento de Pago (REP)</span>
                       <div className="grid grid-cols-2 gap-2 text-left">
@@ -2106,6 +2207,17 @@ export function AdminFacturacion({ showBackButton = true }: AdminFacturacionProp
                           >
                             Gestionar
                           </button>
+
+                          {inv.status === 'cancelled' && (
+                            <button
+                              type="button"
+                              onClick={() => handleLoadForSubstitution(inv)}
+                              className="bg-amber-500 hover:bg-amber-600 text-white font-bold px-2 py-1 rounded text-[10px] border border-amber-500 transition-all cursor-pointer shadow-sm"
+                              title="Sustituir esta factura cancelada"
+                            >
+                              Sustituir
+                            </button>
+                          )}
                           
                           {/* Downloads */}
                           {inv.status !== 'draft' && (
