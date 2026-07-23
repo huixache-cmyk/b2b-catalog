@@ -19,7 +19,9 @@ import {
   Building,
   AlertTriangle,
   Eye,
-  Lock
+  Lock,
+  History,
+  ExternalLink
 } from "lucide-react";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
@@ -348,6 +350,30 @@ export function AdminFacturacion({ showBackButton = true }: AdminFacturacionProp
 
   // Real Facturapi states
   const [stampedInvoice, setStampedInvoice] = useState<any>(null);
+
+  // History states
+  const [historyInvoices, setHistoryInvoices] = useState<any[]>([]);
+  const [isLoadingHistory, setIsLoadingHistory] = useState(false);
+  const [historyError, setHistoryError] = useState("");
+
+  const fetchHistory = async () => {
+    setIsLoadingHistory(true);
+    setHistoryError("");
+    try {
+      const res = await fetch("/api/facturacion/historial?limit=15");
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "No se pudo obtener el historial.");
+      setHistoryInvoices(data.invoices || []);
+    } catch (err: any) {
+      setHistoryError(err.message);
+    } finally {
+      setIsLoadingHistory(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchHistory();
+  }, []);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isCancelling, setIsCancelling] = useState(false);
   const [isCreatingNC, setIsCreatingNC] = useState(false);
@@ -415,6 +441,7 @@ export function AdminFacturacion({ showBackButton = true }: AdminFacturacionProp
 
       setStampedInvoice(data.invoice);
       setApiFeedback({ text: "¡Factura CFDI 4.0 timbrada con éxito en Sandbox!", type: "success" });
+      fetchHistory();
     } catch (err: any) {
       console.error(err);
       setApiFeedback({ text: `Error al timbrar: ${err.message}`, type: "error" });
@@ -434,6 +461,7 @@ export function AdminFacturacion({ showBackButton = true }: AdminFacturacionProp
       }
       setStampedInvoice(data.invoice);
       setApiFeedback({ text: `Estatus actual: ${data.invoice.status === 'valid' ? 'VIGENTE' : 'CANCELADO'}`, type: "success" });
+      fetchHistory();
     } catch (err: any) {
       setApiFeedback({ text: `Error de estatus: ${err.message}`, type: "error" });
     }
@@ -460,6 +488,7 @@ export function AdminFacturacion({ showBackButton = true }: AdminFacturacionProp
       }
       setStampedInvoice(data.invoice);
       setApiFeedback({ text: "¡Solicitud de cancelación aceptada y procesada ante el SAT!", type: "success" });
+      fetchHistory();
     } catch (err: any) {
       setApiFeedback({ text: `Error al cancelar: ${err.message}`, type: "error" });
     } finally {
@@ -491,6 +520,7 @@ export function AdminFacturacion({ showBackButton = true }: AdminFacturacionProp
       }
       setApiFeedback({ text: `¡Nota de Crédito emitida con éxito! Folio SAT: ${data.invoice.uuid}`, type: "success" });
       setNcAmount("");
+      fetchHistory();
     } catch (err: any) {
       setApiFeedback({ text: `Error en Nota de Crédito: ${err.message}`, type: "error" });
     } finally {
@@ -523,6 +553,7 @@ export function AdminFacturacion({ showBackButton = true }: AdminFacturacionProp
       }
       setApiFeedback({ text: `¡Complemento de Pago timbrado con éxito! Folio SAT: ${data.invoice.uuid}`, type: "success" });
       setRepAmount("");
+      fetchHistory();
     } catch (err: any) {
       setApiFeedback({ text: `Error en Complemento de Pago: ${err.message}`, type: "error" });
     } finally {
@@ -1612,7 +1643,7 @@ export function AdminFacturacion({ showBackButton = true }: AdminFacturacionProp
                       <button
                         onClick={handleCreatePaymentComplement}
                         disabled={isCreatingREP}
-                        className="w-full bg-primary-750 hover:bg-primary-850 text-white rounded p-1.5 font-bold transition-all disabled:opacity-50"
+                        className="w-full bg-emerald-600 hover:bg-emerald-700 text-white rounded p-1.5 font-bold transition-all disabled:opacity-50 shadow-sm"
                       >
                         {isCreatingREP ? "Emitiendo..." : "Emitir REP en SAT"}
                       </button>
@@ -1636,7 +1667,7 @@ export function AdminFacturacion({ showBackButton = true }: AdminFacturacionProp
                       <button
                         onClick={handleCreateCreditNote}
                         disabled={isCreatingNC}
-                        className="w-full bg-primary-750 hover:bg-primary-850 text-white rounded p-1.5 font-bold transition-all disabled:opacity-50"
+                        className="w-full bg-indigo-600 hover:bg-indigo-700 text-white rounded p-1.5 font-bold transition-all disabled:opacity-50 shadow-sm"
                       >
                         {isCreatingNC ? "Emitiendo..." : "Emitir Nota de Crédito"}
                       </button>
@@ -1947,6 +1978,167 @@ export function AdminFacturacion({ showBackButton = true }: AdminFacturacionProp
 
         </div>
 
+      </div>
+
+      {/* Historial de Movimientos / Facturas SAT Timbradas (Facturapi) */}
+      <div className="mt-12 bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6 border-b border-gray-150 pb-4">
+          <div className="flex items-center gap-2">
+            <History className="w-5 h-5 text-primary-600" />
+            <div className="text-left">
+              <h2 className="text-lg font-bold text-gray-900">Historial de Facturación SAT (Facturapi)</h2>
+              <p className="text-xs text-gray-500 font-semibold">Consulta de facturas emitidas, estatus en tiempo real y descarga de documentos.</p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={fetchHistory}
+            disabled={isLoadingHistory}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-100 hover:bg-gray-250 active:bg-gray-300 disabled:opacity-50 text-gray-700 rounded-lg text-xs font-bold transition-all border border-gray-200"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${isLoadingHistory ? 'animate-spin' : ''}`} />
+            Actualizar Historial
+          </button>
+        </div>
+
+        {historyError && (
+          <div className="p-4 mb-4 bg-red-50 border border-red-200 text-red-800 text-xs rounded-lg font-semibold">
+            Error al cargar el historial: {historyError}
+          </div>
+        )}
+
+        {isLoadingHistory && historyInvoices.length === 0 ? (
+          <div className="py-12 flex flex-col items-center justify-center gap-2 text-gray-500">
+            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary-700"></div>
+            <span className="text-xs font-bold">Cargando comprobantes oficiales...</span>
+          </div>
+        ) : historyInvoices.length === 0 ? (
+          <div className="py-12 text-center text-xs text-gray-400 font-bold bg-gray-50 rounded-lg border border-dashed border-gray-200">
+            No se han encontrado comprobantes timbrados en este entorno (Sandbox / Real).
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs border-collapse">
+              <thead>
+                <tr className="border-b border-gray-200 text-gray-400 font-bold bg-gray-50">
+                  <th className="p-3">Cliente / RFC</th>
+                  <th className="p-3">Fecha de Emisión</th>
+                  <th className="p-3">Tipo</th>
+                  <th className="p-3">Folio Fiscal (UUID)</th>
+                  <th className="p-3 text-right">Monto Total</th>
+                  <th className="p-3 text-center">Estatus SAT</th>
+                  <th className="p-3 text-center">Acciones / Descargas</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100 font-semibold text-gray-700">
+                {historyInvoices.map((inv) => {
+                  const formattedDate = new Date(inv.created_at).toLocaleString("es-MX", {
+                    year: 'numeric', month: '2-digit', day: '2-digit',
+                    hour: '2-digit', minute: '2-digit'
+                  });
+
+                  return (
+                    <tr key={inv.id} className="hover:bg-gray-50/50 transition-colors">
+                      <td className="p-3 text-left">
+                        <span className="font-bold text-gray-900 block">{inv.customer?.legal_name || "Público en General"}</span>
+                        <span className="font-mono text-[10px] text-gray-500">{inv.customer?.tax_id}</span>
+                      </td>
+                      <td className="p-3 text-left text-gray-500">{formattedDate}</td>
+                      <td className="p-3 text-left">
+                        {inv.type === 'I' && (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-green-50 text-green-700 border border-green-200">
+                            Ingreso
+                          </span>
+                        )}
+                        {inv.type === 'E' && (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
+                            Nota de Crédito
+                          </span>
+                        )}
+                        {inv.type === 'P' && (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                            Complemento (REP)
+                          </span>
+                        )}
+                      </td>
+                      <td className="p-3 text-left font-mono text-[10px] break-all max-w-[200px]">
+                        {inv.uuid || (
+                          <span className="text-gray-400 italic">Borrador (Sin UUID)</span>
+                        )}
+                        {inv.relation && (
+                          <div className="text-[9px] text-indigo-600 font-semibold mt-1">
+                            Relacionada a: {inv.relation}
+                          </div>
+                        )}
+                      </td>
+                      <td className="p-3 text-right font-bold text-gray-900">
+                        ${inv.total?.toLocaleString("es-MX", { minimumFractionDigits: 2 })}
+                      </td>
+                      <td className="p-3 text-center">
+                        {inv.status === 'valid' && (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> VIGENTE
+                          </span>
+                        )}
+                        {inv.status === 'cancelled' && (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-red-100 text-red-800">
+                            <span className="w-1.5 h-1.5 rounded-full bg-red-500"></span> CANCELADA
+                          </span>
+                        )}
+                        {inv.status === 'draft' && (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-gray-100 text-gray-600">
+                            BORRADOR
+                          </span>
+                        )}
+                      </td>
+                      <td className="p-3">
+                        <div className="flex items-center justify-center gap-1.5">
+                          {/* Manage buttons */}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setStampedInvoice(inv);
+                              window.scrollTo({ top: 400, behavior: 'smooth' });
+                              setApiFeedback({ text: `Factura ${inv.uuid || inv.id} cargada en panel de operaciones.`, type: "info" });
+                            }}
+                            className="bg-primary-550 hover:bg-primary-700 text-white font-bold px-2 py-1 rounded text-[10px] border border-primary-600 transition-all cursor-pointer shadow-sm"
+                            title="Cargar en panel de operaciones de timbrado"
+                          >
+                            Gestionar
+                          </button>
+                          
+                          {/* Downloads */}
+                          {inv.status !== 'draft' && (
+                            <>
+                              <a
+                                href={`/api/facturacion/descargar?id=${inv.id}&format=xml`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="bg-gray-100 hover:bg-gray-250 text-gray-700 font-bold px-2 py-1 rounded text-[10px] border border-gray-300 transition-all flex items-center gap-0.5"
+                                title="Descargar XML oficial"
+                              >
+                                XML
+                              </a>
+                              <a
+                                href={`/api/facturacion/descargar?id=${inv.id}&format=pdf`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-2 py-1 rounded text-[10px] border border-emerald-600 transition-all flex items-center gap-0.5 shadow-sm"
+                                title="Descargar PDF oficial"
+                              >
+                                PDF
+                              </a>
+                            </>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
     </div>
   );

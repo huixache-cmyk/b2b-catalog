@@ -50,8 +50,10 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'La factura original aún no ha sido timbrada ante el SAT (no tiene UUID).' }, { status: 400 });
     }
 
-    // Calcular saldo anterior si no se proporciona
     const balanceBeforePayment = Number(last_balance) || originalInvoice.total;
+    const paidAmount = Number(amount);
+    const taxBase = paidAmount / 1.16;
+    const taxTotal = paidAmount - taxBase;
 
     // 3. Construir el recibo de pago (CFDI Tipo P - Pago)
     const paymentComplementPayload = {
@@ -73,10 +75,19 @@ export async function POST(request: Request) {
               related_documents: [
                 {
                   uuid: originalInvoice.uuid,
-                  amount: Number(amount),
+                  amount: paidAmount,
                   installment: Number(installment_number),
                   last_balance: balanceBeforePayment,
-                  currency: 'MXN'
+                  currency: 'MXN',
+                  taxes: [
+                    {
+                      base: Number(taxBase.toFixed(2)),
+                      name: 'IVA',
+                      rate: 0.16,
+                      total: Number(taxTotal.toFixed(2)),
+                      is_retention: false
+                    }
+                  ]
                 }
               ]
             }
