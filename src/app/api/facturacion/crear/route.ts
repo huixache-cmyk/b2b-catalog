@@ -31,22 +31,38 @@ export async function POST(request: Request) {
     }
 
     // 2. Mapear conceptos al formato de Facturapi
-    const mappedItems = items.map((item: any) => ({
-      quantity: Number(item.cantidad) || 1,
-      product: {
-        description: item.descripcion,
-        price: Number(item.valorUnitario),
-        product_key: item.claveSat || '84111506', // Código genérico de servicios de facturación
-        unit_key: item.claveUnidad || 'ACT',
-        taxes: [
-          {
-            rate: 0.16, // IVA 16%
-            type: 'IVA',
-            factor: 'Tasa'
-          }
-        ]
+    const isMoral = client.rfc && client.rfc.replace(/[^A-Za-z0-9]/g, '').length === 12;
+
+    const mappedItems = items.map((item: any) => {
+      const itemTaxes: any[] = [
+        {
+          rate: 0.16, // IVA 16%
+          type: 'IVA',
+          factor: 'Tasa'
+        }
+      ];
+
+      if (isMoral) {
+        itemTaxes.push({
+          rate: 0.0125, // ISR Retenido 1.25%
+          type: 'ISR',
+          factor: 'Tasa',
+          withholding: true
+        });
       }
-    }));
+
+      return {
+        quantity: Number(item.cantidad) || 1,
+        product: {
+          description: item.descripcion,
+          price: Number(item.valorUnitario),
+          product_key: item.claveSat || '84111506', // Código genérico de servicios de facturación
+          unit_key: item.claveUnidad || 'ACT',
+          tax_included: false, // Indica que el precio unitario ingresado NO incluye IVA (es más IVA)
+          taxes: itemTaxes
+        }
+      };
+    });
 
     const facturapiPayload: any = {
       type: 'I', // CFDI de Ingreso por defecto
