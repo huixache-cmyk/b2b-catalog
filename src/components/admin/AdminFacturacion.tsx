@@ -374,6 +374,23 @@ export function AdminFacturacion({ showBackButton = true }: AdminFacturacionProp
   useEffect(() => {
     fetchHistory();
   }, []);
+
+  // Sync payment complement defaults when stampedInvoice changes
+  useEffect(() => {
+    if (stampedInvoice) {
+      setRepLastBalance(String(stampedInvoice.amount_due !== undefined ? stampedInvoice.amount_due : stampedInvoice.total || ""));
+      
+      // Auto-suggest next installment number
+      if (stampedInvoice.amount_due === stampedInvoice.total) {
+        setRepInstallment("1");
+      } else {
+        setRepInstallment("2");
+      }
+    } else {
+      setRepLastBalance("");
+      setRepInstallment("1");
+    }
+  }, [stampedInvoice]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isCancelling, setIsCancelling] = useState(false);
   const [isCreatingNC, setIsCreatingNC] = useState(false);
@@ -385,6 +402,7 @@ export function AdminFacturacion({ showBackButton = true }: AdminFacturacionProp
   const [repAmount, setRepAmount] = useState("");
   const [repForm, setRepForm] = useState("03");
   const [repInstallment, setRepInstallment] = useState("1");
+  const [repLastBalance, setRepLastBalance] = useState("");
   const [cancelMotive, setCancelMotive] = useState("02"); // SAT 02 - Comprobante emitido con errores sin relación
   const [cancelSubstitution, setCancelSubstitution] = useState("");
   
@@ -608,7 +626,8 @@ export function AdminFacturacion({ showBackButton = true }: AdminFacturacionProp
           original_invoice_id: stampedInvoice.id,
           payment_form: repForm,
           amount: repAmount,
-          installment_number: repInstallment
+          installment_number: repInstallment,
+          last_balance: repLastBalance || undefined
         })
       });
       const data = await res.json();
@@ -1738,6 +1757,12 @@ export function AdminFacturacion({ showBackButton = true }: AdminFacturacionProp
                     <span className="text-gray-400 font-bold">Monto Facturado:</span>
                     <span className="font-sans font-extrabold text-primary-700">${stampedInvoice.total?.toLocaleString("es-MX", { minimumFractionDigits: 2 })}</span>
                   </div>
+                  {stampedInvoice.amount_due !== undefined && stampedInvoice.amount_due !== stampedInvoice.total && (
+                    <div className="flex justify-between border-b border-gray-200 pb-1 animate-fadeIn">
+                      <span className="text-gray-400 font-bold">Saldo Pendiente (SAT):</span>
+                      <span className="font-sans font-extrabold text-red-600">${stampedInvoice.amount_due?.toLocaleString("es-MX", { minimumFractionDigits: 2 })}</span>
+                    </div>
+                  )}
                   <div className="flex justify-between">
                     <span className="text-gray-400 font-bold">Método / Forma:</span>
                     <span className="font-bold text-gray-800">{stampedInvoice.payment_method || "PUE"} / {stampedInvoice.payment_form || "03"}</span>
@@ -1779,7 +1804,7 @@ export function AdminFacturacion({ showBackButton = true }: AdminFacturacionProp
                   {(stampedInvoice.payment_method === 'PPD' || metodoPago === 'PPD') && stampedInvoice.status === 'valid' && (
                     <div className="bg-gray-50 p-3 rounded-lg border border-gray-200 space-y-2">
                       <span className="font-bold text-gray-700 block text-left">Emitir Complemento de Pago (REP)</span>
-                      <div className="grid grid-cols-2 gap-2 text-left">
+                      <div className="grid grid-cols-3 gap-2 text-left">
                         <div>
                           <label className="text-[10px] text-gray-500 block">Monto Pagado</label>
                           <input 
@@ -1787,6 +1812,16 @@ export function AdminFacturacion({ showBackButton = true }: AdminFacturacionProp
                             value={repAmount} 
                             onChange={(e) => setRepAmount(e.target.value)} 
                             placeholder="Monto"
+                            className="w-full border border-gray-300 rounded p-1.5"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-[10px] text-gray-500 block">Saldo Anterior</label>
+                          <input 
+                            type="number" 
+                            value={repLastBalance} 
+                            onChange={(e) => setRepLastBalance(e.target.value)} 
+                            placeholder="Saldo"
                             className="w-full border border-gray-300 rounded p-1.5"
                           />
                         </div>
