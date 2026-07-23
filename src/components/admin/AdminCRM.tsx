@@ -5,7 +5,7 @@ import { useCRM } from "@/hooks/useCRM";
 import { Customer, CustomerContact, CustomerAddress, CustomerDiscount, CustomerActivity, CustomerSegment } from "@/services/crmService";
 import { supabase } from "@/lib/supabase";
 import { formatCurrency } from "@/utils/formatters";
-import { Search, Plus, Filter, User, MapPin, Percent, Phone, Mail, Building2, Trash2, Edit, Eye, MessageSquare, AlertCircle, CheckCircle, Calendar, Send, Activity, X, ChevronRight, Check } from "lucide-react";
+import { Search, Plus, Filter, User, MapPin, Percent, Phone, Mail, Building2, Trash2, Edit, Eye, MessageSquare, AlertCircle, CheckCircle, Calendar, Send, Activity, X, ChevronRight, ChevronDown, Check } from "lucide-react";
 import mexicoData from "@/utils/mexicoStates.json";
 import { COLOR_PALETTE } from "@/types";
 
@@ -129,6 +129,99 @@ export function AdminCRM() {
   // Profile Activity creation state
   const [activityNote, setActivityNote] = useState("");
   const [activityType, setActivityType] = useState<CustomerActivity["activity_type"]>("note");
+
+  // Profile Navigation Tab and Billing State
+  const [activeProfileTab, setActiveProfileTab] = useState<'general' | 'billing' | 'activity'>('general');
+  const [customerInvoices, setCustomerInvoices] = useState<any[]>([]);
+  const [isLoadingCustInvoices, setIsLoadingCustInvoices] = useState(false);
+  const [custInvoicesError, setCustInvoicesError] = useState("");
+  const [expandedInvoiceIds, setExpandedInvoiceIds] = useState<{ [key: string]: boolean }>({});
+
+  const toggleExpand = (id: string) => {
+    setExpandedInvoiceIds(prev => ({ ...prev, [id]: !prev[id] }));
+  };
+
+  const fetchCustomerInvoices = async (rfc: string) => {
+    if (!rfc) {
+      setCustomerInvoices([]);
+      return;
+    }
+    setIsLoadingCustInvoices(true);
+    setCustInvoicesError("");
+    try {
+      const res = await fetch(`/api/facturacion/historial?limit=100&q=${encodeURIComponent(rfc)}`);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Error al obtener facturas.");
+      setCustomerInvoices(data.invoices || []);
+    } catch (err: any) {
+      setCustInvoicesError(err.message);
+    } finally {
+      setIsLoadingCustInvoices(false);
+    }
+  };
+
+  // Reset tab and load invoices when customer changes
+  useEffect(() => {
+    setActiveProfileTab('general');
+    setExpandedInvoiceIds({});
+    if (customerProfile?.customer?.rfc) {
+      fetchCustomerInvoices(customerProfile.customer.rfc);
+    } else {
+      setCustomerInvoices([]);
+    }
+  }, [customerProfile]);
+
+  const customerDebtorBalance = useMemo(() => {
+    if (!customerInvoices || customerInvoices.length === 0) return 0;
+    return customerInvoices
+      .filter(inv => inv.type === 'I' && inv.status !== 'canceled' && inv.status !== 'cancelled')
+      .reduce((sum, inv) => sum + (inv.amount_due !== undefined ? inv.amount_due : inv.total), 0);
+  }, [customerInvoices]);
+
+  const groupedCustomerInvoices = useMemo(() => {
+    const parents = customerInvoices.filter(inv => inv.type === 'I').map(p => ({ ...p, relatedMovements: [] as any[] }));
+    const children = customerInvoices.filter(inv => inv.type === 'P' || inv.type === 'E');
+
+    const parentMap = new Map<string, any>();
+    parents.forEach(p => {
+      if (p.uuid) {
+        parentMap.set(p.uuid, p);
+      }
+    });
+
+    const standaloneChildren: any[] = [];
+
+    children.forEach(c => {
+      let linked = false;
+
+      if (c.type === 'P') {
+        const relatedDocs = c.complements?.[0]?.data?.[0]?.related_documents || [];
+        relatedDocs.forEach((doc: any) => {
+          if (doc.uuid && parentMap.has(doc.uuid)) {
+            parentMap.get(doc.uuid).relatedMovements.push({ ...c, relationType: 'REP', repDetails: doc });
+            linked = true;
+          }
+        });
+      } else if (c.type === 'E') {
+        const relatedDocs = c.related_documents || [];
+        relatedDocs.forEach((relGroup: any) => {
+          const docs = relGroup.documents || [];
+          docs.forEach((docUuid: string) => {
+            if (parentMap.has(docUuid)) {
+              parentMap.get(docUuid).relatedMovements.push({ ...c, relationType: 'NC', ncDetails: relGroup });
+              linked = true;
+            }
+          });
+        });
+      }
+
+      if (!linked) {
+        standaloneChildren.push(c);
+      }
+    });
+
+    return [...parents, ...standaloneChildren];
+  }, [customerInvoices]);
 
   // Fetch detailed profile when a customer is clicked
   useEffect(() => {
@@ -702,129 +795,289 @@ export function AdminCRM() {
                 </div>
               </div>
 
-              {/* Contacts info */}
-              <div>
-                <h4 className="font-bold text-gray-900 text-xs uppercase tracking-wider mb-2.5 border-b pb-1">Contacto Principal</h4>
-                {(() => {
-                  const primary = customerProfile.contacts.find((c: any) => c.is_primary) || customerProfile.contacts[0];
-                  if (!primary) return <p className="text-xs text-gray-400 italic">Sin contactos registrados.</p>;
-                  return (
-                    <div className="text-xs space-y-1 bg-gray-50/50 p-3 rounded-lg border border-gray-150 relative">
-                      <p className="font-bold text-gray-800 text-sm">{primary.name}</p>
-                      {primary.position && <p className="text-gray-400 font-medium">{primary.position}</p>}
-                      <div className="flex items-center gap-1 text-gray-500 mt-2">
-                        <Mail className="w-3.5 h-3.5 shrink-0" />
-                        <span className="truncate">{primary.email || "-"}</span>
-                      </div>
-                      <div className="flex items-center gap-1.5 text-gray-500 mt-1">
-                        <Phone className="w-3.5 h-3.5 shrink-0" />
-                        <span>{primary.phone || "-"}</span>
-                        {primary.whatsapp && (
-                          <a 
-                            href={`https://wa.me/${primary.whatsapp.replace(/\D/g, '')}`} 
-                            target="_blank" 
-                            rel="noopener noreferrer" 
-                            className="bg-green-100 hover:bg-green-200 text-green-800 p-0.5 rounded text-[10px] font-bold flex items-center gap-0.5 transition-colors"
-                          >
-                            <MessageSquare className="w-3 h-3 text-green-700" /> WhatsApp
-                          </a>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })()}
-              </div>
-
-              {/* Addresses default */}
-              <div>
-                <h4 className="font-bold text-gray-900 text-xs uppercase tracking-wider mb-2.5 border-b pb-1">Dirección Default</h4>
-                {(() => {
-                  const defAddr = customerProfile.addresses.find((a: any) => a.is_default) || customerProfile.addresses[0];
-                  if (!defAddr) return <p className="text-xs text-gray-400 italic">Sin dirección registrada.</p>;
-                  return (
-                    <div className="text-xs text-gray-600 space-y-1 bg-gray-50/50 p-3 rounded-lg border border-gray-150">
-                      <p className="font-bold text-gray-800">{defAddr.street} #{defAddr.exterior_number} {defAddr.interior_number ? `Int. ${defAddr.interior_number}` : ''}</p>
-                      <p>{defAddr.neighborhood}, CP {defAddr.postal_code}</p>
-                      <p>{defAddr.city}, {defAddr.state}</p>
-                    </div>
-                  );
-                })()}
-              </div>
-
-              {/* Quotes & Orders History summary */}
-              <div>
-                <h4 className="font-bold text-gray-900 text-xs uppercase tracking-wider mb-2 border-b pb-1">Historial Cotizaciones y Pedidos</h4>
-                <div className="space-y-2 max-h-40 overflow-y-auto pr-1">
-                  {/* Active quotes */}
-                  {customerProfile.quotes.map((q: any) => (
-                    <div key={q.id} className="flex justify-between items-center text-xs p-2 bg-gray-50 border rounded-lg">
-                      <div>
-                        <span className="font-bold text-gray-800 block">{q.id}</span>
-                        <span className="text-[10px] text-gray-450">{new Date(q.date).toLocaleDateString()}</span>
-                      </div>
-                      <span className="font-semibold text-primary-700">{formatCurrency(q.total)}</span>
-                    </div>
-                  ))}
-                  {/* Orders quotes */}
-                  {customerProfile.orders.map((o: any) => (
-                    <div key={o.id} className="flex justify-between items-center text-xs p-2 bg-green-50/50 border border-green-200 rounded-lg">
-                      <div>
-                        <span className="font-bold text-green-950 block">{o.id}</span>
-                        <span className="text-[10px] text-green-700">{new Date(o.date).toLocaleDateString()} (Entregado)</span>
-                      </div>
-                      <span className="font-extrabold text-green-800">{formatCurrency(o.total)}</span>
-                    </div>
-                  ))}
-                  {customerProfile.quotes.length === 0 && customerProfile.orders.length === 0 && (
-                    <p className="text-xs text-gray-400 italic text-center py-2">Sin solicitudes comerciales.</p>
+              {/* Tab Navigation */}
+              <div className="flex border-b text-xs font-bold text-gray-400">
+                <button
+                  type="button"
+                  onClick={() => setActiveProfileTab('general')}
+                  className={`flex-1 pb-2 border-b-2 text-center transition-all ${activeProfileTab === 'general' ? 'border-primary-650 text-primary-650 font-black' : 'border-transparent hover:text-gray-700'}`}
+                >
+                  General
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveProfileTab('billing')}
+                  className={`flex-1 pb-2 border-b-2 text-center transition-all flex items-center justify-center gap-1 ${activeProfileTab === 'billing' ? 'border-primary-650 text-primary-650 font-black' : 'border-transparent hover:text-gray-700'}`}
+                >
+                  Facturas y Saldos
+                  {customerDebtorBalance > 0 && (
+                    <span className="bg-red-100 text-red-700 text-[9px] px-1.5 py-0.2 rounded font-extrabold">
+                      ${customerDebtorBalance.toLocaleString("es-MX", { maximumFractionDigits: 0 })}
+                    </span>
                   )}
-                </div>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveProfileTab('activity')}
+                  className={`flex-1 pb-2 border-b-2 text-center transition-all ${activeProfileTab === 'activity' ? 'border-primary-650 text-primary-650 font-black' : 'border-transparent hover:text-gray-700'}`}
+                >
+                  Bitácora
+                </button>
               </div>
 
-              {/* Bitácora de Actividades (Timeline) */}
-              <div>
-                <h4 className="font-bold text-gray-900 text-xs uppercase tracking-wider mb-3 border-b pb-1 flex justify-between items-center">
-                  <span>Bitácora Comercial</span>
-                  <Activity className="w-3.5 h-3.5 text-gray-450" />
-                </h4>
-                
-                {/* Timeline Log list */}
-                <div className="space-y-3 max-h-48 overflow-y-auto pr-1 mb-4">
-                  {customerProfile.activities.map((act: CustomerActivity) => (
-                    <div key={act.id} className="text-xs border-l-2 border-primary-200 pl-3 py-1 relative">
-                      <div className="absolute -left-[5px] top-1.5 w-2.5 h-2.5 bg-primary-600 rounded-full border-2 border-white"></div>
-                      <div className="flex justify-between items-center">
-                        <span className="font-bold text-gray-800">{act.title}</span>
-                        <span className="text-[9px] text-gray-400">{new Date(act.created_at || '').toLocaleString()}</span>
-                      </div>
-                      <p className="text-gray-600 mt-0.5">{act.description}</p>
-                      <p className="text-[9px] text-gray-400 mt-0.5">Por: {act.created_by}</p>
-                    </div>
-                  ))}
-                  {customerProfile.activities.length === 0 && (
-                    <p className="text-xs text-gray-400 italic text-center py-2">Sin actividad previa registrada.</p>
-                  )}
-                </div>
+              {/* Tab 1: General Info */}
+              {activeProfileTab === 'general' && (
+                <div className="space-y-6 animate-fadeIn">
+                  {/* Contacts info */}
+                  <div>
+                    <h4 className="font-bold text-gray-900 text-xs uppercase tracking-wider mb-2.5 border-b pb-1">Contacto Principal</h4>
+                    {(() => {
+                      const primary = customerProfile.contacts.find((c: any) => c.is_primary) || customerProfile.contacts[0];
+                      if (!primary) return <p className="text-xs text-gray-400 italic">Sin contactos registrados.</p>;
+                      return (
+                        <div className="text-xs space-y-1 bg-gray-50/50 p-3 rounded-lg border border-gray-150 relative">
+                          <p className="font-bold text-gray-800 text-sm">{primary.name}</p>
+                          {primary.position && <p className="text-gray-400 font-medium">{primary.position}</p>}
+                          <div className="flex items-center gap-1 text-gray-500 mt-2">
+                            <Mail className="w-3.5 h-3.5 shrink-0" />
+                            <span className="truncate">{primary.email || "-"}</span>
+                          </div>
+                          <div className="flex items-center gap-1.5 text-gray-500 mt-1">
+                            <Phone className="w-3.5 h-3.5 shrink-0" />
+                            <span>{primary.phone || "-"}</span>
+                            {primary.whatsapp && (
+                              <a 
+                                href={`https://wa.me/${primary.whatsapp.replace(/\D/g, '')}`} 
+                                target="_blank" 
+                                rel="noopener noreferrer" 
+                                className="bg-green-100 hover:bg-green-200 text-green-800 p-0.5 rounded text-[10px] font-bold flex items-center gap-0.5 transition-colors"
+                              >
+                                <MessageSquare className="w-3 h-3 text-green-700" /> WhatsApp
+                              </a>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })()}
+                  </div>
 
-                {/* Add new quick activity note */}
-                <form onSubmit={handleAddActivity} className="space-y-2 pt-2 border-t">
-                  <div className="flex gap-2">
-                    <select 
-                      value={activityType} 
-                      onChange={e => setActivityType(e.target.value as any)}
-                      className="border border-gray-300 rounded text-xs bg-white p-1"
-                    >
-                      <option value="note">Nota</option>
-                      <option value="call">Llamada</option>
-                      <option value="whatsapp">WhatsApp</option>
-                      <option value="email">Email</option>
-                    </select>
-                    <input 
-                      type="text" 
-                      placeholder="Registrar detalles en la bitácora..."
-                      value={activityNote}
-                      onChange={e => setActivityNote(e.target.value)}
-                      className="flex-1 border border-gray-300 rounded px-2.5 py-1 text-xs focus:ring-1 focus:ring-primary-500 focus:outline-none"
+                  {/* Addresses default */}
+                  <div>
+                    <h4 className="font-bold text-gray-900 text-xs uppercase tracking-wider mb-2.5 border-b pb-1">Dirección Default</h4>
+                    {(() => {
+                      const defAddr = customerProfile.addresses.find((a: any) => a.is_default) || customerProfile.addresses[0];
+                      if (!defAddr) return <p className="text-xs text-gray-400 italic">Sin dirección registrada.</p>;
+                      return (
+                        <div className="text-xs text-gray-600 space-y-1 bg-gray-50/50 p-3 rounded-lg border border-gray-150">
+                          <p className="font-bold text-gray-800">{defAddr.street} #{defAddr.exterior_number} {defAddr.interior_number ? `Int. ${defAddr.interior_number}` : ''}</p>
+                          <p>{defAddr.neighborhood}, CP {defAddr.postal_code}</p>
+                          <p>{defAddr.city}, {defAddr.state}</p>
+                        </div>
+                      );
+                    })()}
+                  </div>
+
+                  {/* Quotes & Orders History summary */}
+                  <div>
+                    <h4 className="font-bold text-gray-900 text-xs uppercase tracking-wider mb-2 border-b pb-1">Historial Cotizaciones y Pedidos</h4>
+                    <div className="space-y-2 max-h-40 overflow-y-auto pr-1">
+                      {/* Active quotes */}
+                      {customerProfile.quotes.map((q: any) => (
+                        <div key={q.id} className="flex justify-between items-center text-xs p-2 bg-gray-50 border rounded-lg">
+                          <div>
+                            <span className="font-bold text-gray-800 block">{q.id}</span>
+                            <span className="text-[10px] text-gray-450">{new Date(q.date).toLocaleDateString()}</span>
+                          </div>
+                          <span className="font-semibold text-primary-700">{formatCurrency(q.total)}</span>
+                        </div>
+                      ))}
+                      {/* Orders quotes */}
+                      {customerProfile.orders.map((o: any) => (
+                        <div key={o.id} className="flex justify-between items-center text-xs p-2 bg-green-50/50 border border-green-200 rounded-lg">
+                          <div>
+                            <span className="font-bold text-green-950 block">{o.id}</span>
+                            <span className="text-[10px] text-green-700">{new Date(o.date).toLocaleDateString()} (Entregado)</span>
+                          </div>
+                          <span className="font-extrabold text-green-800">{formatCurrency(o.total)}</span>
+                        </div>
+                      ))}
+                      {customerProfile.quotes.length === 0 && customerProfile.orders.length === 0 && (
+                        <p className="text-xs text-gray-400 italic text-center py-2">Sin solicitudes comerciales.</p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Tab 2: Billing & Saldos */}
+              {activeProfileTab === 'billing' && (
+                <div className="space-y-4 animate-fadeIn">
+                  {/* Total Debtor Balance Card */}
+                  <div className={`p-4 rounded-xl border flex flex-col items-center justify-center text-center shadow-sm ${
+                    customerDebtorBalance > 0 
+                      ? 'bg-red-50/50 border-red-200 text-red-900' 
+                      : 'bg-emerald-50/50 border-emerald-250 text-emerald-950'
+                  }`}>
+                    <span className="text-[10px] text-gray-450 uppercase font-black block mb-1">Saldo Deudor Acumulado (SAT)</span>
+                    <span className="text-xl font-extrabold font-sans font-mono">
+                      ${customerDebtorBalance.toLocaleString("es-MX", { minimumFractionDigits: 2 })}
+                    </span>
+                    <span className="text-[9px] text-gray-400 block mt-1.5 font-semibold leading-tight">
+                      {customerDebtorBalance > 0 
+                        ? "Cuenta con facturas PPD pendientes de pago o saldar." 
+                        : "Cliente al corriente. Sin saldos pendientes de pago."}
+                    </span>
+                  </div>
+
+                  {/* List of customer invoices */}
+                  <div>
+                    <h4 className="font-bold text-gray-900 text-xs uppercase tracking-wider mb-2.5 border-b pb-1">Comprobantes y Ajustes Emitidos</h4>
+                    
+                    {isLoadingCustInvoices ? (
+                      <div className="py-8 text-center text-gray-400 text-xs font-semibold flex items-center justify-center gap-1.5">
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary-600"></div>
+                        Cargando historial fiscal...
+                      </div>
+                    ) : custInvoicesError ? (
+                      <p className="text-xs text-red-700 bg-red-50 p-2.5 rounded border border-red-200 font-bold">{custInvoicesError}</p>
+                    ) : groupedCustomerInvoices.length === 0 ? (
+                      <p className="text-xs text-gray-400 italic text-center py-4">No se encontraron comprobantes emitidos para el RFC {customerProfile.customer.rfc || "N/A"}.</p>
+                    ) : (
+                      <div className="space-y-2 max-h-[300px] overflow-y-auto pr-1">
+                        {groupedCustomerInvoices.map((inv) => {
+                          const hasMovs = inv.relatedMovements && inv.relatedMovements.length > 0;
+                          const isExp = expandedInvoiceIds[inv.id] || false;
+                          const isCancelled = inv.status === 'canceled' || inv.status === 'cancelled';
+                          
+                          return (
+                            <div key={inv.id} className="bg-gray-50 border rounded-lg p-2.5 text-xs space-y-2 shadow-sm text-left">
+                              <div className="flex justify-between items-start">
+                                <div>
+                                  <div className="flex items-center gap-1">
+                                    {hasMovs && (
+                                      <button 
+                                        type="button"
+                                        onClick={() => toggleExpand(inv.id)} 
+                                        className="p-0.5 hover:bg-gray-250 rounded text-gray-500 transition-colors mr-0.5"
+                                      >
+                                        {isExp ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
+                                      </button>
+                                    )}
+                                    <span className="font-bold text-gray-900 block truncate max-w-[120px]" title={inv.uuid}>
+                                      {inv.uuid ? `Folio: ...${inv.uuid.slice(-8)}` : "Borrador"}
+                                    </span>
+                                  </div>
+                                  <span className="text-[9px] text-gray-450 mt-0.5 block font-semibold">
+                                    {new Date(inv.created_at).toLocaleDateString()} | {inv.payment_method || "PUE"}
+                                  </span>
+                                </div>
+                                <div className="text-right flex flex-col items-end">
+                                  <span className={`text-[8px] font-black px-1.5 py-0.2 rounded border ${
+                                    isCancelled ? 'bg-red-50 text-red-700 border-red-200' : 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                                  }`}>
+                                    {isCancelled ? 'CANCELADA' : 'VIGENTE'}
+                                  </span>
+                                  <span className="font-bold font-mono text-gray-800 mt-1">${inv.total?.toLocaleString()}</span>
+                                </div>
+                              </div>
+
+                              {/* Nested Movements List */}
+                              {isExp && hasMovs && (
+                                <div className="border-t pt-2 space-y-1.5">
+                                  <span className="text-[9px] text-gray-450 font-extrabold uppercase block tracking-wider">Ajustes Relacionados</span>
+                                  {inv.relatedMovements.map((mov: any) => {
+                                    const movCancelled = mov.status === 'canceled' || mov.status === 'cancelled';
+                                    return (
+                                      <div key={mov.id} className="bg-white border rounded p-2 flex justify-between items-center text-[10px] shadow-sm">
+                                        <div>
+                                          <span className={`px-1 rounded text-[8px] font-bold ${
+                                            mov.relationType === 'REP' ? 'bg-emerald-50 text-emerald-700' : 'bg-indigo-50 text-indigo-700'
+                                          }`}>
+                                            {mov.relationType === 'REP' ? 'REP' : 'NC'}
+                                          </span>
+                                          <span className="text-gray-700 ml-1 font-semibold">
+                                            {mov.relationType === 'REP' ? `Abono: $${mov.repDetails?.amount}` : `Desc: $${mov.total}`}
+                                          </span>
+                                        </div>
+                                        <div className="flex gap-1.5 font-bold">
+                                          <span className={movCancelled ? 'text-red-600' : 'text-emerald-700'}>
+                                            {movCancelled ? 'CAN' : 'VIG'}
+                                          </span>
+                                          <a href={`/api/facturacion/descargar?id=${mov.id}&format=pdf`} target="_blank" className="text-gray-400 hover:text-emerald-600">PDF</a>
+                                        </div>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              )}
+
+                              {/* Balance Summary for individual PPD invoice */}
+                              {inv.payment_method === 'PPD' && (
+                                <div className="border-t pt-1.5 flex justify-between text-[9px] text-gray-450 font-bold bg-white/55 p-1.5 rounded">
+                                  <span>Pendiente:</span>
+                                  <span className="text-red-700 text-xs font-mono font-extrabold">
+                                    ${(inv.amount_due !== undefined ? inv.amount_due : inv.total).toLocaleString()}
+                                  </span>
+                                </div>
+                              )}
+                              
+                              {/* Documents download bar */}
+                              {!isCancelled && inv.uuid && (
+                                <div className="flex justify-end gap-1.5 pt-1">
+                                  <a href={`/api/facturacion/descargar?id=${inv.id}&format=xml`} target="_blank" className="text-[9px] text-gray-500 hover:underline">Descargar XML</a>
+                                  <span className="text-gray-300">|</span>
+                                  <a href={`/api/facturacion/descargar?id=${inv.id}&format=pdf`} target="_blank" className="text-[9px] text-emerald-700 font-bold hover:underline">Descargar PDF</a>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Tab 3: Timeline log & note */}
+              {activeProfileTab === 'activity' && (
+                <div className="space-y-4 animate-fadeIn">
+                  {/* Timeline Log list */}
+                  <div className="space-y-3 max-h-60 overflow-y-auto pr-1 mb-4">
+                    {customerProfile.activities.map((act: CustomerActivity) => (
+                      <div key={act.id} className="text-xs border-l-2 border-primary-200 pl-3 py-1 relative">
+                        <div className="absolute -left-[5px] top-1.5 w-2.5 h-2.5 bg-primary-600 rounded-full border-2 border-white"></div>
+                        <div className="flex justify-between items-center">
+                          <span className="font-bold text-gray-800">{act.title}</span>
+                          <span className="text-[9px] text-gray-400">{new Date(act.created_at || '').toLocaleString()}</span>
+                        </div>
+                        <p className="text-gray-600 mt-0.5">{act.description}</p>
+                        <p className="text-[9px] text-gray-400 mt-0.5">Por: {act.created_by}</p>
+                      </div>
+                    ))}
+                    {customerProfile.activities.length === 0 && (
+                      <p className="text-xs text-gray-400 italic text-center py-2">Sin actividad previa registrada.</p>
+                    )}
+                  </div>
+
+                  {/* Add new quick activity note */}
+                  <form onSubmit={handleAddActivity} className="space-y-2 pt-2 border-t">
+                    <div className="flex gap-2">
+                      <select 
+                        value={activityType} 
+                        onChange={e => setActivityType(e.target.value as any)}
+                        className="border border-gray-300 rounded text-xs bg-white p-1"
+                      >
+                        <option value="note">Nota</option>
+                        <option value="call">Llamada</option>
+                        <option value="whatsapp">WhatsApp</option>
+                        <option value="email">Email</option>
+                      </select>
+                      <input 
+                        type="text" 
+                        placeholder="Registrar detalles en la bitácora..."
+                        value={activityNote}
+                        onChange={e => setActivityNote(e.target.value)}
+                        className="flex-1 border border-gray-300 rounded px-2.5 py-1 text-xs focus:ring-1 focus:ring-primary-500 focus:outline-none"
                     />
                     <button type="submit" className="bg-primary-600 text-white font-bold p-1 rounded text-xs hover:bg-primary-700">
                       Log
@@ -832,9 +1085,9 @@ export function AdminCRM() {
                   </div>
                 </form>
               </div>
-
-            </div>
-          ) : (
+            )}
+          </div>
+        ) : (
             <div className="bg-gray-50 border-2 border-dashed border-gray-300 rounded-xl p-8 text-center text-gray-400 min-h-[300px] flex flex-col items-center justify-center shadow-inner">
               <Building2 className="w-12 h-12 text-gray-300 mb-2" />
               <p className="text-sm font-bold">Selecciona un cliente de la lista</p>

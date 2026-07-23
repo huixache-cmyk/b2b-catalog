@@ -21,7 +21,10 @@ import {
   Eye,
   Lock,
   History,
-  ExternalLink
+  ExternalLink,
+  ChevronRight,
+  ChevronDown,
+  Search
 } from "lucide-react";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
@@ -405,6 +408,97 @@ export function AdminFacturacion({ showBackButton = true }: AdminFacturacionProp
   const [repLastBalance, setRepLastBalance] = useState("");
   const [cancelMotive, setCancelMotive] = useState("02"); // SAT 02 - Comprobante emitido con errores sin relación
   const [cancelSubstitution, setCancelSubstitution] = useState("");
+
+  // Filters for historical table
+  const [filterSearch, setFilterSearch] = useState("");
+  const [filterStatus, setFilterStatus] = useState("all"); // all, valid, canceled
+  const [filterType, setFilterType] = useState("all"); // all, I, E, P
+  const [expandedInvoiceIds, setExpandedInvoiceIds] = useState<{ [key: string]: boolean }>({});
+
+  const toggleExpand = (id: string) => {
+    setExpandedInvoiceIds(prev => ({ ...prev, [id]: !prev[id] }));
+  };
+
+  const groupedHistoryInvoices = useMemo(() => {
+    // Evitar mutar el estado original haciendo clon profundo de las facturas
+    const parents = historyInvoices.filter(inv => inv.type === 'I').map(p => ({ ...p, relatedMovements: [] as any[] }));
+    const children = historyInvoices.filter(inv => inv.type === 'P' || inv.type === 'E');
+
+    const parentMap = new Map<string, any>();
+    parents.forEach(p => {
+      if (p.uuid) {
+        parentMap.set(p.uuid, p);
+      }
+    });
+
+    const standaloneChildren: any[] = [];
+
+    children.forEach(c => {
+      let linked = false;
+
+      if (c.type === 'P') {
+        const relatedDocs = c.complements?.[0]?.data?.[0]?.related_documents || [];
+        relatedDocs.forEach((doc: any) => {
+          if (doc.uuid && parentMap.has(doc.uuid)) {
+            parentMap.get(doc.uuid).relatedMovements.push({ ...c, relationType: 'REP', repDetails: doc });
+            linked = true;
+          }
+        });
+      } else if (c.type === 'E') {
+        const relatedDocs = c.related_documents || [];
+        relatedDocs.forEach((relGroup: any) => {
+          const docs = relGroup.documents || [];
+          docs.forEach((docUuid: string) => {
+            if (parentMap.has(docUuid)) {
+              parentMap.get(docUuid).relatedMovements.push({ ...c, relationType: 'NC', ncDetails: relGroup });
+              linked = true;
+            }
+          });
+        });
+      }
+
+      if (!linked) {
+        standaloneChildren.push(c);
+      }
+    });
+
+    const allItems = [...parents, ...standaloneChildren];
+    allItems.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+    return allItems;
+  }, [historyInvoices]);
+
+  const filteredGroupedInvoices = useMemo(() => {
+    return groupedHistoryInvoices.filter(inv => {
+      if (filterSearch) {
+        const query = filterSearch.toLowerCase();
+        const clientName = inv.customer?.legal_name?.toLowerCase() || "";
+        const clientRfc = inv.customer?.tax_id?.toLowerCase() || "";
+        const uuid = inv.uuid?.toLowerCase() || "";
+        const id = inv.id?.toLowerCase() || "";
+        const total = String(inv.total || "");
+        
+        const matchesMain = clientName.includes(query) || clientRfc.includes(query) || uuid.includes(query) || id.includes(query) || total.includes(query);
+        
+        const matchesChild = inv.relatedMovements?.some((m: any) => {
+          const mUuid = m.uuid?.toLowerCase() || "";
+          return mUuid.includes(query);
+        });
+
+        if (!matchesMain && !matchesChild) return false;
+      }
+
+      if (filterStatus !== "all") {
+        if (filterStatus === "valid" && inv.status !== "valid") return false;
+        if (filterStatus === "canceled" && inv.status !== "canceled" && inv.status !== "cancelled") return false;
+      }
+
+      if (filterType !== "all") {
+        if (inv.type !== filterType) return false;
+      }
+
+      return true;
+    });
+  }, [groupedHistoryInvoices, filterSearch, filterStatus, filterType]);
   
   // Feedback toast/message
   const [apiFeedback, setApiFeedback] = useState<{ text: string; type: "success" | "error" | "info" | "" }>({ text: "", type: "" });
@@ -2224,6 +2318,50 @@ export function AdminFacturacion({ showBackButton = true }: AdminFacturacionProp
           </div>
         )}
 
+        {/* Filtros del Historial */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-6 bg-gray-50 p-4 rounded-xl border border-gray-150 text-left">
+          <div className="space-y-1">
+            <label className="text-[10px] text-gray-500 font-bold block">Buscar Cliente / RFC / Folio / Total</label>
+            <div className="relative">
+              <span className="absolute inset-y-0 left-0 pl-2.5 flex items-center pointer-events-none text-gray-400">
+                <Search className="w-3.5 h-3.5" />
+              </span>
+              <input 
+                type="text"
+                value={filterSearch}
+                onChange={e => setFilterSearch(e.target.value)}
+                placeholder="Ej. Gerardo, ROTG73..., F4, 1650"
+                className="w-full rounded-lg border border-gray-300 pl-8 pr-2.5 py-1.5 text-xs bg-white focus:outline-none focus:border-primary-500 focus:ring-1 focus:ring-primary-500"
+              />
+            </div>
+          </div>
+          <div className="space-y-1">
+            <label className="text-[10px] text-gray-500 font-bold block">Filtrar por Estatus SAT</label>
+            <select
+              value={filterStatus}
+              onChange={e => setFilterStatus(e.target.value)}
+              className="w-full rounded-lg border border-gray-300 p-1.5 text-xs bg-white focus:outline-none focus:border-primary-500 focus:ring-1 focus:ring-primary-500"
+            >
+              <option value="all">Todos los Estatus</option>
+              <option value="valid">Vigente</option>
+              <option value="canceled">Cancelada</option>
+            </select>
+          </div>
+          <div className="space-y-1">
+            <label className="text-[10px] text-gray-500 font-bold block">Filtrar por Tipo</label>
+            <select
+              value={filterType}
+              onChange={e => setFilterType(e.target.value)}
+              className="w-full rounded-lg border border-gray-300 p-1.5 text-xs bg-white focus:outline-none focus:border-primary-500 focus:ring-1 focus:ring-primary-500"
+            >
+              <option value="all">Todos los Comprobantes</option>
+              <option value="I">Ingreso (Facturas)</option>
+              <option value="E">Egreso (Notas de Crédito)</option>
+              <option value="P">Pago (Complementos REP)</option>
+            </select>
+          </div>
+        </div>
+
         {isLoadingHistory && historyInvoices.length === 0 ? (
           <div className="py-12 flex flex-col items-center justify-center gap-2 text-gray-500">
             <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary-700"></div>
@@ -2248,121 +2386,255 @@ export function AdminFacturacion({ showBackButton = true }: AdminFacturacionProp
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100 font-semibold text-gray-700">
-                {historyInvoices.map((inv) => {
+                {filteredGroupedInvoices.map((inv) => {
                   const formattedDate = new Date(inv.created_at).toLocaleString("es-MX", {
                     year: 'numeric', month: '2-digit', day: '2-digit',
                     hour: '2-digit', minute: '2-digit'
                   });
 
-                  return (
-                    <tr key={inv.id} className="hover:bg-gray-50/50 transition-colors">
-                      <td className="p-3 text-left">
-                        <span className="font-bold text-gray-900 block">{inv.customer?.legal_name || "Público en General"}</span>
-                        <span className="font-mono text-[10px] text-gray-500">{inv.customer?.tax_id}</span>
-                      </td>
-                      <td className="p-3 text-left text-gray-500">{formattedDate}</td>
-                      <td className="p-3 text-left">
-                        {inv.type === 'I' && (
-                          <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-green-50 text-green-700 border border-green-200">
-                            Ingreso
-                          </span>
-                        )}
-                        {inv.type === 'E' && (
-                          <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
-                            Nota de Crédito
-                          </span>
-                        )}
-                        {inv.type === 'P' && (
-                          <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                            Complemento (REP)
-                          </span>
-                        )}
-                      </td>
-                      <td className="p-3 text-left font-mono text-[10px] break-all max-w-[200px]">
-                        {inv.uuid || (
-                          <span className="text-gray-400 italic">Borrador (Sin UUID)</span>
-                        )}
-                        {inv.relation && (
-                          <div className="text-[9px] text-indigo-600 font-semibold mt-1">
-                            Relacionada a: {inv.relation}
-                          </div>
-                        )}
-                      </td>
-                      <td className="p-3 text-right font-bold text-gray-900">
-                        ${inv.total?.toLocaleString("es-MX", { minimumFractionDigits: 2 })}
-                      </td>
-                      <td className="p-3 text-center">
-                        {inv.status === 'valid' && (
-                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800">
-                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> VIGENTE
-                          </span>
-                        )}
-                        {inv.status === 'cancelled' && (
-                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-red-100 text-red-800">
-                            <span className="w-1.5 h-1.5 rounded-full bg-red-500"></span> CANCELADA
-                          </span>
-                        )}
-                        {inv.status === 'draft' && (
-                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-gray-100 text-gray-600">
-                            BORRADOR
-                          </span>
-                        )}
-                      </td>
-                      <td className="p-3">
-                        <div className="flex items-center justify-center gap-1.5">
-                          {/* Manage buttons */}
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setStampedInvoice(inv);
-                              window.scrollTo({ top: 400, behavior: 'smooth' });
-                              setApiFeedback({ text: `Factura ${inv.uuid || inv.id} cargada en panel de operaciones.`, type: "info" });
-                            }}
-                            className="bg-primary-550 hover:bg-primary-700 text-white font-bold px-2 py-1 rounded text-[10px] border border-primary-600 transition-all cursor-pointer shadow-sm"
-                            title="Cargar en panel de operaciones de timbrado"
-                          >
-                            Gestionar
-                          </button>
+                  const hasMovements = inv.relatedMovements && inv.relatedMovements.length > 0;
+                  const isExpanded = expandedInvoiceIds[inv.id] || false;
 
-                          {inv.status === 'cancelled' && (
+                  return (
+                    <React.Fragment key={inv.id}>
+                      <tr className={`hover:bg-gray-50/50 transition-colors ${isExpanded ? 'bg-primary-50/5' : ''}`}>
+                        <td className="p-3 text-left">
+                          <div className="flex items-center">
+                            {hasMovements && (
+                              <button 
+                                onClick={() => toggleExpand(inv.id)} 
+                                className="mr-2 p-1 hover:bg-gray-150 rounded text-gray-500 hover:text-primary-600 transition-colors"
+                                title="Ver movimientos relacionados"
+                              >
+                                {isExpanded ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
+                              </button>
+                            )}
+                            <div>
+                              <div className="flex items-center gap-1.5">
+                                <span className="font-bold text-gray-900">{inv.customer?.legal_name || "Público en General"}</span>
+                                {hasMovements && (
+                                  <span className="text-[9px] text-primary-700 bg-primary-50 border border-primary-200 px-1.5 py-0.2 rounded font-extrabold">
+                                    {inv.relatedMovements.length} movs
+                                  </span>
+                                )}
+                              </div>
+                              <span className="font-mono text-[10px] text-gray-500 block mt-0.5">{inv.customer?.tax_id}</span>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="p-3 text-left text-gray-500">{formattedDate}</td>
+                        <td className="p-3 text-left">
+                          {inv.type === 'I' && (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-green-50 text-green-700 border border-green-200">
+                              Ingreso
+                            </span>
+                          )}
+                          {inv.type === 'E' && (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
+                              Nota de Crédito
+                            </span>
+                          )}
+                          {inv.type === 'P' && (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                              Complemento (REP)
+                            </span>
+                          )}
+                        </td>
+                        <td className="p-3 text-left font-mono text-[10px] break-all max-w-[200px]">
+                          {inv.uuid || (
+                            <span className="text-gray-400 italic">Borrador (Sin UUID)</span>
+                          )}
+                          {inv.relation && (
+                            <div className="text-[9px] text-indigo-600 font-semibold mt-1">
+                              Relacionada a: {inv.relation}
+                            </div>
+                          )}
+                        </td>
+                        <td className="p-3 text-right font-bold text-gray-900 font-mono">
+                          ${inv.total?.toLocaleString("es-MX", { minimumFractionDigits: 2 })}
+                        </td>
+                        <td className="p-3 text-center">
+                          {(inv.status === 'valid' || inv.status === 'active') && (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800">
+                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> VIGENTE
+                            </span>
+                          )}
+                          {(inv.status === 'canceled' || inv.status === 'cancelled') && (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-red-100 text-red-800">
+                              <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse"></span> CANCELADA
+                            </span>
+                          )}
+                          {inv.status === 'draft' && (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-gray-100 text-gray-600">
+                              BORRADOR
+                            </span>
+                          )}
+                        </td>
+                        <td className="p-3">
+                          <div className="flex items-center justify-center gap-1.5">
+                            {/* Manage buttons */}
                             <button
                               type="button"
-                              onClick={() => handleLoadForSubstitution(inv)}
-                              className="bg-amber-500 hover:bg-amber-600 text-white font-bold px-2 py-1 rounded text-[10px] border border-amber-500 transition-all cursor-pointer shadow-sm"
-                              title="Sustituir esta factura cancelada"
+                              onClick={() => {
+                                setStampedInvoice(inv);
+                                window.scrollTo({ top: 400, behavior: 'smooth' });
+                                setApiFeedback({ text: `Factura ${inv.uuid || inv.id} cargada en panel de operaciones.`, type: "info" });
+                              }}
+                              className="bg-primary-550 hover:bg-primary-700 text-white font-bold px-2 py-1 rounded text-[10px] border border-primary-600 transition-all cursor-pointer shadow-sm"
+                              title="Cargar en panel de operaciones de timbrado"
                             >
-                              Sustituir
+                              Gestionar
                             </button>
-                          )}
-                          
-                          {/* Downloads */}
-                          {inv.status !== 'draft' && (
-                            <>
-                              <a
-                                href={`/api/facturacion/descargar?id=${inv.id}&format=xml`}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="bg-gray-100 hover:bg-gray-250 text-gray-700 font-bold px-2 py-1 rounded text-[10px] border border-gray-300 transition-all flex items-center gap-0.5"
-                                title="Descargar XML oficial"
+
+                            {(inv.status === 'canceled' || inv.status === 'cancelled') && (
+                              <button
+                                type="button"
+                                onClick={() => handleLoadForSubstitution(inv)}
+                                className="bg-amber-500 hover:bg-amber-600 text-white font-bold px-2 py-1 rounded text-[10px] border border-amber-500 transition-all cursor-pointer shadow-sm"
+                                title="Sustituir esta factura cancelada"
                               >
-                                XML
-                              </a>
-                              <a
-                                href={`/api/facturacion/descargar?id=${inv.id}&format=pdf`}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-2 py-1 rounded text-[10px] border border-emerald-600 transition-all flex items-center gap-0.5 shadow-sm"
-                                title="Descargar PDF oficial"
-                              >
-                                PDF
-                              </a>
-                            </>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
+                                Sustituir
+                              </button>
+                            )}
+                            
+                            {/* Downloads */}
+                            {inv.status !== 'draft' && (
+                              <>
+                                <a
+                                  href={`/api/facturacion/descargar?id=${inv.id}&format=xml`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="bg-gray-100 hover:bg-gray-250 text-gray-700 font-bold px-2 py-1 rounded text-[10px] border border-gray-300 transition-all flex items-center gap-0.5"
+                                  title="Descargar XML oficial"
+                                >
+                                  XML
+                                </a>
+                                <a
+                                  href={`/api/facturacion/descargar?id=${inv.id}&format=pdf`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-2 py-1 rounded text-[10px] border border-emerald-600 transition-all flex items-center gap-0.5 shadow-sm"
+                                  title="Descargar PDF oficial"
+                                >
+                                  PDF
+                                </a>
+                              </>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+
+                      {/* Sub-renglón con movimientos si está expandido */}
+                      {isExpanded && hasMovements && (
+                        <tr className="bg-gray-50/50">
+                          <td colSpan={7} className="p-3 pl-10 text-left border-b border-gray-150">
+                            <div className="border-l-2 border-primary-500 pl-4 py-2 space-y-3">
+                              <span className="block text-[10px] text-gray-500 uppercase tracking-wider font-extrabold">Movimientos y Ajustes SAT Relacionados</span>
+                              <div className="space-y-1.5">
+                                {inv.relatedMovements.map((mov: any) => {
+                                  const formattedMovDate = new Date(mov.created_at).toLocaleString("es-MX", {
+                                    year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit'
+                                  });
+                                  return (
+                                    <div key={mov.id} className="bg-white p-2.5 rounded-lg border border-gray-200 flex justify-between items-center text-[11px] shadow-sm animate-fadeIn">
+                                      <div className="flex items-center gap-2">
+                                        {mov.relationType === 'REP' ? (
+                                          <span className="px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-800 border border-emerald-250 text-[9px] font-bold">PAGO (REP)</span>
+                                        ) : (
+                                          <span className="px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-800 border border-indigo-250 text-[9px] font-bold">NOTA DE CRÉDITO (EGRESO)</span>
+                                        )}
+                                        <span className="font-mono text-gray-500 font-semibold">{mov.uuid || "Borrador (Sin UUID)"}</span>
+                                        <span className="text-gray-400 font-semibold">| Emisión: {formattedMovDate}</span>
+                                        {mov.relationType === 'REP' && (
+                                          <span className="text-gray-700 font-bold ml-1">
+                                            Parcialidad {mov.repDetails?.installment} (Abono: ${mov.repDetails?.amount?.toLocaleString("es-MX", { minimumFractionDigits: 2 })})
+                                          </span>
+                                        )}
+                                        {mov.relationType === 'NC' && (
+                                          <span className="text-gray-700 font-bold ml-1">
+                                            Descuento: ${mov.total?.toLocaleString("es-MX", { minimumFractionDigits: 2 })}
+                                          </span>
+                                        )}
+                                      </div>
+                                      <div className="flex items-center gap-2">
+                                        <span className={`text-[9px] font-extrabold uppercase px-2 py-0.5 rounded ${
+                                          mov.status === 'canceled' || mov.status === 'cancelled' ? 'bg-red-50 text-red-700 border border-red-200' : 'bg-green-50 text-green-700 border border-green-200'
+                                        }`}>
+                                          {mov.status === 'canceled' || mov.status === 'cancelled' ? 'CANCELADA' : 'VIGENTE'}
+                                        </span>
+                                        {mov.status !== 'draft' && (
+                                          <>
+                                            <a
+                                              href={`/api/facturacion/descargar?id=${mov.id}&format=xml`}
+                                              target="_blank"
+                                              rel="noopener noreferrer"
+                                              className="bg-gray-100 hover:bg-gray-250 text-gray-700 px-2 py-0.5 rounded text-[10px] border border-gray-300 font-bold transition-all"
+                                            >
+                                              XML
+                                            </a>
+                                            <a
+                                              href={`/api/facturacion/descargar?id=${mov.id}&format=pdf`}
+                                              target="_blank"
+                                              rel="noopener noreferrer"
+                                              className="bg-emerald-600 hover:bg-emerald-700 text-white px-2 py-0.5 rounded text-[10px] border border-emerald-600 font-bold shadow-sm transition-all"
+                                            >
+                                              PDF
+                                            </a>
+                                          </>
+                                        )}
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+
+                              {/* Tarjeta de cálculo de saldo insoluto de esta factura padre */}
+                              {inv.payment_method === 'PPD' && (
+                                <div className="bg-primary-50/50 border border-primary-200/50 p-3 rounded-lg text-[10px] text-primary-900 flex justify-between font-bold w-full max-w-lg mt-2">
+                                  <div className="text-center">
+                                    <span className="text-gray-400 block text-[9px] uppercase tracking-wider font-extrabold">Monto Original</span>
+                                    <span className="text-gray-800 text-xs font-sans font-mono">${inv.total?.toLocaleString("es-MX", { minimumFractionDigits: 2 })}</span>
+                                  </div>
+                                  <div className="text-center">
+                                    <span className="text-gray-400 block text-[9px] uppercase tracking-wider font-extrabold">Notas de Crédito (Vigentes)</span>
+                                    <span className="text-indigo-700 text-xs font-sans font-mono">
+                                      -${inv.relatedMovements
+                                        .filter((m: any) => m.relationType === 'NC' && m.status !== 'canceled' && m.status !== 'cancelled')
+                                        .reduce((sum: number, m: any) => sum + (m.total || 0), 0)
+                                        .toLocaleString("es-MX", { minimumFractionDigits: 2 })}
+                                    </span>
+                                  </div>
+                                  <div className="text-center">
+                                    <span className="text-gray-400 block text-[9px] uppercase tracking-wider font-extrabold">Abonos Aplicados (Vigentes)</span>
+                                    <span className="text-emerald-700 text-xs font-sans font-mono">
+                                      -${inv.relatedMovements
+                                        .filter((m: any) => m.relationType === 'REP' && m.status !== 'canceled' && m.status !== 'cancelled')
+                                        .reduce((sum: number, m: any) => sum + (m.repDetails?.amount || 0), 0)
+                                        .toLocaleString("es-MX", { minimumFractionDigits: 2 })}
+                                    </span>
+                                  </div>
+                                  <div className="border-l border-primary-300 pl-4 text-center">
+                                    <span className="text-gray-500 block text-[9px] uppercase tracking-wider font-extrabold">Saldo Restante Real (SAT)</span>
+                                    <span className="text-red-605 text-sm font-sans font-black font-mono">
+                                      ${(inv.amount_due !== undefined ? inv.amount_due : inv.total).toLocaleString("es-MX", { minimumFractionDigits: 2 })}
+                                    </span>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </React.Fragment>
                   );
                 })}
+                {filteredGroupedInvoices.length === 0 && (
+                  <tr>
+                    <td colSpan={7} className="py-8 text-center text-gray-500 italic">
+                      No se encontraron facturas o movimientos con los filtros aplicados.
+                    </td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>

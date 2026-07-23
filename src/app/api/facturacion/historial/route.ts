@@ -27,8 +27,15 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: 'Falta configurar la FACTURAPI_KEY.' }, { status: 400 });
     }
 
+    const q = searchParams.get('q') || '';
+
     // 2. Consultar listado de facturas en Facturapi
-    const response = await fetch(`https://www.facturapi.io/v2/invoices?limit=${limit}&page=${page}`, {
+    let facturapiUrl = `https://www.facturapi.io/v2/invoices?limit=${limit}&page=${page}`;
+    if (q) {
+      facturapiUrl += `&q=${encodeURIComponent(q)}`;
+    }
+
+    const response = await fetch(facturapiUrl, {
       headers: {
         'Authorization': `Bearer ${facturapiKey}`
       }
