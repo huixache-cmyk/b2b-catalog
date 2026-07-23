@@ -82,10 +82,9 @@ export async function POST(request: Request) {
                   taxes: [
                     {
                       base: Number(taxBase.toFixed(2)),
-                      name: 'IVA',
+                      type: 'IVA',
                       rate: 0.16,
-                      total: Number(taxTotal.toFixed(2)),
-                      is_retention: false
+                      total: Number(taxTotal.toFixed(2))
                     }
                   ]
                 }
