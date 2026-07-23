@@ -408,6 +408,65 @@ export function AdminFacturacion({ showBackButton = true }: AdminFacturacionProp
     );
   }, [availableProducts, prodSearchQuery]);
 
+  const repTaxesBreakdown = useMemo(() => {
+    if (!stampedInvoice || !repAmount || Number(repAmount) <= 0) return null;
+    const paidAmount = Number(repAmount);
+    const proportion = stampedInvoice.total > 0 ? paidAmount / stampedInvoice.total : 0;
+
+    const breakdown: { [key: string]: { label: string; base: number; taxAmount: number } } = {};
+
+    if (stampedInvoice.items && Array.isArray(stampedInvoice.items)) {
+      for (const item of stampedInvoice.items) {
+        const qty = item.quantity || 1;
+        const price = item.price || item.product?.price || 0;
+        const lineTotal = price * qty;
+        
+        let itemTaxes = item.product?.taxes || item.taxes || [];
+        if (!itemTaxes || itemTaxes.length === 0) {
+          itemTaxes = [{
+            type: 'IVA',
+            rate: 0.16,
+            withholding: false,
+            factor: 'Tasa'
+          }];
+        }
+
+        const isTaxIncluded = item.product?.tax_included !== false;
+
+        for (const tax of itemTaxes) {
+          const type = tax.type || 'IVA';
+          const rate = tax.rate !== undefined ? tax.rate : 0.16;
+          const withholding = tax.withholding || false;
+          const factor = tax.factor || 'Tasa';
+
+          // Proportional base
+          let base = lineTotal;
+          if (isTaxIncluded && rate > 0 && !withholding) {
+            base = lineTotal / (1 + rate);
+          }
+
+          const propBase = base * proportion;
+          const propTax = factor === 'Exento' ? 0 : propBase * rate;
+
+          const label = `${type} ${withholding ? 'Retenido' : 'Trasladado'} ${factor === 'Exento' ? 'Exento' : `(${rate * 100}%)`}`;
+          
+          if (breakdown[label]) {
+            breakdown[label].base += propBase;
+            breakdown[label].taxAmount += propTax;
+          } else {
+            breakdown[label] = {
+              label,
+              base: propBase,
+              taxAmount: propTax
+            };
+          }
+        }
+      }
+    }
+
+    return Object.values(breakdown);
+  }, [stampedInvoice, repAmount]);
+
   const handleEmitRealInvoice = async () => {
     setIsSubmitting(true);
     setApiFeedback({ text: "Conectando con el SAT y timbrando comprobante...", type: "info" });
@@ -1742,16 +1801,24 @@ export function AdminFacturacion({ showBackButton = true }: AdminFacturacionProp
                         </div>
                       </div>
                       
-                      {repAmount && Number(repAmount) > 0 && (
-                        <div className="bg-emerald-50 border border-emerald-250 p-2 rounded text-[10px] text-emerald-800 space-y-1 font-bold text-left animate-fadeIn">
-                          <div className="flex justify-between">
-                            <span>Base del Pago (Subtotal):</span>
-                            <span>${(Number(repAmount) / 1.16).toLocaleString("es-MX", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-                          </div>
-                          <div className="flex justify-between border-t border-emerald-200 pt-1">
-                            <span>IVA Trasladado (16%):</span>
-                            <span>${(Number(repAmount) - (Number(repAmount) / 1.16)).toLocaleString("es-MX", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-                          </div>
+                      {repTaxesBreakdown && repTaxesBreakdown.length > 0 && (
+                        <div className="bg-emerald-50 border border-emerald-200 p-2.5 rounded text-[10px] text-emerald-800 space-y-1.5 font-bold text-left animate-fadeIn">
+                          <span className="block border-b border-emerald-200/50 pb-1 text-[9px] text-emerald-700 uppercase tracking-wider">Desglose Fiscal Proporcional (SAT)</span>
+                          {repTaxesBreakdown.map((t, idx) => (
+                            <div key={idx} className="space-y-0.5">
+                              <span className="text-emerald-700 block font-semibold">{t.label}</span>
+                              <div className="flex justify-between font-normal text-emerald-900">
+                                <span>Base Gravable:</span>
+                                <span>${t.base.toLocaleString("es-MX", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                              </div>
+                              {t.taxAmount > 0 && (
+                                <div className="flex justify-between font-bold">
+                                  <span>Impuesto Desglosado:</span>
+                                  <span>${t.taxAmount.toLocaleString("es-MX", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                                </div>
+                              )}
+                            </div>
+                          ))}
                         </div>
                       )}
 

@@ -52,8 +52,84 @@ export async function POST(request: Request) {
 
     const balanceBeforePayment = Number(last_balance) || originalInvoice.total;
     const paidAmount = Number(amount);
-    const taxBase = paidAmount / 1.16;
-    const taxTotal = paidAmount - taxBase;
+    const proportion = originalInvoice.total > 0 ? paidAmount / originalInvoice.total : 0;
+
+    // Calcular desglose de impuestos proporcional basado en los conceptos de la factura original
+    const taxesMap = new Map<string, {
+      type: string;
+      rate: number;
+      withholding: boolean;
+      factor: string;
+      originalBase: number;
+    }>();
+
+    if (originalInvoice.items && Array.isArray(originalInvoice.items)) {
+      for (const item of originalInvoice.items) {
+        const qty = item.quantity || 1;
+        const price = item.price || item.product?.price || 0;
+        const lineTotal = price * qty;
+
+        // Recuperar impuestos, por defecto 16% IVA traslado si viene vacío
+        let itemTaxes = item.product?.taxes || item.taxes || [];
+        if (!itemTaxes || itemTaxes.length === 0) {
+          itemTaxes = [{
+            type: 'IVA',
+            rate: 0.16,
+            withholding: false,
+            factor: 'Tasa'
+          }];
+        }
+
+        const isTaxIncluded = item.product?.tax_included !== false;
+
+        for (const tax of itemTaxes) {
+          const type = tax.type || 'IVA';
+          const rate = tax.rate !== undefined ? tax.rate : 0.16;
+          const withholding = tax.withholding || false;
+          const factor = tax.factor || 'Tasa';
+
+          const key = `${type}_${rate}_${withholding}_${factor}`;
+
+          // Calcular base gravable de la partida
+          let base = lineTotal;
+          if (isTaxIncluded && rate > 0 && !withholding) {
+            base = lineTotal / (1 + rate);
+          }
+
+          if (taxesMap.has(key)) {
+            taxesMap.get(key)!.originalBase += base;
+          } else {
+            taxesMap.set(key, {
+              type,
+              rate,
+              withholding,
+              factor,
+              originalBase: base
+            });
+          }
+        }
+      }
+    }
+
+    const relatedTaxes = Array.from(taxesMap.values()).map(taxInfo => {
+      const pBase = taxInfo.originalBase * proportion;
+      const taxObj: any = {
+        base: Number(pBase.toFixed(2)),
+        type: taxInfo.type
+      };
+
+      if (taxInfo.factor === 'Exento') {
+        taxObj.factor = 'Exento';
+      } else {
+        taxObj.rate = taxInfo.rate;
+      }
+
+      if (taxInfo.withholding) {
+        taxObj.withholding = true;
+      }
+
+      return taxObj;
+    });
 
     // 3. Construir el recibo de pago (CFDI Tipo P - Pago)
     const paymentComplementPayload = {
@@ -79,14 +155,7 @@ export async function POST(request: Request) {
                   installment: Number(installment_number),
                   last_balance: balanceBeforePayment,
                   currency: 'MXN',
-                  taxes: [
-                    {
-                      base: Number(taxBase.toFixed(2)),
-                      type: 'IVA',
-                      rate: 0.16,
-                      total: Number(taxTotal.toFixed(2))
-                    }
-                  ]
+                  taxes: relatedTaxes
                 }
               ]
             }
