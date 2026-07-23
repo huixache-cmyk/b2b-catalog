@@ -1741,6 +1741,20 @@ export function AdminFacturacion({ showBackButton = true }: AdminFacturacionProp
                           />
                         </div>
                       </div>
+                      
+                      {repAmount && Number(repAmount) > 0 && (
+                        <div className="bg-emerald-50 border border-emerald-250 p-2 rounded text-[10px] text-emerald-800 space-y-1 font-bold text-left animate-fadeIn">
+                          <div className="flex justify-between">
+                            <span>Base del Pago (Subtotal):</span>
+                            <span>${(Number(repAmount) / 1.16).toLocaleString("es-MX", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                          </div>
+                          <div className="flex justify-between border-t border-emerald-200 pt-1">
+                            <span>IVA Trasladado (16%):</span>
+                            <span>${(Number(repAmount) - (Number(repAmount) / 1.16)).toLocaleString("es-MX", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                          </div>
+                        </div>
+                      )}
+
                       <button
                         onClick={handleCreatePaymentComplement}
                         disabled={isCreatingREP}
