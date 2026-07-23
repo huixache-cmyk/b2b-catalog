@@ -50,7 +50,61 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'La factura original aún no ha sido timbrada ante el SAT (no tiene UUID).' }, { status: 400 });
     }
 
-    // 3. Construir la nota de crédito (CFDI Tipo E - Egreso)
+    // 3. Obtener los impuestos y retenciones de la factura original para aplicarlos a la nota de crédito
+    let creditNoteTaxes: any[] = [];
+    const originalTaxesSeen = new Set<string>();
+
+    if (originalInvoice.items && Array.isArray(originalInvoice.items)) {
+      for (const item of originalInvoice.items) {
+        let itemTaxes = item.product?.taxes || item.taxes || [];
+        if (!itemTaxes || itemTaxes.length === 0) {
+          itemTaxes = [{
+            type: 'IVA',
+            rate: 0.16,
+            withholding: false,
+            factor: 'Tasa'
+          }];
+        }
+
+        for (const tax of itemTaxes) {
+          const type = tax.type || 'IVA';
+          const rate = tax.rate !== undefined ? tax.rate : 0.16;
+          const withholding = tax.withholding || false;
+          const factor = tax.factor || 'Tasa';
+
+          const key = `${type}_${rate}_${withholding}_${factor}`;
+          if (!originalTaxesSeen.has(key)) {
+            originalTaxesSeen.add(key);
+            const taxObj: any = {
+              type,
+              factor
+            };
+            if (factor !== 'Exento') {
+              taxObj.rate = rate;
+            }
+            if (withholding) {
+              taxObj.withholding = true;
+            }
+            creditNoteTaxes.push(taxObj);
+          }
+        }
+      }
+    }
+
+    if (creditNoteTaxes.length === 0) {
+      creditNoteTaxes = [{
+        type: 'IVA',
+        rate: 0.16,
+        factor: 'Tasa'
+      }];
+    }
+
+    // Regla de forma de pago según el SAT: 15 (Condonación) para facturas PPD aún no pagadas
+    const paymentForm = originalInvoice.payment_method === 'PPD' 
+      ? '15' // Condonación
+      : (originalInvoice.payment_form || '03');
+
+    // 4. Construir la nota de crédito (CFDI Tipo E - Egreso)
     const creditNotePayload = {
       type: 'E', // Egreso
       customer: {
@@ -69,13 +123,7 @@ export async function POST(request: Request) {
             price: Number(amount),
             product_key: '84111506', // Código estándar SAT para servicios de facturación/descuentos
             unit_key: 'ACT', // Unidad de actividad
-            taxes: [
-              {
-                rate: 0.16, // IVA 16%
-                type: 'IVA',
-                factor: 'Tasa'
-              }
-            ]
+            taxes: creditNoteTaxes
           }
         }
       ],
@@ -86,7 +134,8 @@ export async function POST(request: Request) {
           documents: [originalInvoice.uuid]
         }
       ],
-      payment_form: originalInvoice.payment_form || '03', // Misma forma de pago de la original
+      payment_form: paymentForm,
+      payment_method: 'PUE', // Obligatorio por el SAT para comprobantes de Egreso
       use: 'G02' // Devoluciones, descuentos o bonificaciones
     };
 
