@@ -84,7 +84,7 @@ export async function POST(request: Request) {
       facturapiPayload.series = series;
     }
     if (folio !== undefined) {
-      facturapiPayload.folio = folio;
+      facturapiPayload.folio_number = folio;
     }
 
     // Si hay una sustitución de CFDI previo (Relación 04)
