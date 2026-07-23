@@ -4,7 +4,7 @@ import { supabase } from '@/lib/supabase';
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { client, items, payment_form, payment_method, use, relation } = body;
+    const { client, items, payment_form, payment_method, use, relation, series, folio } = body;
 
     if (!client || !items || items.length === 0) {
       return NextResponse.json({ error: 'Datos incompletos para facturación.' }, { status: 400 });
@@ -79,6 +79,13 @@ export async function POST(request: Request) {
       payment_method: payment_method || 'PUE', // Pago en una sola exhibición
       use: use || 'G03' // Gastos en general
     };
+
+    if (series !== undefined) {
+      facturapiPayload.series = series;
+    }
+    if (folio !== undefined) {
+      facturapiPayload.folio = folio;
+    }
 
     // Si hay una sustitución de CFDI previo (Relación 04)
     if (relation && relation.uuid) {

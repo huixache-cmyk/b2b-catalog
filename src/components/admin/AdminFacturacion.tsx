@@ -602,7 +602,9 @@ export function AdminFacturacion({ showBackButton = true }: AdminFacturacionProp
         payment_form: formaPago,
         payment_method: metodoPago,
         use: clientUso.split(" - ")[0],
-        relation: isSubstitution && substitutionUuid ? { uuid: substitutionUuid } : undefined
+        relation: isSubstitution && substitutionUuid ? { uuid: substitutionUuid } : undefined,
+        series: serie.trim() || undefined,
+        folio: folio ? Number(folio) : undefined
       };
 
       const res = await fetch("/api/facturacion/crear", {
