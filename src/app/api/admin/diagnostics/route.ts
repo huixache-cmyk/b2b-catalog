@@ -279,7 +279,7 @@ export async function GET(request: Request) {
     if (facturapiKey) {
       try {
         const { result: response, latency } = await measureTime(
-          fetch('https://www.facturapi.io/v2/organizations', {
+          fetch('https://www.facturapi.io/v2/organizations/me', {
             headers: {
               'Authorization': `Bearer ${facturapiKey}`
             }
@@ -287,18 +287,20 @@ export async function GET(request: Request) {
         );
         if (response.ok) {
           const data = await response.json();
-          const orgName = data.data?.[0]?.name || 'GeekyStore';
+          const orgName = data.name || data.data?.[0]?.name || 'GeekyStore';
+          const isSandbox = facturapiKey.startsWith('sk_test_');
+          const envName = isSandbox ? 'Sandbox' : 'Producción';
           results['facturapi'] = {
             status: 'OK',
             latency,
-            message: `Llave activa (Sandbox). Org: ${orgName}`
+            message: `Llave activa (${envName}). Org: ${orgName}`
           };
         } else {
           const errData = await response.json().catch(() => ({}));
           results['facturapi'] = {
             status: 'ERROR',
             latency,
-            message: `Error: [${response.status}] ${errData.message || 'Clave inválida'}`
+            message: `Error: [${response.status}] ${errData.message || 'Clave inválida'} (Key: ${facturapiKey.substring(0, 12)}...)`
           };
         }
       } catch (err: any) {

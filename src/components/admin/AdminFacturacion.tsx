@@ -238,7 +238,7 @@ interface AdminFacturacionProps {
 export function AdminFacturacion({ showBackButton = true }: AdminFacturacionProps) {
   const { customers } = useCRM();
   const { products } = useProducts();
-  const { quotes } = useQuotes();
+  const { quotes, updateQuoteStatus } = useQuotes();
 
   // Issuer details (Gerardo Rodriguez Tiscareño)
   const emisor = {
@@ -843,6 +843,11 @@ export function AdminFacturacion({ showBackButton = true }: AdminFacturacionProp
     if (!quote || !quote.client) return;
 
     setApiFeedback({ text: `Cargando datos de la cotización comercial...`, type: "info" });
+
+    // Actualizar el estado de la cotización a completado (Facturado)
+    if (updateQuoteStatus && (quote.status === 'pending' || quote.status === 'reviewed')) {
+      await updateQuoteStatus(quoteId, 'completed');
+    }
 
     // 1. Relate the client
     const clientName = quote.client.company || quote.client.name || "";

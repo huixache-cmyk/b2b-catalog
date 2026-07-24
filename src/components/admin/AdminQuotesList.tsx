@@ -645,7 +645,7 @@ export function AdminQuotesList({
                   >
                     <option value="pending">Pendiente</option>
                     <option value="reviewed">En Revisión</option>
-                    <option value="completed">Completada</option>
+                    <option value="completed">Facturado</option>
                   </select>
                 </td>
                 <td className="px-6 py-4 text-center">

@@ -749,7 +749,7 @@ export function ClientPortalView({ onBack }: { onBack?: () => void }) {
 
   const getStatusLabel = (status: string) => {
     switch (status) {
-      case "completed": return "Completado / Pedido";
+      case "completed": return "Facturado / Pedido";
       case "reviewed": return "Revisado por Ventas";
       default: return "Pendiente";
     }
