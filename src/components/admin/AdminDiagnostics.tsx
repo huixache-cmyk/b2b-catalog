@@ -66,6 +66,7 @@ export function AdminDiagnostics() {
   const [hunterKey, setHunterKey] = useState("");
   const [vercelToken, setVercelToken] = useState("");
   const [facturapiStateKey, setFacturapiStateKey] = useState("");
+  const [googleMapsKey, setGoogleMapsKey] = useState("");
   
   const [showKeys, setShowKeys] = useState<Record<string, boolean>>({
     waToken: false,
@@ -73,7 +74,8 @@ export function AdminDiagnostics() {
     geminiKey: false,
     hunterKey: false,
     vercelToken: false,
-    facturapiStateKey: false
+    facturapiStateKey: false,
+    googleMapsKey: false
   });
 
   // Table Filters
@@ -96,6 +98,7 @@ export function AdminDiagnostics() {
     setHunterKey(creds.HUNTER_API_KEY || "");
     setVercelToken(creds.VERCEL_TOKEN || "");
     setFacturapiStateKey(creds.FACTURAPI_KEY || "");
+    setGoogleMapsKey(creds.GOOGLE_MAPS_KEY || "");
   }, [homeSettings]);
 
   const fetchHealthFromDB = async () => {
@@ -185,7 +188,8 @@ export function AdminDiagnostics() {
         GEMINI_API_KEY: geminiKey.trim(),
         HUNTER_API_KEY: hunterKey.trim(),
         VERCEL_TOKEN: vercelToken.trim(),
-        FACTURAPI_KEY: facturapiStateKey.trim()
+        FACTURAPI_KEY: facturapiStateKey.trim(),
+        GOOGLE_MAPS_KEY: googleMapsKey.trim()
       };
 
       const updatedSettings = {
@@ -686,6 +690,27 @@ export function AdminDiagnostics() {
                     className="absolute right-2.5 top-2 text-gray-400 hover:text-gray-600"
                   >
                     {showKeys.facturapiStateKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+              </div>
+ 
+              {/* Google Maps Key */}
+              <div>
+                <label className="block text-[11px] font-bold text-gray-700 uppercase mb-1">Google Maps API Key (GOOGLE_MAPS_KEY)</label>
+                <div className="relative">
+                  <input
+                    type={showKeys.googleMapsKey ? "text" : "password"}
+                    value={googleMapsKey}
+                    onChange={(e) => setGoogleMapsKey(e.target.value)}
+                    placeholder="AIzaSy..."
+                    className="w-full border border-gray-300 rounded-lg py-2 px-3 text-xs pr-10 focus:ring-primary-500 focus:border-primary-500"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowKeys(prev => ({ ...prev, googleMapsKey: !prev.googleMapsKey }))}
+                    className="absolute right-2.5 top-2 text-gray-400 hover:text-gray-600"
+                  >
+                    {showKeys.googleMapsKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </button>
                 </div>
               </div>

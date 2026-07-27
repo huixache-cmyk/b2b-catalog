@@ -48,6 +48,14 @@ export type ScraperConfig = {
   target_sectors: string;
   last_run_at: string | null;
   updated_at: string;
+  // Nuevas fuentes y estrategias
+  enable_maps?: boolean;
+  maps_keywords?: string;
+  maps_locations?: string;
+  enable_tenders?: boolean;
+  tenders_keywords?: string;
+  enable_chambers?: boolean;
+  chambers_targets?: string;
 };
 
 export function useB2BAgent() {

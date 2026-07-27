@@ -12,9 +12,19 @@ def fetch_config_and_run():
         print("No se pudo obtener el cliente de DB.")
         return
         
-    print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] Revisando configuración en Supabase...")
+    print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] Cargando credenciales y configuración en Supabase...")
     
     try:
+        # 1. Cargar credenciales dinámicas de la tabla settings
+        settings_resp = db.table('settings').select('home_settings').eq('id', 1).execute()
+        if settings_resp.data:
+            home_settings = settings_resp.data[0].get('home_settings', {})
+            api_creds = home_settings.get('api_credentials', {})
+            for key, val in api_creds.items():
+                if val:
+                    os.environ[key] = val
+                    
+        # 2. Cargar configuración del scraper
         response = db.table('b2b_scraper_config').select('*').eq('id', 1).execute()
         config = response.data[0] if response.data else None
         
@@ -36,8 +46,8 @@ def fetch_config_and_run():
         print(f"Sectores: {target_sectors}")
         print("Iniciando escaneo...")
         
-        # Ejecutar el escáner pasando las tres variables
-        run_scan_cycle(keywords, target_companies, target_sectors)
+        # Ejecutar el escáner pasando las tres variables y la config completa
+        run_scan_cycle(keywords, target_companies, target_sectors, config)
         
         # Actualizar last_run_at en Supabase
         db.table('b2b_scraper_config').update({

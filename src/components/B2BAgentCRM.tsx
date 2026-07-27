@@ -433,6 +433,111 @@ export function B2BAgentCRM() {
                   />
                 </div>
 
+                {/* --- NUEVOS CANALES DE BÚSQUEDA --- */}
+                <div className="border-t border-gray-200 pt-6 space-y-6">
+                  <h4 className="font-black text-gray-900 text-sm tracking-wide uppercase">Nuevas Fuentes Inteligentes</h4>
+
+                  {/* Google Maps Channel */}
+                  <div className="bg-gray-50/50 p-4 rounded-xl border border-gray-200 space-y-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h5 className="font-bold text-gray-900 text-xs">Búsqueda en Google Maps</h5>
+                        <p className="text-[11px] text-gray-500">Busca sucursales y oficinas corporativas físicas en Google Maps.</p>
+                      </div>
+                      <button 
+                        onClick={() => updateScraperConfig({ enable_maps: !scraperConfig.enable_maps })}
+                        className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${scraperConfig.enable_maps ? 'bg-primary-600' : 'bg-gray-300'}`}
+                      >
+                        <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${scraperConfig.enable_maps ? 'translate-x-4.5' : 'translate-x-1'}`} />
+                      </button>
+                    </div>
+
+                    {scraperConfig.enable_maps && (
+                      <div className="space-y-3 pt-2 border-t border-gray-200/55">
+                        <div>
+                          <label className="block text-[10px] font-bold text-gray-700 uppercase mb-1">Palabras clave para Google Maps</label>
+                          <input 
+                            type="text"
+                            value={scraperConfig.maps_keywords || ''}
+                            onChange={(e) => updateScraperConfig({ maps_keywords: e.target.value })}
+                            placeholder="Ej. corporativo, oficinas, planta industrial"
+                            className="w-full border border-gray-300 rounded-lg p-2 text-xs focus:ring-primary-500 focus:border-primary-500"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[10px] font-bold text-gray-700 uppercase mb-1">Ciudades / Regiones</label>
+                          <input 
+                            type="text"
+                            value={scraperConfig.maps_locations || ''}
+                            onChange={(e) => updateScraperConfig({ maps_locations: e.target.value })}
+                            placeholder="Ej. Aguascalientes, Guadalajara, CDMX"
+                            className="w-full border border-gray-300 rounded-lg p-2 text-xs focus:ring-primary-500 focus:border-primary-500"
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Government Tenders Channel */}
+                  <div className="bg-gray-50/50 p-4 rounded-xl border border-gray-200 space-y-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h5 className="font-bold text-gray-900 text-xs">Licitaciones Públicas (CompraNet)</h5>
+                        <p className="text-[11px] text-gray-500">Monitorea convocatorias gubernamentales de compras activas.</p>
+                      </div>
+                      <button 
+                        onClick={() => updateScraperConfig({ enable_tenders: !scraperConfig.enable_tenders })}
+                        className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${scraperConfig.enable_tenders ? 'bg-primary-600' : 'bg-gray-300'}`}
+                      >
+                        <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${scraperConfig.enable_tenders ? 'translate-x-4.5' : 'translate-x-1'}`} />
+                      </button>
+                    </div>
+
+                    {scraperConfig.enable_tenders && (
+                      <div className="pt-2 border-t border-gray-200/55">
+                        <label className="block text-[10px] font-bold text-gray-700 uppercase mb-1">Palabras clave de CompraNet</label>
+                        <input 
+                          type="text"
+                          value={scraperConfig.tenders_keywords || ''}
+                          onChange={(e) => updateScraperConfig({ tenders_keywords: e.target.value })}
+                          placeholder="Ej. artículos promocionales, regalos finos, uniformes, impresión"
+                          className="w-full border border-gray-300 rounded-lg p-2 text-xs focus:ring-primary-500 focus:border-primary-500"
+                        />
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Chambers of Commerce Channel */}
+                  <div className="bg-gray-50/50 p-4 rounded-xl border border-gray-200 space-y-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h5 className="font-bold text-gray-900 text-xs">Cámaras de Comercio (CANACO, COPARMEX, ANTAD)</h5>
+                        <p className="text-[11px] text-gray-500">Prospecta miembros activos de cámaras empresariales regionales.</p>
+                      </div>
+                      <button 
+                        onClick={() => updateScraperConfig({ enable_chambers: !scraperConfig.enable_chambers })}
+                        className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${scraperConfig.enable_chambers ? 'bg-primary-600' : 'bg-gray-300'}`}
+                      >
+                        <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${scraperConfig.enable_chambers ? 'translate-x-4.5' : 'translate-x-1'}`} />
+                      </button>
+                    </div>
+
+                    {scraperConfig.enable_chambers && (
+                      <div className="pt-2 border-t border-gray-200/55">
+                        <label className="block text-[10px] font-bold text-gray-700 uppercase mb-1">Cámaras y Directorios Objetivo</label>
+                        <input 
+                          type="text"
+                          value={scraperConfig.chambers_targets || ''}
+                          onChange={(e) => updateScraperConfig({ chambers_targets: e.target.value })}
+                          placeholder="Ej. CANACO, COPARMEX, ANTAD, SIEM"
+                          className="w-full border border-gray-300 rounded-lg p-2 text-xs focus:ring-primary-500 focus:border-primary-500"
+                        />
+                        <p className="text-[10px] text-gray-400 mt-1 font-medium">Búsqueda limitada a las regiones configuradas: Aguascalientes, Bajío y CDMX.</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
                 {/* Schedule Info */}
                 <div className="bg-blue-50/50 p-4 rounded-lg border border-blue-100">
                   <h3 className="font-bold text-blue-900 text-sm mb-2 flex items-center gap-2"><Clock className="w-4 h-4"/> Programación Diaria</h3>

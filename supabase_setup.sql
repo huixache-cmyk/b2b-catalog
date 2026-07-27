@@ -167,3 +167,13 @@ ALTER TABLE public.products ADD COLUMN IF NOT EXISTS "discountQty2" integer DEFA
 -- CREATE POLICY "Allow admin manage product_suppliers" ON public.product_suppliers FOR ALL TO authenticated USING (true) WITH CHECK (true);
 
 
+-- Migration: Add new configuration columns for B2B Scraper expansion
+ALTER TABLE public.b2b_scraper_config ADD COLUMN IF NOT EXISTS enable_maps boolean DEFAULT false;
+ALTER TABLE public.b2b_scraper_config ADD COLUMN IF NOT EXISTS maps_keywords text DEFAULT 'corporativos, oficinas, plantas industriales';
+ALTER TABLE public.b2b_scraper_config ADD COLUMN IF NOT EXISTS maps_locations text DEFAULT 'Aguascalientes, Queretaro, CDMX';
+ALTER TABLE public.b2b_scraper_config ADD COLUMN IF NOT EXISTS enable_tenders boolean DEFAULT false;
+ALTER TABLE public.b2b_scraper_config ADD COLUMN IF NOT EXISTS tenders_keywords text DEFAULT 'articulos promocionales, regalos finos, uniformes';
+ALTER TABLE public.b2b_scraper_config ADD COLUMN IF NOT EXISTS enable_chambers boolean DEFAULT false;
+ALTER TABLE public.b2b_scraper_config ADD COLUMN IF NOT EXISTS chambers_targets text DEFAULT 'CANACO, COPARMEX, ANTAD, SIEM';
+
+
