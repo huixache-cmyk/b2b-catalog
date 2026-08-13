@@ -10,14 +10,15 @@ export function Footer() {
   return (
     <footer id="footer" className="bg-gray-900 text-gray-300">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
           {/* Brand */}
           <div className="space-y-4">
-            <Link href="/" className="text-3xl font-bold tracking-tight flex items-center gap-0.5" style={{ fontFamily: 'Museo, sans-serif' }}>
-              <span className="text-secondary-500">{'</'}</span>
-              <span className="text-primary-500">geeky</span>
-              <span className="text-secondary-500">store</span>
-              <span className="text-secondary-500">{'>'}</span>
+            <Link href="/" className="flex items-center">
+              <img
+                src="/logo-footer.png"
+                alt="geekystore"
+                className="h-[40px] md:h-[48px] w-auto object-contain"
+              />
             </Link>
             <p className="text-sm">
               Potencia tu marca con nuestros artículos promocionales de alta calidad. Ventas exclusivas por volumen para empresas.
@@ -72,8 +73,11 @@ export function Footer() {
           </div>
         </div>
         
-        <div className="border-t border-gray-800 mt-12 pt-8 text-sm text-center">
+        <div className="border-t border-gray-800 mt-12 pt-8 text-sm text-center space-y-2">
           <p>&copy; {new Date().getFullYear()} geekystore. Todos los derechos reservados.</p>
+          <p className="text-gray-500 text-xs">
+            GeekyStore es una marca registrada operada comercialmente por RODRIGUEZ TISCARENO, GERARDO.
+          </p>
         </div>
       </div>
     </footer>
