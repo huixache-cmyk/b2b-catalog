@@ -759,8 +759,8 @@ export function CryptoExchangeTab() {
         </div>
       </div>
 
-      {/* Main Grid: Horizons & WhatsApp link (Shortened vertical alignment) */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
+      {/* Main Grid: Horizons & Wallets (Stretched/Aligned columns) */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left 2 cols: Horizons Distribution */}
         <div className="bg-white p-6 rounded-xl border border-gray-150 shadow-sm lg:col-span-2 space-y-6 h-fit">
           <div className="flex justify-between items-start">
@@ -894,13 +894,60 @@ export function CryptoExchangeTab() {
           </div>
         </div>
 
-        {/* Right col: WhatsApp Connection card */}
+        {/* Right col: Tus Criptomonedas (Stretched/Aligned with Plazos card) */}
+        <div className="bg-white p-6 rounded-xl border border-gray-150 shadow-sm space-y-4">
+          <div>
+            <h2 className="text-lg font-bold text-gray-900 flex items-center gap-1.5">
+              💼 Tus Criptomonedas
+            </h2>
+            <p className="text-2xs text-gray-450 mt-0.5">Capital invertido y rendimiento de tus activos en tiempo real.</p>
+          </div>
+          
+          <div className="space-y-3">
+            {Object.keys(balances).map(key => {
+              const b = balances[key];
+              return (
+                <div key={key} className="flex justify-between items-center py-2.5 border-b border-gray-100 last:border-0 last:pb-0">
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-full bg-primary-50 border border-primary-100 flex items-center justify-center font-bold text-xs text-primary-750">
+                      {key.split('/')[0]}
+                    </div>
+                    <div>
+                      <p className="text-xs font-bold text-gray-800">{b.name}</p>
+                      <p className="text-3xs text-gray-455 font-mono">
+                        {b.coins.toFixed(6)} {key.split('/')[0]}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-xs font-bold text-gray-800">
+                      ${b.valueUsd.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USD
+                    </p>
+                    <p className="text-3xs text-gray-455 mt-0.5">
+                      ≈ ${(b.valueUsd * usdToMxn).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} MXN
+                    </p>
+                    {b.coins > 0 && (
+                      <p className={`text-3xs font-bold mt-0.5 ${b.profitUsd >= 0 ? 'text-emerald-600' : 'text-red-655'}`}>
+                        {b.profitUsd >= 0 ? '▲ +' : '▼ '}${b.profitUsd.toFixed(2)} USD
+                      </p>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+
+      {/* Grid 3: WhatsApp Link & Bot Parameters (Horizontal Layout) */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
+        {/* Left col: WhatsApp Connection card (span 1) */}
         <div className="bg-white p-6 rounded-xl border border-gray-150 shadow-sm space-y-4 h-fit">
           <div>
             <h2 className="text-lg font-bold text-gray-900 flex items-center gap-1.5">
               💬 Enlace de WhatsApp
             </h2>
-            <p className="text-2xs text-gray-450 mt-0.5">Vincule su número de WhatsApp de administrador para recibir alertas.</p>
+            <p className="text-2xs text-gray-455 mt-0.5">Vincule su número de WhatsApp de administrador para recibir alertas.</p>
           </div>
           
           <div className="bg-gray-50 p-3.5 rounded-lg border border-gray-100 space-y-3">
@@ -943,53 +990,6 @@ export function CryptoExchangeTab() {
                 ✔ <strong>Línea Vinculada.</strong> Recibirás alertas con expiración configurable para cancelar o auto-ejecutar.
               </div>
             )}
-          </div>
-        </div>
-      </div>
-
-      {/* Grid 3: Wallets & Bot Parameters (Horizontal Layout) */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
-        {/* Tus Criptomonedas (span 1) */}
-        <div className="bg-white p-6 rounded-xl border border-gray-150 shadow-sm space-y-4 h-fit">
-          <div>
-            <h2 className="text-lg font-bold text-gray-900 flex items-center gap-1.5">
-              💼 Tus Criptomonedas
-            </h2>
-            <p className="text-2xs text-gray-450 mt-0.5">Capital invertido y rendimiento de tus activos en tiempo real.</p>
-          </div>
-          
-          <div className="space-y-3">
-            {Object.keys(balances).map(key => {
-              const b = balances[key];
-              return (
-                <div key={key} className="flex justify-between items-center py-2.5 border-b border-gray-100 last:border-0 last:pb-0">
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-full bg-primary-50 border border-primary-100 flex items-center justify-center font-bold text-xs text-primary-750">
-                      {key.split('/')[0]}
-                    </div>
-                    <div>
-                      <p className="text-xs font-bold text-gray-800">{b.name}</p>
-                      <p className="text-3xs text-gray-455 font-mono">
-                        {b.coins.toFixed(6)} {key.split('/')[0]}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-xs font-bold text-gray-800">
-                      ${b.valueUsd.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USD
-                    </p>
-                    <p className="text-3xs text-gray-455 mt-0.5">
-                      ≈ ${(b.valueUsd * usdToMxn).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} MXN
-                    </p>
-                    {b.coins > 0 && (
-                      <p className={`text-3xs font-bold mt-0.5 ${b.profitUsd >= 0 ? 'text-emerald-600' : 'text-red-650'}`}>
-                        {b.profitUsd >= 0 ? '▲ +' : '▼ '}${b.profitUsd.toFixed(2)} USD
-                      </p>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
           </div>
         </div>
 
