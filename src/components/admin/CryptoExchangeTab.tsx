@@ -759,10 +759,10 @@ export function CryptoExchangeTab() {
         </div>
       </div>
 
-      {/* Main Grid: Horizons & Asset Configs */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      {/* Main Grid: Horizons & WhatsApp link (Shortened vertical alignment) */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
         {/* Left 2 cols: Horizons Distribution */}
-        <div className="bg-white p-6 rounded-xl border border-gray-150 shadow-sm lg:col-span-2 space-y-6">
+        <div className="bg-white p-6 rounded-xl border border-gray-150 shadow-sm lg:col-span-2 space-y-6 h-fit">
           <div className="flex justify-between items-start">
             <div>
               <h2 className="text-xl font-bold text-gray-900">Distribución de Capital por Plazos</h2>
@@ -894,139 +894,199 @@ export function CryptoExchangeTab() {
           </div>
         </div>
 
-        {/* Right col: Settings & Asset Timings */}
-        <div className="space-y-6">
-          {/* Saldos y Posiciones Cripto (Foto 1 format) */}
-          <div className="bg-white p-6 rounded-xl border border-gray-150 shadow-sm space-y-4">
-            <div>
-              <h2 className="text-lg font-bold text-gray-900 flex items-center gap-1.5">
-                💼 Tus Criptomonedas
-              </h2>
-              <p className="text-2xs text-gray-455 mt-0.5">Capital invertido y rendimiento de tus activos en tiempo real.</p>
+        {/* Right col: WhatsApp Connection card */}
+        <div className="bg-white p-6 rounded-xl border border-gray-150 shadow-sm space-y-4 h-fit">
+          <div>
+            <h2 className="text-lg font-bold text-gray-900 flex items-center gap-1.5">
+              💬 Enlace de WhatsApp
+            </h2>
+            <p className="text-2xs text-gray-450 mt-0.5">Vincule su número de WhatsApp de administrador para recibir alertas.</p>
+          </div>
+          
+          <div className="bg-gray-50 p-3.5 rounded-lg border border-gray-100 space-y-3">
+            <div className="flex justify-between items-center text-xs">
+              <span className="text-gray-500 font-medium">Estado:</span>
+              <span className={`px-2 py-0.5 rounded font-bold uppercase text-3xs ${
+                whatsappStatus === 'connected' ? 'bg-emerald-100 text-emerald-800' :
+                whatsappStatus === 'qr_ready' ? 'bg-amber-100 text-amber-800' : 'bg-red-100 text-red-800'
+              }`}>
+                {whatsappStatus}
+              </span>
             </div>
-            
-            <div className="space-y-3">
-              {Object.keys(balances).map(key => {
-                const b = balances[key];
-                return (
-                  <div key={key} className="flex justify-between items-center py-2.5 border-b border-gray-100 last:border-0 last:pb-0">
-                    <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-full bg-primary-50 border border-primary-100 flex items-center justify-center font-bold text-xs text-primary-750">
-                        {key.split('/')[0]}
-                      </div>
-                      <div>
-                        <p className="text-xs font-bold text-gray-800">{b.name}</p>
-                        <p className="text-3xs text-gray-450 font-mono">
-                          {b.coins.toFixed(6)} {key.split('/')[0]}
-                        </p>
-                      </div>
+
+            {whatsappStatus === 'disconnected' && (
+              <button
+                onClick={handleConnectWhatsApp}
+                className="w-full bg-primary-700 hover:bg-primary-850 text-white font-bold py-2 px-3 rounded-lg transition-colors text-xs shadow-sm"
+              >
+                Generar Código QR
+              </button>
+            )}
+
+            {whatsappStatus === 'qr_ready' && whatsappQr && (
+              <div className="space-y-2 text-center">
+                <p className="text-3xs text-gray-500">Escanea desde tu app de WhatsApp:</p>
+                <div className="bg-white p-2 rounded border border-gray-200 inline-block">
+                  {whatsappQr.startsWith('data:image') ? (
+                    <img src={whatsappQr} alt="QR Code" className="w-36 h-36 mx-auto" />
+                  ) : (
+                    <div className="w-36 h-36 flex items-center justify-center text-xs text-gray-500 font-mono">
+                      [QR en Servidor]
                     </div>
-                    <div className="text-right">
-                      <p className="text-xs font-bold text-gray-800">
-                        ${b.valueUsd.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USD
+                  )}
+                </div>
+              </div>
+            )}
+
+            {whatsappStatus === 'connected' && (
+              <div className="text-emerald-855 text-3xs leading-relaxed bg-emerald-50 p-2.5 rounded border border-emerald-150">
+                ✔ <strong>Línea Vinculada.</strong> Recibirás alertas con expiración configurable para cancelar o auto-ejecutar.
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Grid 3: Wallets & Bot Parameters (Horizontal Layout) */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
+        {/* Tus Criptomonedas (span 1) */}
+        <div className="bg-white p-6 rounded-xl border border-gray-150 shadow-sm space-y-4 h-fit">
+          <div>
+            <h2 className="text-lg font-bold text-gray-900 flex items-center gap-1.5">
+              💼 Tus Criptomonedas
+            </h2>
+            <p className="text-2xs text-gray-450 mt-0.5">Capital invertido y rendimiento de tus activos en tiempo real.</p>
+          </div>
+          
+          <div className="space-y-3">
+            {Object.keys(balances).map(key => {
+              const b = balances[key];
+              return (
+                <div key={key} className="flex justify-between items-center py-2.5 border-b border-gray-100 last:border-0 last:pb-0">
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-full bg-primary-50 border border-primary-100 flex items-center justify-center font-bold text-xs text-primary-750">
+                      {key.split('/')[0]}
+                    </div>
+                    <div>
+                      <p className="text-xs font-bold text-gray-800">{b.name}</p>
+                      <p className="text-3xs text-gray-455 font-mono">
+                        {b.coins.toFixed(6)} {key.split('/')[0]}
                       </p>
-                      <p className="text-3xs text-gray-450 mt-0.5">
-                        ≈ ${(b.valueUsd * usdToMxn).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} MXN
-                      </p>
-                      {b.coins > 0 && (
-                        <p className={`text-3xs font-bold mt-0.5 ${b.profitUsd >= 0 ? 'text-emerald-600' : 'text-red-650'}`}>
-                          {b.profitUsd >= 0 ? '▲ +' : '▼ '}${b.profitUsd.toFixed(2)} USD
-                        </p>
-                      )}
                     </div>
                   </div>
-                );
-              })}
-            </div>
+                  <div className="text-right">
+                    <p className="text-xs font-bold text-gray-800">
+                      ${b.valueUsd.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USD
+                    </p>
+                    <p className="text-3xs text-gray-455 mt-0.5">
+                      ≈ ${(b.valueUsd * usdToMxn).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} MXN
+                    </p>
+                    {b.coins > 0 && (
+                      <p className={`text-3xs font-bold mt-0.5 ${b.profitUsd >= 0 ? 'text-emerald-600' : 'text-red-650'}`}>
+                        {b.profitUsd >= 0 ? '▲ +' : '▼ '}${b.profitUsd.toFixed(2)} USD
+                      </p>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
           </div>
+        </div>
 
-          <div className="bg-white p-6 rounded-xl border border-gray-150 shadow-sm space-y-6">
+        {/* Parámetros del Bot (span 2) */}
+        <div className="bg-white p-6 rounded-xl border border-gray-150 shadow-sm lg:col-span-2 space-y-4 h-fit">
+          <div className="flex flex-wrap items-center justify-between gap-4 pb-3 border-b border-gray-100">
             <div>
-              <h2 className="text-xl font-bold text-gray-900 flex items-center gap-1.5">
+              <h2 className="text-lg font-bold text-gray-900 flex items-center gap-1.5">
                 <Settings className="w-5 h-5 text-gray-600" /> Parámetros del Bot
               </h2>
-              <p className="text-sm text-gray-500 mt-1">
+              <p className="text-2xs text-gray-455 mt-0.5">
                 Controla las alertas de compra/venta y la cuenta regresiva de ejecución pasiva (Base: 5 min).
               </p>
             </div>
 
-          {/* Botón de simulación manual para pruebas */}
-          <div className="bg-amber-50/70 p-3 rounded-lg border border-amber-200/50 space-y-1.5">
-            <h4 className="text-xs font-bold text-amber-850 flex items-center gap-1">
-              🧪 Simulación / Pruebas de Flujo
-            </h4>
-            <p className="text-3xs text-amber-700 leading-normal">
-              Simula una señal de compra (BUY) inmediata. Esto generará una propuesta y enviará la alerta a tu WhatsApp vinculado.
-            </p>
-            <button
-              type="button"
-              onClick={handleTriggerMockSignal}
-              disabled={isMockTriggering}
-              className="w-full bg-amber-600 hover:bg-amber-700 disabled:opacity-50 text-white font-bold py-1.5 px-3 rounded-md transition-all text-xs shadow-sm"
-            >
-              {isMockTriggering ? 'Simulando...' : 'Forzar Simulación de Compra'}
-            </button>
+            {/* Botón de simulación manual para pruebas */}
+            <div className="bg-amber-50/70 p-2.5 rounded-lg border border-amber-200/50 flex items-center justify-between gap-3 max-w-sm">
+              <div className="space-y-0.5">
+                <h4 className="text-[10px] font-bold text-amber-850 flex items-center gap-1">
+                  🧪 Simulación de Flujo
+                </h4>
+                <p className="text-[9px] text-amber-700 leading-tight">
+                  Gatilla propuestas simuladas para BTC, ETH y SOL a la vez.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={handleTriggerMockSignal}
+                disabled={isMockTriggering}
+                className="bg-amber-600 hover:bg-amber-700 disabled:opacity-50 text-white font-extrabold py-1.5 px-3 rounded-md transition-all text-3xs shadow-sm flex-shrink-0"
+              >
+                {isMockTriggering ? 'Simulando...' : 'Forzar Compra de los 3'}
+              </button>
+            </div>
           </div>
 
-          <div className="space-y-5">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-1">
             {assetConfigs.map(c => {
               const edit = editingConfigs[c.asset] || {};
               return (
-                <div key={c.id} className="bg-gray-50 p-4 rounded-xl border border-gray-100 space-y-3">
-                  <div className="flex justify-between items-center">
-                    <span className="font-bold text-gray-800">{c.asset}</span>
-                    <label className="relative inline-flex items-center cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={edit.is_active ?? c.is_active}
-                        onChange={(e) => handleConfigFieldChange(c.asset, 'is_active', e.target.checked)}
-                        className="sr-only peer"
-                      />
-                      <div className="w-9 h-5 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-500"></div>
-                      <span className="ml-2 text-2xs font-bold text-gray-500 uppercase">
-                        {(edit.is_active ?? c.is_active) ? 'Activo' : 'Pausa'}
-                      </span>
-                    </label>
-                  </div>
+                <div key={c.id} className="bg-gray-50 p-4 rounded-xl border border-gray-100 flex flex-col justify-between space-y-3">
+                  <div className="space-y-3">
+                    <div className="flex justify-between items-center border-b border-gray-200 pb-1.5">
+                      <span className="font-bold text-gray-800 text-xs">{c.asset}</span>
+                      <label className="relative inline-flex items-center cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={edit.is_active ?? c.is_active}
+                          onChange={(e) => handleConfigFieldChange(c.asset, 'is_active', e.target.checked)}
+                          className="sr-only peer"
+                        />
+                        <div className="w-8 h-4 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-emerald-500"></div>
+                        <span className="ml-1.5 text-[9px] font-extrabold text-gray-500 uppercase">
+                          {(edit.is_active ?? c.is_active) ? 'Activo' : 'Pausa'}
+                        </span>
+                      </label>
+                    </div>
 
-                  <div className="grid grid-cols-3 gap-2">
-                    <div>
-                      <label className="block text-3xs font-bold text-gray-400 uppercase mb-0.5">Expira (Min)</label>
-                      <input
-                        type="number"
-                        min="1"
-                        value={edit.rejection_timeout_minutes ?? c.rejection_timeout_minutes}
-                        onChange={(e) => handleConfigFieldChange(c.asset, 'rejection_timeout_minutes', parseInt(e.target.value) || 5)}
-                        className="w-full text-xs border border-gray-300 rounded px-2 py-1 bg-white font-mono text-gray-800"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-3xs font-bold text-gray-400 uppercase mb-0.5">Compra (RSI)</label>
-                      <input
-                        type="number"
-                        min="0"
-                        max="100"
-                        value={edit.rsi_threshold_buy ?? c.rsi_threshold_buy}
-                        onChange={(e) => handleConfigFieldChange(c.asset, 'rsi_threshold_buy', parseFloat(e.target.value) || 30)}
-                        className="w-full text-xs border border-gray-300 rounded px-2 py-1 bg-white font-mono text-gray-800"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-3xs font-bold text-gray-400 uppercase mb-0.5">Venta (RSI)</label>
-                      <input
-                        type="number"
-                        min="0"
-                        max="100"
-                        value={edit.rsi_threshold_sell ?? c.rsi_threshold_sell}
-                        onChange={(e) => handleConfigFieldChange(c.asset, 'rsi_threshold_sell', parseFloat(e.target.value) || 70)}
-                        className="w-full text-xs border border-gray-300 rounded px-2 py-1 bg-white font-mono text-gray-800"
-                      />
+                    <div className="grid grid-cols-3 gap-1.5">
+                      <div>
+                        <label className="block text-[8px] font-bold text-gray-400 uppercase mb-0.5">Expira (Min)</label>
+                        <input
+                          type="number"
+                          min="1"
+                          value={edit.rejection_timeout_minutes ?? c.rejection_timeout_minutes}
+                          onChange={(e) => handleConfigFieldChange(c.asset, 'rejection_timeout_minutes', parseInt(e.target.value) || 5)}
+                          className="w-full text-3xs border border-gray-300 rounded px-1.5 py-0.5 bg-white font-mono text-gray-800 text-center font-bold"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[8px] font-bold text-gray-400 uppercase mb-0.5">Compra (RSI)</label>
+                        <input
+                          type="number"
+                          min="0"
+                          max="100"
+                          value={edit.rsi_threshold_buy ?? c.rsi_threshold_buy}
+                          onChange={(e) => handleConfigFieldChange(c.asset, 'rsi_threshold_buy', parseFloat(e.target.value) || 30)}
+                          className="w-full text-3xs border border-gray-300 rounded px-1.5 py-0.5 bg-white font-mono text-gray-800 text-center font-bold"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[8px] font-bold text-gray-400 uppercase mb-0.5">Venta (RSI)</label>
+                        <input
+                          type="number"
+                          min="0"
+                          max="100"
+                          value={edit.rsi_threshold_sell ?? c.rsi_threshold_sell}
+                          onChange={(e) => handleConfigFieldChange(c.asset, 'rsi_threshold_sell', parseFloat(e.target.value) || 70)}
+                          className="w-full text-3xs border border-gray-300 rounded px-1.5 py-0.5 bg-white font-mono text-gray-800 text-center font-bold"
+                        />
+                      </div>
                     </div>
                   </div>
 
                   <button
                     onClick={() => handleSaveAssetConfig(c.asset)}
-                    className="w-full bg-white hover:bg-gray-100 text-gray-700 border border-gray-250 py-1.5 px-3 rounded-lg text-xs font-bold transition-all shadow-3xs"
+                    className="w-full bg-white hover:bg-gray-150 text-gray-700 border border-gray-250 py-1 px-3 rounded-lg text-3xs font-extrabold transition-all shadow-3xs"
                   >
                     Guardar Parámetros
                   </button>
@@ -1034,54 +1094,8 @@ export function CryptoExchangeTab() {
               );
             })}
           </div>
-
-          <div className="border-t border-gray-150 pt-4 space-y-3">
-            <h3 className="text-sm font-bold text-gray-700">Enlace de WhatsApp</h3>
-            <div className="bg-gray-50 p-3.5 rounded-lg border border-gray-100 space-y-3">
-              <div className="flex justify-between items-center text-xs">
-                <span className="text-gray-500 font-medium">Estado:</span>
-                <span className={`px-2 py-0.5 rounded font-bold uppercase text-3xs ${
-                  whatsappStatus === 'connected' ? 'bg-emerald-100 text-emerald-800' :
-                  whatsappStatus === 'qr_ready' ? 'bg-amber-100 text-amber-800' : 'bg-red-100 text-red-800'
-                }`}>
-                  {whatsappStatus}
-                </span>
-              </div>
-
-              {whatsappStatus === 'disconnected' && (
-                <button
-                  onClick={handleConnectWhatsApp}
-                  className="w-full bg-primary-700 hover:bg-primary-850 text-white font-bold py-2 px-3 rounded-lg transition-colors text-xs shadow-sm"
-                >
-                  Generar Código QR
-                </button>
-              )}
-
-              {whatsappStatus === 'qr_ready' && whatsappQr && (
-                <div className="space-y-2 text-center">
-                  <p className="text-3xs text-gray-500">Escanea desde tu app de WhatsApp:</p>
-                  <div className="bg-white p-2 rounded border border-gray-200 inline-block">
-                    {whatsappQr.startsWith('data:image') ? (
-                      <img src={whatsappQr} alt="QR Code" className="w-36 h-36 mx-auto" />
-                    ) : (
-                      <div className="w-36 h-36 flex items-center justify-center text-xs text-gray-500 font-mono">
-                        [QR en Servidor]
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {whatsappStatus === 'connected' && (
-                <div className="text-emerald-800 text-3xs leading-relaxed bg-emerald-50 p-2.5 rounded border border-emerald-150">
-                  ✔ <strong>Línea Vinculada.</strong> Recibirás alertas con expiración configurable para cancelar o auto-ejecutar.
-                </div>
-              )}
-            </div>
-          </div>
         </div>
       </div>
-    </div>
 
       {/* Table Proposals */}
       <div className="bg-white p-6 rounded-xl border border-gray-150 shadow-sm space-y-4">
@@ -1243,10 +1257,10 @@ export function CryptoExchangeTab() {
                               {h.trade_type === 'BUY' ? 'COMPRA' : 'VENTA'}
                             </span>
                           </td>
-                          <td className="py-3.5 px-2 font-medium text-gray-800">
+                          <td className={`py-3.5 px-2 font-semibold ${h.trade_type === 'BUY' ? 'text-red-600' : 'text-emerald-600'}`}>
                             {h.trade_type === 'BUY' ? '-' : '+'}${h.executed_amount.toFixed(2)} USD
                           </td>
-                          <td className="py-3.5 px-2 font-semibold text-gray-500">
+                          <td className={`py-3.5 px-2 font-bold ${h.trade_type === 'BUY' ? 'text-red-400' : 'text-emerald-500'}`}>
                             {h.trade_type === 'BUY' ? '-' : '+'}${(h.executed_amount * usdToMxn).toFixed(2)} MXN
                           </td>
                           <td className="py-3.5 px-2 font-mono text-gray-650">
