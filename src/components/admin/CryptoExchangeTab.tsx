@@ -76,6 +76,10 @@ export function CryptoExchangeTab() {
   const [isSaving, setIsSaving] = useState<boolean>(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   
+  // Inversión Inicial
+  const [initialCapInput, setInitialCapInput] = useState<string>('1000');
+  const [isMockTriggering, setIsMockTriggering] = useState<boolean>(false);
+  
   // Capital Transaction inputs
   const [selectedTxHorizon, setSelectedTxHorizon] = useState<string>('daily');
   const [txAmount, setTxAmount] = useState<string>('');
@@ -295,6 +299,61 @@ export function CryptoExchangeTab() {
       fetchData();
     } catch (err: any) {
       alert(err.message);
+    }
+  };
+
+  const handleDistributeCapital = async () => {
+    const total = parseFloat(initialCapInput);
+    if (isNaN(total) || total <= 0) {
+      alert('Por favor ingresa un monto total de inversión inicial válido.');
+      return;
+    }
+
+    const sum = horizons.reduce((acc, curr) => acc + Number(curr.allocated_percentage), 0);
+    if (Math.abs(sum - 100) > 0.01) {
+      alert(`No se puede distribuir. La suma de los porcentajes actuales es de ${sum.toFixed(0)}%. Debe ser exactamente 100% para distribuir de forma exacta. Puedes presionar "Aplicar Todo IA" primero si quieres.`);
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      // Calcular balances distribuidos
+      const distributedHorizons = horizons.map(hz => ({
+        ...hz,
+        current_balance: total * (hz.allocated_percentage / 100)
+      }));
+
+      const res = await fetch(`${API_BASE}/config/horizons`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(distributedHorizons)
+      });
+
+      if (!res.ok) throw new Error('Error al guardar horizontes en la base de datos.');
+      alert(`Capital total de $${total} USD distribuido e inicializado exitosamente en los horizontes.`);
+      fetchData();
+    } catch (err: any) {
+      alert(err.message);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleTriggerMockSignal = async () => {
+    setIsMockTriggering(true);
+    try {
+      const res = await fetch(`${API_BASE}/bot/mock-signal`, { method: 'POST' });
+      if (!res.ok) {
+        const errData = await res.json();
+        throw new Error(errData.error || 'Error al gatillar simulación.');
+      }
+      const data = await res.json();
+      alert(`Simulación exitosa: Propuesta de prueba ${data.proposal.operation_code} creada y notificada por WhatsApp.`);
+      fetchData();
+    } catch (err: any) {
+      alert(err.message);
+    } finally {
+      setIsMockTriggering(false);
     }
   };
 
@@ -554,6 +613,43 @@ export function CryptoExchangeTab() {
             </button>
           </div>
 
+          {/* Inicialización de Capital Inicial Consolidado */}
+          <div className="bg-gray-50 p-4 rounded-xl border border-gray-150 flex flex-wrap items-center justify-between gap-4">
+            <div className="space-y-1">
+              <label className="block text-xs font-bold text-gray-700 uppercase tracking-wide">
+                Inicializar Capital Total de Simulación
+              </label>
+              <p className="text-2xs text-gray-400">
+                Define el monto total y repártelo automáticamente según los porcentajes (%) activos.
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="relative rounded-md shadow-sm w-36">
+                <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
+                  <span className="text-gray-500 text-xs font-bold">$</span>
+                </div>
+                <input
+                  type="number"
+                  min="0"
+                  placeholder="Ej: 1000.00"
+                  value={initialCapInput}
+                  onChange={(e) => setInitialCapInput(e.target.value)}
+                  className="block w-full rounded-md border border-gray-300 pl-7 pr-12 py-1.5 text-xs focus:border-primary-500 focus:ring-primary-500 text-gray-900 font-bold"
+                />
+                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3">
+                  <span className="text-gray-500 text-2xs font-bold">USD</span>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={handleDistributeCapital}
+                className="bg-primary-700 hover:bg-primary-850 text-white text-xs font-bold py-2 px-4 rounded-lg transition-colors shadow-sm"
+              >
+                Distribuir
+              </button>
+            </div>
+          </div>
+
           <div className="space-y-4">
             {horizons.map((hz, idx) => (
               <div key={hz.id} className="border-b border-gray-100 pb-3 last:border-0 last:pb-0">
@@ -623,6 +719,24 @@ export function CryptoExchangeTab() {
             <p className="text-sm text-gray-500 mt-1">
               Controla las alertas de compra/venta y la cuenta regresiva de ejecución pasiva (Base: 5 min).
             </p>
+          </div>
+
+          {/* Botón de simulación manual para pruebas */}
+          <div className="bg-amber-50/70 p-3 rounded-lg border border-amber-200/50 space-y-1.5">
+            <h4 className="text-xs font-bold text-amber-850 flex items-center gap-1">
+              🧪 Simulación / Pruebas de Flujo
+            </h4>
+            <p className="text-3xs text-amber-700 leading-normal">
+              Simula una señal de compra (BUY) inmediata. Esto generará una propuesta y enviará la alerta a tu WhatsApp vinculado.
+            </p>
+            <button
+              type="button"
+              onClick={handleTriggerMockSignal}
+              disabled={isMockTriggering}
+              className="w-full bg-amber-600 hover:bg-amber-700 disabled:opacity-50 text-white font-bold py-1.5 px-3 rounded-md transition-all text-xs shadow-sm"
+            >
+              {isMockTriggering ? 'Simulando...' : 'Forzar Simulación de Compra'}
+            </button>
           </div>
 
           <div className="space-y-5">
