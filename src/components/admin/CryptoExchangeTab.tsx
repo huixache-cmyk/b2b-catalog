@@ -420,6 +420,35 @@ export function CryptoExchangeTab() {
     return { balances, totalInvestmentValue, totalProfit };
   };
 
+  const getHorizonDynamicBalance = (horizonName: string, cashBalance: number) => {
+    const hName = horizonName.toLowerCase();
+    let cryptoValue = 0;
+    
+    // Group active trades by asset for this horizon
+    const hTrades = history
+      .filter(h => (h.status === 'executed' || h.status === 'simulated') && h.horizon.toLowerCase() === hName)
+      .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+
+    const pos: Record<string, { coins: number }> = {};
+    hTrades.forEach(t => {
+      const qty = t.executed_amount / t.execution_price;
+      if (!pos[t.asset]) pos[t.asset] = { coins: 0 };
+      if (t.trade_type === 'BUY') {
+        pos[t.asset].coins += qty;
+      } else if (t.trade_type === 'SELL') {
+        pos[t.asset].coins = Math.max(0, pos[t.asset].coins - qty);
+      }
+    });
+
+    Object.keys(pos).forEach(asset => {
+      const coins = pos[asset].coins;
+      const currentPrice = (assetConfigs.find(c => c.asset === asset) as any)?.current_price || (asset.includes('BTC') ? 80000 : asset.includes('ETH') ? 2600 : 180);
+      cryptoValue += coins * currentPrice;
+    });
+
+    return cashBalance + cryptoValue;
+  };
+
   // Filtrar historial de transacciones según el rango de tiempo seleccionado
   const filterHistoryByTime = () => {
     const now = new Date().getTime();
@@ -563,74 +592,94 @@ export function CryptoExchangeTab() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Metric SVG Chart */}
         <div className="bg-white p-6 rounded-xl border border-gray-150 shadow-sm col-span-2 space-y-4">
-          <div className="flex justify-between items-center">
+          <div className="flex justify-between items-center pb-2 border-b border-gray-100">
             <div>
               <h2 className="text-base font-bold text-gray-900 flex items-center gap-1.5">
-                <TrendingUp className="w-4 h-4 text-primary-500" /> Rendimiento Acumulado Cripto
+                <TrendingUp className="w-4 h-4 text-emerald-500" /> Rendimiento Acumulado Cripto
               </h2>
               <p className="text-2xs text-gray-400 mt-0.5">Ganancias y pérdidas del portafolio en tiempo real.</p>
             </div>
             
-            <div className="flex items-center gap-3">
-              {/* Selector de Rango de Tiempo (Foto 3 format) */}
-              <div className="flex items-center gap-0.5 bg-gray-100 p-0.5 rounded-lg border border-gray-200">
-                {(['1D', '1W', '1M', '6M', '1Y'] as const).map(f => (
-                  <button
-                    key={f}
-                    type="button"
-                    onClick={() => setTimeFilter(f)}
-                    className={`px-1.5 py-0.5 rounded text-[9px] font-extrabold transition-all uppercase ${
-                      timeFilter === f 
-                        ? 'bg-white text-primary-800 shadow-sm' 
-                        : 'text-gray-500 hover:text-gray-800'
-                    }`}
-                  >
-                    {f}
-                  </button>
-                ))}
-              </div>
-
-              <div className="text-right">
-                <span className={`text-xs font-bold flex items-center justify-end gap-0.5 ${netProfit >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
-                  {netProfit >= 0 ? <ArrowUpRight className="w-3.5 h-3.5" /> : <ArrowDownRight className="w-3.5 h-3.5" />}
-                  {netProfit >= 0 ? '+' : ''}${netProfit.toFixed(2)} USD
-                </span>
-                <span className="block text-[9px] text-gray-400 font-bold">
-                  ≈ {netProfit >= 0 ? '+' : ''}${(netProfit * usdToMxn).toFixed(2)} MXN
-                </span>
-              </div>
+            <div className="text-right">
+              <span className={`text-xs font-extrabold flex items-center justify-end gap-0.5 ${netProfit >= 0 ? 'text-emerald-600' : 'text-red-650'}`}>
+                {netProfit >= 0 ? <ArrowUpRight className="w-3.5 h-3.5" /> : <ArrowDownRight className="w-3.5 h-3.5" />}
+                {netProfit >= 0 ? '+' : ''}${netProfit.toFixed(2)} USD
+              </span>
+              <span className="block text-[9px] text-gray-400 font-bold">
+                ≈ {netProfit >= 0 ? '+' : ''}${(netProfit * usdToMxn).toFixed(2)} MXN
+              </span>
             </div>
           </div>
 
-          <div className="bg-gray-950 p-4 rounded-xl relative overflow-hidden h-36 flex items-end">
-            <svg viewBox="0 0 400 100" className="w-full h-28 overflow-visible" preserveAspectRatio="none">
-              <defs>
-                <linearGradient id="chartGrad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#009087" stopOpacity="0.45" />
-                  <stop offset="100%" stopColor="#009087" stopOpacity="0.0" />
-                </linearGradient>
-              </defs>
-              {/* Fill Area */}
-              <path
-                d={`M 0,100 L ${getChartPoints()} L 400,100 Z`}
-                fill="url(#chartGrad)"
-              />
-              {/* Line */}
-              <polyline
-                fill="none"
-                stroke="#00f3e3"
-                strokeWidth="2.5"
-                points={getChartPoints()}
-                strokeLinecap="round"
-              />
-            </svg>
-            <div className="absolute top-2 left-2 text-3xs text-gray-500 font-mono">
-              Max: ${(realTimeTotalCapital + Math.abs(netProfit)).toFixed(0)} USD
-            </div>
-            <div className="absolute bottom-2 left-2 text-3xs text-gray-500 font-mono">
-              Min: ${(realTimeTotalCapital - Math.abs(netProfit)).toFixed(0)} USD
-            </div>
-          </div>
+          {(() => {
+            const yMax = netProfit !== 0 ? (realTimeTotalCapital + Math.abs(netProfit) * 0.15) : (realTimeTotalCapital * 1.005);
+            const yMin = netProfit !== 0 ? Math.max(0, realTimeTotalCapital - Math.abs(netProfit) * 0.15) : (realTimeTotalCapital * 0.995);
+            const yMid = (yMax + yMin) / 2;
+            const yUpperMid = yMax - (yMax - yMin) * 0.25;
+            const yLowerMid = yMax - (yMax - yMin) * 0.75;
+
+            return (
+              <div className="bg-gradient-to-b from-emerald-50/5 to-white border border-gray-150 rounded-xl p-4 relative flex flex-col justify-between">
+                {/* Eje Y: Dinámico (Foto 3 format) */}
+                <div className="absolute left-3 top-4 bottom-14 flex flex-col justify-between text-[9px] font-bold font-mono text-gray-400 select-none pointer-events-none z-10 border-r border-gray-100 pr-2">
+                  <span>${yMax.toLocaleString(undefined, { maximumFractionDigits: 1 })}</span>
+                  <span>${yUpperMid.toLocaleString(undefined, { maximumFractionDigits: 1 })}</span>
+                  <span>${yMid.toLocaleString(undefined, { maximumFractionDigits: 1 })}</span>
+                  <span>${yLowerMid.toLocaleString(undefined, { maximumFractionDigits: 1 })}</span>
+                  <span>${yMin.toLocaleString(undefined, { maximumFractionDigits: 1 })}</span>
+                </div>
+
+                <div className="w-full h-28 pl-14 pr-2 flex items-end">
+                  <svg viewBox="0 0 400 100" className="w-full h-full overflow-visible" preserveAspectRatio="none">
+                    <defs>
+                      <linearGradient id="chartGrad" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#10b981" stopOpacity="0.25" />
+                        <stop offset="100%" stopColor="#10b981" stopOpacity="0.0" />
+                      </linearGradient>
+                    </defs>
+                    {/* Fill Area */}
+                    <path
+                      d={`M 0,100 L ${getChartPoints()} L 400,100 Z`}
+                      fill="url(#chartGrad)"
+                    />
+                    {/* Line (Foto 3 style) */}
+                    <polyline
+                      fill="none"
+                      stroke="#10b981"
+                      strokeWidth="2.5"
+                      points={getChartPoints()}
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
+                </div>
+
+                {/* Eje X / Selector de rango de tiempo (Foto 3 style) */}
+                <div className="flex justify-center items-center gap-6 pt-3 mt-2 border-t border-gray-100 select-none">
+                  {([
+                    { key: '1D', label: '1D' },
+                    { key: '1W', label: '1S' },
+                    { key: '1M', label: '1M' },
+                    { key: '6M', label: '6M' },
+                    { key: '1Y', label: '1A' }
+                  ] as const).map(f => (
+                    <button
+                      key={f.key}
+                      type="button"
+                      onClick={() => setTimeFilter(f.key)}
+                      className={`px-3 py-0.5 text-[10px] font-extrabold transition-all uppercase ${
+                        timeFilter === f.key 
+                          ? 'bg-gray-150 text-gray-800 rounded-full shadow-3xs' 
+                          : 'text-gray-400 hover:text-gray-700'
+                      }`}
+                    >
+                      {f.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            );
+          })()}
         </div>
 
         {/* Transaction Panel (Deposit/Withdrawal) */}
@@ -766,47 +815,66 @@ export function CryptoExchangeTab() {
             </div>
           </div>
 
-          <div className="space-y-4">
-            {horizons.map((hz, idx) => (
-              <div key={hz.id} className="border-b border-gray-100 pb-3 last:border-0 last:pb-0">
-                <div className="flex justify-between items-center text-sm mb-1.5">
-                  <span className="font-bold text-primary-900 uppercase tracking-wide">{hz.horizon}</span>
-                  <span className="text-gray-500 font-medium text-xs">
-                    Balance: <strong className="text-gray-800">${hz.current_balance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USD</strong> <span className="text-gray-400 font-bold">/ ${(hz.current_balance * usdToMxn).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} MXN</span>
-                  </span>
-                </div>
-                <div className="flex items-center justify-between gap-4">
-                  <div className="relative rounded-md shadow-sm w-32 flex-shrink-0">
-                    <input
-                      type="number"
-                      min="0"
-                      max="100"
-                      step="1"
-                      value={hz.allocated_percentage}
-                      onChange={(e) => handlePercentageChange(idx, parseFloat(e.target.value) || 0)}
-                      className="block w-full rounded-md border border-gray-300 px-3 py-1.5 pr-8 text-sm focus:border-primary-500 focus:ring-primary-500 text-gray-900 font-bold"
-                    />
-                    <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3">
-                      <span className="text-gray-500 text-sm font-bold">%</span>
-                    </div>
-                  </div>
-                  {hz.suggested_percentage_ai !== null && (
-                    <div className="flex items-center gap-2 text-xs">
-                      <span className="text-gray-400">Sugerencia IA:</span>
-                      <button
-                        onClick={() => handleApplyAISuggestion(idx)}
-                        className="bg-emerald-50 hover:bg-emerald-100 border border-emerald-150 text-emerald-800 font-bold px-2 py-0.5 rounded transition-all"
-                      >
-                        ✨ {hz.suggested_percentage_ai}%
-                      </button>
-                    </div>
-                  )}
-                  <div className="text-right text-xs text-gray-450">
-                    Retorno Objetivo: <strong className="text-gray-600">+{hz.target_roi}%</strong>
-                  </div>
-                </div>
-              </div>
-            ))}
+          <div className="overflow-x-auto pt-2">
+            <table className="w-full text-left text-xs border-collapse">
+              <thead>
+                <tr className="border-b border-gray-200 text-gray-400 font-bold uppercase tracking-wider text-[10px]">
+                  <th className="pb-2">Horizonte</th>
+                  <th className="pb-2">Balance Real (USD / MXN)</th>
+                  <th className="pb-2 text-center w-24">Porcentaje</th>
+                  <th className="pb-2 text-center">Sugerencia IA</th>
+                  <th className="pb-2 text-right">Target ROI</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {horizons.map((hz, idx) => {
+                  const dynBalance = getHorizonDynamicBalance(hz.horizon, hz.current_balance);
+                  return (
+                    <tr key={hz.id} className="hover:bg-gray-50/50 transition-colors">
+                      <td className="py-2.5 font-bold text-primary-900 uppercase text-3xs tracking-wider">
+                        {hz.horizon}
+                      </td>
+                      <td className="py-2.5">
+                        <strong className="text-gray-800 text-2xs font-bold">${dynBalance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USD</strong>
+                        <span className="text-gray-400 font-medium block text-[9px] mt-0.5">≈ ${(dynBalance * usdToMxn).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} MXN</span>
+                      </td>
+                      <td className="py-2.5 text-center">
+                        <div className="relative rounded-md shadow-sm inline-flex w-16">
+                          <input
+                            type="number"
+                            min="0"
+                            max="100"
+                            step="1"
+                            value={hz.allocated_percentage}
+                            onChange={(e) => handlePercentageChange(idx, parseFloat(e.target.value) || 0)}
+                            className="block w-full rounded-md border border-gray-300 px-1 py-1 pr-5 text-center text-3xs text-gray-900 font-bold"
+                          />
+                          <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-1.5">
+                            <span className="text-gray-400 text-[9px] font-bold">%</span>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="py-2.5 text-center">
+                        {hz.suggested_percentage_ai !== null ? (
+                          <button
+                            type="button"
+                            onClick={() => handleApplyAISuggestion(idx)}
+                            className="bg-emerald-50 hover:bg-emerald-100 border border-emerald-150 text-emerald-800 font-extrabold px-1.5 py-0.5 rounded text-[9px] transition-all"
+                          >
+                            ✨ {hz.suggested_percentage_ai}%
+                          </button>
+                        ) : (
+                          <span className="text-gray-300 font-medium text-3xs">-</span>
+                        )}
+                      </td>
+                      <td className="py-2.5 text-right font-bold text-gray-500 text-[10px]">
+                        +{hz.target_roi}%
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
 
           <div className="flex justify-between items-center pt-3 border-t border-gray-100">
