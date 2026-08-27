@@ -81,6 +81,8 @@ export function CryptoExchangeTab() {
   const [isMockTriggering, setIsMockTriggering] = useState<boolean>(false);
   const [usdToMxn, setUsdToMxn] = useState<number>(17.00);
   const [timeFilter, setTimeFilter] = useState<'1D' | '1W' | '1M' | '6M' | '1Y'>('1D');
+  const [historyDateSearch, setHistoryDateSearch] = useState<string>('');
+  const [historyCurrentPage, setHistoryCurrentPage] = useState<number>(1);
   
   // Capital Transaction inputs
   const [selectedTxHorizon, setSelectedTxHorizon] = useState<string>('daily');
@@ -484,6 +486,7 @@ export function CryptoExchangeTab() {
   const totalCashCapital = horizons.reduce((acc, curr) => acc + curr.current_balance, 0);
   const realTimeTotalCapital = totalCashCapital + totalInvestmentValue;
   const netProfit = totalProfit;
+  const pendingProposals = proposals.filter(p => p.status === 'pending_auto_exec');
 
   return (
     <div className="space-y-6">
@@ -1037,14 +1040,14 @@ export function CryptoExchangeTab() {
               </tr>
             </thead>
             <tbody>
-              {proposals.length === 0 ? (
+              {pendingProposals.length === 0 ? (
                 <tr>
                   <td colSpan={9} className="py-8 text-center text-gray-400 font-medium">
                     No hay propuestas pendientes de ejecución en este momento.
                   </td>
                 </tr>
               ) : (
-                proposals.map((p) => {
+                pendingProposals.map((p) => {
                   const msLeft = new Date(p.expires_at).getTime() - Date.now();
                   const minLeft = Math.max(0, Math.round(msLeft / 60000));
                   return (
@@ -1091,71 +1094,146 @@ export function CryptoExchangeTab() {
 
       {/* Historial de Operaciones Realizadas (Foto 2 format) */}
       <div className="bg-white p-6 rounded-xl border border-gray-150 shadow-sm space-y-4">
-        <div>
-          <h2 className="text-xl font-bold text-gray-900">Historial de Operaciones</h2>
-          <p className="text-sm text-gray-500 mt-1">
-            Registro completo de compras y ventas cerradas en la cuenta de simulación con sus montos en USD y MXN.
-          </p>
+        <div className="flex flex-wrap items-center justify-between gap-4 pb-3 border-b border-gray-100">
+          <div>
+            <h2 className="text-xl font-bold text-gray-900">Historial de Operaciones</h2>
+            <p className="text-sm text-gray-500 mt-1">
+              Registro completo de compras y ventas cerradas en la cuenta de simulación con sus montos en USD y MXN.
+            </p>
+          </div>
+          
+          <div className="flex items-center gap-2">
+            <span className="text-2xs font-bold text-gray-500 uppercase tracking-wider">Filtrar por fecha:</span>
+            <input
+              type="date"
+              value={historyDateSearch}
+              onChange={(e) => {
+                setHistoryDateSearch(e.target.value);
+                setHistoryCurrentPage(1);
+              }}
+              className="rounded-lg border border-gray-300 px-3 py-1.5 text-xs text-gray-950 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 bg-white font-semibold"
+            />
+            {historyDateSearch && (
+              <button
+                type="button"
+                onClick={() => {
+                  setHistoryDateSearch('');
+                  setHistoryCurrentPage(1);
+                }}
+                className="bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-bold py-1.5 px-3 rounded-lg border border-gray-250 transition-colors shadow-3xs"
+              >
+                Limpiar
+              </button>
+            )}
+          </div>
         </div>
 
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm text-left border-collapse">
-            <thead>
-              <tr className="border-b border-gray-200 text-gray-500 font-semibold text-xs">
-                <th className="py-3 px-2">Activo</th>
-                <th className="py-3 px-2">Tipo</th>
-                <th className="py-3 px-2">Monto (USD)</th>
-                <th className="py-3 px-2">Monto (MXN)</th>
-                <th className="py-3 px-2">Precio de Ejecución</th>
-                <th className="py-3 px-2">Plazo</th>
-                <th className="py-3 px-2">Fecha</th>
-                <th className="py-3 px-2">Estatus</th>
-              </tr>
-            </thead>
-            <tbody>
-              {history.length === 0 ? (
-                <tr>
-                  <td colSpan={8} className="py-8 text-center text-gray-400 font-medium">
-                    Aún no se han ejecutado operaciones en el historial.
-                  </td>
-                </tr>
-              ) : (
-                [...history]
-                  .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
-                  .map((h) => (
-                    <tr key={h.id} className="border-b border-gray-100 hover:bg-gray-50/50 text-xs">
-                      <td className="py-3.5 px-2 font-bold text-gray-800">{h.asset}</td>
-                      <td className="py-3.5 px-2">
-                        <span className={`font-bold ${h.trade_type === 'BUY' ? 'text-emerald-600' : 'text-red-650'}`}>
-                          {h.trade_type === 'BUY' ? 'COMPRA' : 'VENTA'}
-                        </span>
-                      </td>
-                      <td className="py-3.5 px-2 font-medium text-gray-800">
-                        {h.trade_type === 'BUY' ? '-' : '+'}${h.executed_amount.toFixed(2)} USD
-                      </td>
-                      <td className="py-3.5 px-2 font-semibold text-gray-500">
-                        {h.trade_type === 'BUY' ? '-' : '+'}${(h.executed_amount * usdToMxn).toFixed(2)} MXN
-                      </td>
-                      <td className="py-3.5 px-2 font-mono text-gray-600">
-                        ${h.execution_price.toLocaleString(undefined, { minimumFractionDigits: 2 })} USD
-                      </td>
-                      <td className="py-3.5 px-2 uppercase font-semibold text-xs text-gray-400">{h.horizon}</td>
-                      <td className="py-3.5 px-2 text-gray-500">
-                        {new Date(h.created_at).toLocaleString()}
-                      </td>
-                      <td className="py-3.5 px-2">
-                        <span className={`px-2 py-0.5 rounded-full text-3xs font-bold uppercase ${
-                          h.status === 'executed' || h.status === 'simulated' ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800'
-                        }`}>
-                          {h.status}
-                        </span>
-                      </td>
+        {(() => {
+          const itemsPerPage = 10;
+          const filtered = [...history]
+            .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+            .filter(h => {
+              if (!historyDateSearch) return true;
+              const hDate = new Date(h.created_at).toISOString().split('T')[0];
+              return hDate === historyDateSearch;
+            });
+
+          const totalItems = filtered.length;
+          const totalPages = Math.ceil(totalItems / itemsPerPage) || 1;
+          const currentPage = Math.min(historyCurrentPage, totalPages);
+          const paginated = filtered.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+
+          return (
+            <div className="space-y-4">
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm text-left border-collapse">
+                  <thead>
+                    <tr className="border-b border-gray-200 text-gray-500 font-semibold text-xs">
+                      <th className="py-3 px-2">Activo</th>
+                      <th className="py-3 px-2">Tipo</th>
+                      <th className="py-3 px-2">Monto (USD)</th>
+                      <th className="py-3 px-2">Monto (MXN)</th>
+                      <th className="py-3 px-2">Precio de Ejecución</th>
+                      <th className="py-3 px-2">Plazo</th>
+                      <th className="py-3 px-2">Fecha</th>
+                      <th className="py-3 px-2">Estatus</th>
                     </tr>
-                  ))
+                  </thead>
+                  <tbody>
+                    {paginated.length === 0 ? (
+                      <tr>
+                        <td colSpan={8} className="py-8 text-center text-gray-400 font-medium">
+                          No se encontraron operaciones en el historial.
+                        </td>
+                      </tr>
+                    ) : (
+                      paginated.map((h) => (
+                        <tr key={h.id} className="border-b border-gray-100 hover:bg-gray-50/50 text-xs">
+                          <td className="py-3.5 px-2 font-bold text-gray-800">{h.asset}</td>
+                          <td className="py-3.5 px-2">
+                            <span className={`font-bold ${h.trade_type === 'BUY' ? 'text-emerald-600' : 'text-red-650'}`}>
+                              {h.trade_type === 'BUY' ? 'COMPRA' : 'VENTA'}
+                            </span>
+                          </td>
+                          <td className="py-3.5 px-2 font-medium text-gray-800">
+                            {h.trade_type === 'BUY' ? '-' : '+'}${h.executed_amount.toFixed(2)} USD
+                          </td>
+                          <td className="py-3.5 px-2 font-semibold text-gray-500">
+                            {h.trade_type === 'BUY' ? '-' : '+'}${(h.executed_amount * usdToMxn).toFixed(2)} MXN
+                          </td>
+                          <td className="py-3.5 px-2 font-mono text-gray-650">
+                            ${h.execution_price.toLocaleString(undefined, { minimumFractionDigits: 2 })} USD
+                          </td>
+                          <td className="py-3.5 px-2 uppercase font-semibold text-[10px] text-gray-400">{h.horizon}</td>
+                          <td className="py-3.5 px-2 text-gray-500">
+                            {new Date(h.created_at).toLocaleString()}
+                          </td>
+                          <td className="py-3.5 px-2">
+                            <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold uppercase ${
+                              h.status === 'executed' || h.status === 'simulated' ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800'
+                            }`}>
+                              {h.status}
+                            </span>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+
+              {totalPages > 1 && (
+                <div className="flex items-center justify-between pt-4 border-t border-gray-100">
+                  <span className="text-xs text-gray-500 font-medium">
+                    Mostrando del <strong>{((currentPage - 1) * itemsPerPage) + 1}</strong> al <strong>{Math.min(currentPage * itemsPerPage, totalItems)}</strong> de <strong>{totalItems}</strong> operaciones
+                  </span>
+                  
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      disabled={currentPage === 1}
+                      onClick={() => setHistoryCurrentPage(prev => Math.max(1, prev - 1))}
+                      className="bg-white hover:bg-gray-50 disabled:opacity-50 text-gray-700 border border-gray-250 px-3 py-1.5 rounded-lg text-xs font-bold transition-all shadow-3xs"
+                    >
+                      Anterior
+                    </button>
+                    <span className="text-xs font-bold text-gray-700 px-1 font-mono">
+                      Pág. {currentPage} de {totalPages}
+                    </span>
+                    <button
+                      type="button"
+                      disabled={currentPage === totalPages}
+                      onClick={() => setHistoryCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                      className="bg-white hover:bg-gray-50 disabled:opacity-50 text-gray-700 border border-gray-250 px-3 py-1.5 rounded-lg text-xs font-bold transition-all shadow-3xs"
+                    >
+                      Siguiente
+                    </button>
+                  </div>
+                </div>
               )}
-            </tbody>
-          </table>
-        </div>
+            </div>
+          );
+        })()}
       </div>
     </div>
   );
