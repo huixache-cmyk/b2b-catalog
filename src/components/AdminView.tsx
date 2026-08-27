@@ -18,7 +18,8 @@ import {
   FileSpreadsheet, 
   LogOut, 
   BrainCircuit,
-  Sliders
+  Sliders,
+  TrendingUp
 } from "lucide-react";
 import dynamic from "next/dynamic";
 import { supabase } from "@/lib/supabase";
@@ -34,11 +35,12 @@ const B2BAgentCRM = dynamic(() => import('./B2BAgentCRM').then(mod => mod.B2BAge
 const AdminCRM = dynamic(() => import('./admin/AdminCRM').then(mod => mod.AdminCRM), { ssr: false });
 const AdminFacturacion = dynamic(() => import('./admin/AdminFacturacion').then(mod => mod.AdminFacturacion), { ssr: false });
 const AdminDiagnostics = dynamic(() => import('./admin/AdminDiagnostics').then(mod => mod.AdminDiagnostics), { ssr: false });
+const CryptoExchangeTab = dynamic(() => import('./admin/CryptoExchangeTab').then(mod => mod.CryptoExchangeTab), { ssr: false });
 
 export function AdminView() {
   const { products, isLoaded, addProduct, updateProduct, deleteProduct } = useProducts();
   const { quotes, isLoaded: quotesLoaded, updateQuoteStatus, deleteQuote, updateQuote } = useQuotes();
-  const [activeTab, setActiveTab] = useState<'products' | 'settings' | 'suppliers' | 'home' | 'quotes' | 'agent' | 'b2b-agent' | 'promotions' | 'b2b-crm' | 'factura' | 'diagnostics'>('products');
+  const [activeTab, setActiveTab] = useState<'products' | 'settings' | 'suppliers' | 'home' | 'quotes' | 'agent' | 'b2b-agent' | 'promotions' | 'b2b-crm' | 'factura' | 'diagnostics' | 'crypto-exchange'>('products');
   const { 
     categories, 
     seasons, 
@@ -227,6 +229,7 @@ export function AdminView() {
     { id: "b2b-crm", name: "Clientes / CRM", icon: Users, color: "teal" },
     { id: "factura", name: "Facturación", icon: FileSpreadsheet, color: "cyan" },
     { id: "diagnostics", name: "Diagnósticos", icon: Sliders, color: "red" },
+    { id: "crypto-exchange", name: "Monitoreo Cripto", icon: TrendingUp, color: "violet" },
   ] as const;
 
   const colorStyles = {
@@ -374,6 +377,8 @@ export function AdminView() {
         );
       case 'diagnostics':
         return <AdminDiagnostics />;
+      case 'crypto-exchange':
+        return <CryptoExchangeTab />;
       default:
         return null;
     }
