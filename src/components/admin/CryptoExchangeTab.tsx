@@ -94,6 +94,11 @@ export function CryptoExchangeTab() {
   // Asset configurations inputs
   const [editingConfigs, setEditingConfigs] = useState<Record<string, Partial<AssetConfig>>>({});
 
+  // States for Capital Transactions and Price History
+  const [capitalTransactions, setCapitalTransactions] = useState<any[]>([]);
+  const [priceHistory, setPriceHistory] = useState<Record<string, number[]>>({});
+  const [hoveredPoint, setHoveredPoint] = useState<{ x: number; y: number; value: number; dateStr: string } | null>(null);
+
   // Nuevos estados para Modos de Operación, Backtesting y Ajustes
   const [activeControlTab, setActiveControlTab] = useState<'modes' | 'backtest' | 'optimization' | 'capital'>('modes');
   const [operationModes, setOperationModes] = useState<any[]>([]);
@@ -162,6 +167,27 @@ export function CryptoExchangeTab() {
       if (configsRes.ok) {
         const configsData = await configsRes.json();
         setAssetConfigs(configsData);
+
+        // Actualizar el historial de precios para sparklines
+        setPriceHistory(prev => {
+          const updated = { ...prev };
+          configsData.forEach((c: any) => {
+            const asset = c.asset;
+            const price = c.current_price || (asset.includes('BTC') ? 80000 : asset.includes('ETH') ? 2600 : 180);
+            const currentList = updated[asset] || [];
+            if (currentList.length === 0) {
+              const mockList = [];
+              for (let i = 0; i < 20; i++) {
+                const rand = Math.sin(i * 0.5) * (price * 0.002) + (Math.random() - 0.5) * (price * 0.0015);
+                mockList.push(price + rand);
+              }
+              updated[asset] = mockList;
+            } else {
+              updated[asset] = [...currentList, price].slice(-20);
+            }
+          });
+          return updated;
+        });
         
         // Initialize editing state if not set
         setEditingConfigs(prev => {
@@ -222,6 +248,13 @@ export function CryptoExchangeTab() {
         setAllocationHistory(allocHistoryData);
       }
 
+      // 12. Obtener transacciones de capital
+      const capTxRes = await fetch(`${API_BASE}/capital/transactions`);
+      if (capTxRes.ok) {
+        const capTxData = await capTxRes.json();
+        setCapitalTransactions(capTxData);
+      }
+
       setErrorMsg(null);
     } catch (e: any) {
       console.warn('Error al conectar con la API del bot de trading:', e.message);
@@ -230,18 +263,24 @@ export function CryptoExchangeTab() {
   };
 
   useEffect(() => {
-    fetchData();
-    const interval = setInterval(fetchData, 8000); // Refrescar cada 8 segundos
+    const fetchRate = () => {
+      fetch('https://open.er-api.com/v6/latest/USD')
+        .then(res => res.json())
+        .then(data => {
+          if (data && data.rates && data.rates.MXN) {
+            setUsdToMxn(Number(data.rates.MXN));
+          }
+        })
+        .catch(e => console.warn('Error al obtener tasa USD/MXN en tiempo real:', e.message));
+    };
 
-    // Obtener tasa de cambio en tiempo real
-    fetch('https://open.er-api.com/v6/latest/USD')
-      .then(res => res.json())
-      .then(data => {
-        if (data && data.rates && data.rates.MXN) {
-          setUsdToMxn(Number(data.rates.MXN));
-        }
-      })
-      .catch(e => console.warn('Error al obtener tasa USD/MXN en tiempo real:', e.message));
+    fetchData();
+    fetchRate();
+
+    const interval = setInterval(() => {
+      fetchData();
+      fetchRate();
+    }, 8000); // Refrescar cada 8 segundos
 
     return () => clearInterval(interval);
   }, []);
@@ -324,13 +363,15 @@ export function CryptoExchangeTab() {
       return;
     }
 
+    const targetHorizon = horizons[0]?.horizon || 'daily';
+
     setIsTxSaving(true);
     try {
       const res = await fetch(`${API_BASE}/capital/transaction`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          horizon: selectedTxHorizon,
+          horizon: targetHorizon,
           amount: amountNum,
           transactionType: txType
         })
@@ -716,50 +757,136 @@ export function CryptoExchangeTab() {
     });
   };
 
-  // Custom SVG Chart points calculation
-  const getChartPoints = () => {
-    const { totalInvestmentValue, totalProfit } = calculateCryptoBalances();
-    const totalCashCapital = horizons.reduce((acc, curr) => acc + curr.current_balance, 0);
-    const realTimeTotalCapital = totalCashCapital + totalInvestmentValue;
+  // Custom SVG Chart points calculation using chronological simulation
+  const getSampledPointsData = () => {
+    const events: { time: number; type: 'DEPOSIT' | 'WITHDRAWAL' | 'BUY' | 'SELL'; amount: number; executed_amount?: number; execution_price?: number; asset?: string }[] = [];
 
-    const filtered = filterHistoryByTime()
-      .filter(h => h.status === 'executed' || h.status === 'simulated')
-      .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
-
-    let points: number[] = [];
-    
-    if (filtered.length === 0) {
-      // Si no hay operaciones en ese periodo, generamos una curva premium representativa del balance actual
-      const base = realTimeTotalCapital || 1000;
-      for (let i = 0; i < 15; i++) {
-        const angle = (i / 14) * Math.PI * 2.5;
-        const variation = Math.sin(angle * 2.1) * (base * 0.009) + (i * base * 0.0006);
-        points.push(base - (base * 0.015) + variation);
-      }
-    } else {
-      let accum = realTimeTotalCapital - totalProfit;
-      points.push(accum);
-      filtered.forEach(h => {
-        const isProfit = h.trade_type === 'SELL';
-        const delta = isProfit ? h.executed_amount * 0.048 : -h.executed_amount * 0.015;
-        accum += delta;
-        points.push(accum);
+    capitalTransactions.forEach(tx => {
+      events.push({
+        time: new Date(tx.created_at).getTime(),
+        type: tx.transaction_type.toUpperCase() as any,
+        amount: Math.abs(Number(tx.amount))
       });
+    });
+
+    history.forEach(h => {
+      if (h.status === 'executed' || h.status === 'simulated') {
+        events.push({
+          time: new Date(h.created_at).getTime(),
+          type: h.trade_type.toUpperCase() as any,
+          amount: Number(h.executed_amount),
+          executed_amount: Number(h.executed_amount),
+          execution_price: Number(h.execution_price),
+          asset: h.asset
+        });
+      }
+    });
+
+    events.sort((a, b) => a.time - b.time);
+
+    const now = Date.now();
+    let limitMs = 24 * 60 * 60 * 1000; // 1D por defecto
+    let steps = 12;
+    if (timeFilter === '1W') { limitMs = 7 * 24 * 60 * 60 * 1000; steps = 7; }
+    else if (timeFilter === '1M') { limitMs = 30 * 24 * 60 * 60 * 1000; steps = 15; }
+    else if (timeFilter === '6M') { limitMs = 180 * 24 * 60 * 60 * 1000; steps = 6; }
+    else if (timeFilter === '1Y') { limitMs = 365 * 24 * 60 * 60 * 1000; steps = 12; }
+
+    const startTime = now - limitMs;
+    const intervalWidth = limitMs / (steps - 1);
+
+    const points: { time: number; value: number; label: string; dateStr: string }[] = [];
+
+    const getPortfolioValueAt = (targetTime: number) => {
+      let cash = 0;
+      const holdings: Record<string, number> = {};
+      const valuationPrice: Record<string, number> = {};
+
+      for (const e of events) {
+        if (e.time > targetTime) break;
+        if (e.type === 'DEPOSIT') {
+          cash += e.amount;
+        } else if (e.type === 'WITHDRAWAL') {
+          cash = Math.max(0, cash - e.amount);
+        } else if (e.type === 'BUY') {
+          const qty = e.executed_amount! / e.execution_price!;
+          cash = Math.max(0, cash - e.executed_amount!);
+          holdings[e.asset!] = (holdings[e.asset!] || 0) + qty;
+          valuationPrice[e.asset!] = e.execution_price!;
+        } else if (e.type === 'SELL') {
+          const qty = e.executed_amount! / e.execution_price!;
+          cash += e.executed_amount!;
+          holdings[e.asset!] = Math.max(0, (holdings[e.asset!] || 0) - qty);
+          valuationPrice[e.asset!] = e.execution_price!;
+        }
+      }
+
+      let cryptoValue = 0;
+      Object.keys(holdings).forEach(asset => {
+        const livePrice = (assetConfigs.find(c => c.asset === asset) as any)?.current_price || valuationPrice[asset] || (asset.includes('BTC') ? 80000 : asset.includes('ETH') ? 2600 : 180);
+        const usePrice = (targetTime >= now - 5000) ? livePrice : (valuationPrice[asset] || livePrice);
+        cryptoValue += holdings[asset] * usePrice;
+      });
+
+      return cash + cryptoValue;
+    };
+
+    for (let i = 0; i < steps; i++) {
+      const t = startTime + i * intervalWidth;
+      let val = getPortfolioValueAt(t);
+      if (val === 0) val = realTimeTotalCapital || 1000;
+
+      const date = new Date(t);
+      let label = '';
+      let dateStr = '';
+
+      if (timeFilter === '1D') {
+        label = `${date.getHours().toString().padStart(2, '0')}:00`;
+        dateStr = `Hoy ${label}`;
+      } else if (timeFilter === '1W') {
+        const days = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
+        label = days[date.getDay()];
+        dateStr = `${label} ${date.getDate()}/${date.getMonth() + 1}`;
+      } else if (timeFilter === '1M') {
+        label = `${date.getDate()} ${['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'][date.getMonth()]}`;
+        dateStr = label;
+      } else {
+        label = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'][date.getMonth()];
+        dateStr = `${label} ${date.getFullYear()}`;
+      }
+
+      points.push({ time: t, value: val, label, dateStr });
     }
 
-    const min = Math.min(...points);
-    const max = Math.max(...points);
+    return points;
+  };
+
+  const getChartData = () => {
+    const points = getSampledPointsData();
+    const values = points.map(p => p.value);
+    const min = Math.min(...values);
+    const max = Math.max(...values);
     const range = max - min || 1;
-    
+
     const width = 400;
     const height = 100;
     const step = width / (points.length - 1);
-    
-    return points.map((val, idx) => {
+
+    const pointsWithCoords = points.map((p, idx) => {
       const x = idx * step;
-      const y = height - ((val - min) / range) * (height - 20) - 10;
-      return `${x.toFixed(1)},${y.toFixed(1)}`;
-    }).join(' ');
+      const y = height - ((p.value - min) / range) * (height - 20) - 10;
+      return { ...p, x, y };
+    });
+
+    const polylinePoints = pointsWithCoords.map(p => `${p.x.toFixed(1)},dots`).join(' '); // Wait, let's keep exact interpolation
+    return {
+      points: pointsWithCoords,
+      polylinePoints: pointsWithCoords.map(p => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' '),
+      min,
+      max,
+      yMax: max,
+      yMin: min
+    };
   };
 
   // Calculate Net Profit
@@ -864,14 +991,37 @@ export function CryptoExchangeTab() {
           </div>
 
           {(() => {
-            const yMax = netProfit !== 0 ? (realTimeTotalCapital + Math.abs(netProfit) * 0.15) : (realTimeTotalCapital * 1.005);
-            const yMin = netProfit !== 0 ? Math.max(0, realTimeTotalCapital - Math.abs(netProfit) * 0.15) : (realTimeTotalCapital * 0.995);
+            const { points: pointsWithCoords, polylinePoints, yMax, yMin } = getChartData();
             const yMid = (yMax + yMin) / 2;
             const yUpperMid = yMax - (yMax - yMin) * 0.25;
             const yLowerMid = yMax - (yMax - yMin) * 0.75;
 
+            const handleMouseMove = (e: React.MouseEvent<SVGSVGElement>) => {
+              const rect = e.currentTarget.getBoundingClientRect();
+              const clientX = e.clientX - rect.left;
+              const clientY = e.clientY - rect.top;
+              
+              const xSvg = (clientX / rect.width) * 400;
+              
+              let closest = pointsWithCoords[0];
+              let minDistance = Math.abs(pointsWithCoords[0].x - xSvg);
+              
+              for (let i = 1; i < pointsWithCoords.length; i++) {
+                const dist = Math.abs(pointsWithCoords[i].x - xSvg);
+                if (dist < minDistance) {
+                  minDistance = dist;
+                  closest = pointsWithCoords[i];
+                }
+              }
+              setHoveredPoint(closest);
+            };
+
+            const handleMouseLeave = () => {
+              setHoveredPoint(null);
+            };
+
             return (
-              <div className="bg-gradient-to-b from-emerald-50/5 to-white border border-gray-150 rounded-xl p-4 relative flex flex-col justify-between">
+              <div className="bg-white border border-gray-150 rounded-xl p-4 relative flex flex-col justify-between">
                 {/* Eje Y: Dinámico (Foto 3 format) */}
                 <div className="absolute left-3 top-4 bottom-14 flex flex-col justify-between text-[9px] font-bold font-mono text-gray-400 select-none pointer-events-none z-10 border-r border-gray-100 pr-2">
                   <span>${yMax.toLocaleString(undefined, { maximumFractionDigits: 1 })}</span>
@@ -881,53 +1031,115 @@ export function CryptoExchangeTab() {
                   <span>${yMin.toLocaleString(undefined, { maximumFractionDigits: 1 })}</span>
                 </div>
 
-                <div className="w-full h-28 pl-14 pr-2 flex items-end">
-                  <svg viewBox="0 0 400 100" className="w-full h-full overflow-visible" preserveAspectRatio="none">
-                    <defs>
-                      <linearGradient id="chartGrad" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="#10b981" stopOpacity="0.25" />
-                        <stop offset="100%" stopColor="#10b981" stopOpacity="0.0" />
-                      </linearGradient>
-                    </defs>
-                    {/* Fill Area */}
-                    <path
-                      d={`M 0,100 L ${getChartPoints()} L 400,100 Z`}
-                      fill="url(#chartGrad)"
-                    />
-                    {/* Line (Foto 3 style) */}
+                <div className="w-full h-28 pl-14 pr-2 flex items-end relative">
+                  <svg 
+                    viewBox="0 0 400 100" 
+                    className="w-full h-full overflow-visible cursor-crosshair" 
+                    preserveAspectRatio="none"
+                    onMouseMove={handleMouseMove}
+                    onMouseLeave={handleMouseLeave}
+                  >
+                    {/* Grid horizontal lines */}
+                    <line x1="0" y1="10" x2="400" y2="10" stroke="#f3f4f6" strokeWidth="1" />
+                    <line x1="0" y1="30" x2="400" y2="30" stroke="#f3f4f6" strokeWidth="1" />
+                    <line x1="0" y1="50" x2="400" y2="50" stroke="#f3f4f6" strokeWidth="1" />
+                    <line x1="0" y1="70" x2="400" y2="70" stroke="#f3f4f6" strokeWidth="1" />
+                    <line x1="0" y1="90" x2="400" y2="90" stroke="#f3f4f6" strokeWidth="1" />
+
+                    {/* Interactive Crosshair (intersecting lines) */}
+                    {hoveredPoint && (
+                      <>
+                        <line 
+                          x1={hoveredPoint.x} 
+                          y1={0} 
+                          x2={hoveredPoint.x} 
+                          y2={100} 
+                          stroke="#9ca3af" 
+                          strokeWidth="0.8" 
+                          strokeDasharray="2,2" 
+                        />
+                        <line 
+                          x1={0} 
+                          y1={hoveredPoint.y} 
+                          x2={400} 
+                          y2={hoveredPoint.y} 
+                          stroke="#9ca3af" 
+                          strokeWidth="0.8" 
+                          strokeDasharray="2,2" 
+                        />
+                        <circle 
+                          cx={hoveredPoint.x} 
+                          cy={hoveredPoint.y} 
+                          r="4.5" 
+                          fill="#10b981" 
+                          stroke="#ffffff" 
+                          strokeWidth="1.5" 
+                          className="shadow-sm"
+                        />
+                      </>
+                    )}
+
+                    {/* Line (Foto 3 style, solid color, no gradient) */}
                     <polyline
                       fill="none"
                       stroke="#10b981"
-                      strokeWidth="2.5"
-                      points={getChartPoints()}
+                      strokeWidth="2.2"
+                      points={polylinePoints}
                       strokeLinecap="round"
                       strokeLinejoin="round"
                     />
                   </svg>
+
+                  {/* Hover Floating Tooltip */}
+                  {hoveredPoint && (
+                    <div 
+                      className="absolute bg-gray-900/95 text-white p-2 rounded-lg text-[9px] shadow-lg border border-gray-800 flex flex-col gap-0.5 z-20 pointer-events-none transition-all duration-75"
+                      style={{
+                        left: `calc(${(hoveredPoint.x / 400) * 100}% - 40px)`,
+                        top: `${hoveredPoint.y - 45}px`
+                      }}
+                    >
+                      <span className="font-bold text-gray-400 font-sans">${hoveredPoint.dateStr}</span>
+                      <span className="font-black text-emerald-400 font-mono">$${hoveredPoint.value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USD</span>
+                    </div>
+                  )}
                 </div>
 
-                {/* Eje X / Selector de rango de tiempo (Foto 3 style) */}
-                <div className="flex justify-center items-center gap-6 pt-3 mt-2 border-t border-gray-100 select-none">
-                  {([
-                    { key: '1D', label: '1D' },
-                    { key: '1W', label: '1S' },
-                    { key: '1M', label: '1M' },
-                    { key: '6M', label: '6M' },
-                    { key: '1Y', label: '1A' }
-                  ] as const).map(f => (
-                    <button
-                      key={f.key}
-                      type="button"
-                      onClick={() => setTimeFilter(f.key)}
-                      className={`px-3 py-0.5 text-[10px] font-extrabold transition-all uppercase ${
-                        timeFilter === f.key 
-                          ? 'bg-gray-150 text-gray-800 rounded-full shadow-3xs' 
-                          : 'text-gray-400 hover:text-gray-700'
-                      }`}
-                    >
-                      {f.label}
-                    </button>
-                  ))}
+                {/* Eje X y Selector de rango de tiempo (Foto 3 style) */}
+                <div className="flex justify-between items-center pt-3 mt-2 border-t border-gray-100 select-none px-2">
+                  {/* Labels del Eje X */}
+                  <div className="flex justify-between items-center text-[8px] text-gray-400 font-bold font-mono pl-12 flex-grow pr-8">
+                    {pointsWithCoords.map((p, i) => {
+                      const shouldShow = timeFilter === '1D' ? (i % 2 === 0) :
+                                         timeFilter === '1W' ? true :
+                                         timeFilter === '1M' ? (i % 3 === 0) : true;
+                      return shouldShow ? <span key={i}>${p.label}</span> : null;
+                    })}
+                  </div>
+
+                  {/* Selector de Rango */}
+                  <div className="flex items-center gap-1.5 border border-gray-100 bg-gray-50/70 p-0.5 rounded-full">
+                    {([
+                      { key: '1D', label: '1D' },
+                      { key: '1W', label: '1S' },
+                      { key: '1M', label: '1M' },
+                      { key: '6M', label: '6M' },
+                      { key: '1Y', label: '1A' }
+                    ] as const).map(f => (
+                      <button
+                        key={f.key}
+                        type="button"
+                        onClick={() => setTimeFilter(f.key)}
+                        className={`px-2.5 py-0.5 text-[9px] font-black transition-all uppercase rounded-full ${
+                          timeFilter === f.key 
+                            ? 'bg-white text-gray-800 shadow-3xs' 
+                            : 'text-gray-400 hover:text-gray-650'
+                        }`}
+                      >
+                        {f.label}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               </div>
             );
@@ -938,24 +1150,10 @@ export function CryptoExchangeTab() {
         <div className="bg-white p-6 rounded-xl border border-gray-150 shadow-sm space-y-4">
           <div>
             <h2 className="text-lg font-bold text-gray-900">Modificar Capital</h2>
-            <p className="text-xs text-gray-500 mt-0.5">Ingresa o retira fondos de cualquier horizonte de inversión.</p>
+            <p className="text-xs text-gray-500 mt-0.5">Ingresa o retira fondos del capital de simulación.</p>
           </div>
 
           <form onSubmit={handleCapitalTx} className="space-y-3.5">
-            <div>
-              <label className="block text-2xs font-bold text-gray-500 uppercase mb-1">Plazo / Horizonte</label>
-              <select
-                value={selectedTxHorizon}
-                onChange={(e) => setSelectedTxHorizon(e.target.value)}
-                className="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 bg-white"
-              >
-                {horizons.map(h => (
-                  <option key={h.id} value={h.horizon}>
-                    {h.horizon.toUpperCase()} (${h.current_balance.toFixed(0)} USD / ${(h.current_balance * usdToMxn).toFixed(0)} MXN)
-                  </option>
-                ))}
-              </select>
-            </div>
 
             <div>
               <label className="block text-2xs font-bold text-gray-500 uppercase mb-1">Monto (USD)</label>
@@ -1054,6 +1252,38 @@ export function CryptoExchangeTab() {
                       <p className="text-3xs text-gray-455 mt-0.5">
                         ≈ ${(b.valueUsd * usdToMxn).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} MXN
                       </p>
+                      {/* Mini Sparkline Chart */}
+                      {(() => {
+                        const historyList = priceHistory[key] || [];
+                        if (historyList.length === 0) return null;
+                        const minP = Math.min(...historyList);
+                        const maxP = Math.max(...historyList);
+                        const rP = maxP - minP || 1;
+                        const wS = 80;
+                        const hS = 18;
+                        const stepS = wS / (historyList.length - 1);
+                        const pointsS = historyList.map((val, idx) => {
+                          const x = idx * stepS;
+                          const y = hS - ((val - minP) / rP) * (hS - 4) - 2;
+                          return `${x.toFixed(1)},${y.toFixed(1)}`;
+                        }).join(' ');
+                        const isUp = historyList[historyList.length - 1] >= historyList[0];
+                        return (
+                          <div className="flex justify-end py-1">
+                            <svg width={wS} height={hS} className="overflow-visible">
+                              <polyline
+                                fill="none"
+                                stroke={isUp ? '#10b981' : '#ef4444'}
+                                strokeWidth="1.5"
+                                points={pointsS}
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                              />
+                            </svg>
+                          </div>
+                        );
+                      })()}
+
                       {b.coins > 0 && (
                         <p className={`text-3xs font-bold mt-0.5 ${b.profitUsd >= 0 ? 'text-emerald-600' : 'text-red-655'}`}>
                           {b.profitUsd >= 0 ? '▲ +' : '▼ '}${b.profitUsd.toFixed(2)} USD
