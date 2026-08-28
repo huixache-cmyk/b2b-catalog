@@ -761,6 +761,34 @@ export function CryptoExchangeTab() {
   const getSampledPointsData = () => {
     const events: { time: number; type: 'DEPOSIT' | 'WITHDRAWAL' | 'BUY' | 'SELL'; amount: number; executed_amount?: number; execution_price?: number; asset?: string }[] = [];
 
+    // Calcular capital pre-existente antes de las transacciones registradas
+    let sumOfDeposits = 0;
+    capitalTransactions.forEach(tx => {
+      const amt = Math.abs(Number(tx.amount));
+      sumOfDeposits += (tx.transaction_type === 'deposit' ? amt : -amt);
+    });
+
+    const now = Date.now();
+    let limitMs = 24 * 60 * 60 * 1000; // 1D por defecto
+    let steps = 12;
+    if (timeFilter === '1W') { limitMs = 7 * 24 * 60 * 60 * 1000; steps = 7; }
+    else if (timeFilter === '1M') { limitMs = 30 * 24 * 60 * 60 * 1000; steps = 15; }
+    else if (timeFilter === '6M') { limitMs = 180 * 24 * 60 * 60 * 1000; steps = 6; }
+    else if (timeFilter === '1Y') { limitMs = 365 * 24 * 60 * 60 * 1000; steps = 12; }
+
+    const startTime = now - limitMs;
+
+    const preExistingCapital = (realTimeTotalCapital - netProfit) - sumOfDeposits;
+    const initialDepositTime = history.length > 0
+      ? Math.min(...history.map(h => new Date(h.created_at).getTime())) - 24 * 60 * 60 * 1000
+      : startTime - 24 * 60 * 60 * 1000;
+    
+    events.push({
+      time: initialDepositTime,
+      type: 'DEPOSIT',
+      amount: Math.max(0, preExistingCapital)
+    });
+
     capitalTransactions.forEach(tx => {
       events.push({
         time: new Date(tx.created_at).getTime(),
@@ -784,15 +812,6 @@ export function CryptoExchangeTab() {
 
     events.sort((a, b) => a.time - b.time);
 
-    const now = Date.now();
-    let limitMs = 24 * 60 * 60 * 1000; // 1D por defecto
-    let steps = 12;
-    if (timeFilter === '1W') { limitMs = 7 * 24 * 60 * 60 * 1000; steps = 7; }
-    else if (timeFilter === '1M') { limitMs = 30 * 24 * 60 * 60 * 1000; steps = 15; }
-    else if (timeFilter === '6M') { limitMs = 180 * 24 * 60 * 60 * 1000; steps = 6; }
-    else if (timeFilter === '1Y') { limitMs = 365 * 24 * 60 * 60 * 1000; steps = 12; }
-
-    const startTime = now - limitMs;
     const intervalWidth = limitMs / (steps - 1);
 
     const points: { time: number; value: number; label: string; dateStr: string }[] = [];
@@ -833,8 +852,7 @@ export function CryptoExchangeTab() {
 
     for (let i = 0; i < steps; i++) {
       const t = startTime + i * intervalWidth;
-      let val = getPortfolioValueAt(t);
-      if (val === 0) val = realTimeTotalCapital || 1000;
+      const val = getPortfolioValueAt(t);
 
       const date = new Date(t);
       let label = '';
@@ -859,9 +877,7 @@ export function CryptoExchangeTab() {
     }
 
     return points;
-  };
-
-  const getChartData = () => {
+  };  const getChartData = () => {
     const points = getSampledPointsData();
     const values = points.map(p => p.value);
     const min = Math.min(...values);
@@ -971,12 +987,38 @@ export function CryptoExchangeTab() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Metric SVG Chart */}
         <div className="bg-white p-6 rounded-xl border border-gray-150 shadow-sm col-span-2 space-y-4">
-          <div className="flex justify-between items-center pb-2 border-b border-gray-100">
-            <div>
-              <h2 className="text-base font-bold text-gray-900 flex items-center gap-1.5">
-                <TrendingUp className="w-4 h-4 text-emerald-500" /> Rendimiento Acumulado Cripto
-              </h2>
-              <p className="text-2xs text-gray-400 mt-0.5">Ganancias y pérdidas del portafolio en tiempo real.</p>
+          <div className="flex justify-between items-center pb-2 border-b border-gray-100 flex-wrap gap-3">
+            <div className="flex items-center gap-4 flex-wrap">
+              <div>
+                <h2 className="text-base font-bold text-gray-900 flex items-center gap-1.5">
+                  <TrendingUp className="w-4 h-4 text-emerald-500" /> Rendimiento Acumulado Cripto
+                </h2>
+                <p className="text-2xs text-gray-400 mt-0.5">Ganancias y pérdidas del portafolio en tiempo real.</p>
+              </div>
+
+              {/* Selector de Rango (Moved to header) */}
+              <div className="flex items-center gap-1 border border-gray-100 bg-gray-50/70 p-0.5 rounded-full select-none">
+                {([
+                  { key: '1D', label: '1D' },
+                  { key: '1W', label: '1S' },
+                  { key: '1M', label: '1M' },
+                  { key: '6M', label: '6M' },
+                  { key: '1Y', label: '1A' }
+                ] as const).map(f => (
+                  <button
+                    key={f.key}
+                    type="button"
+                    onClick={() => setTimeFilter(f.key)}
+                    className={`px-2.5 py-0.5 text-[9px] font-black transition-all uppercase rounded-full ${
+                      timeFilter === f.key 
+                        ? 'bg-white text-gray-800 shadow-3xs' 
+                        : 'text-gray-400 hover:text-gray-650'
+                    }`}
+                  >
+                    {f.label}
+                  </button>
+                ))}
+              </div>
             </div>
             
             <div className="text-right">
@@ -1099,46 +1141,22 @@ export function CryptoExchangeTab() {
                         top: `${hoveredPoint.y - 45}px`
                       }}
                     >
-                      <span className="font-bold text-gray-400 font-sans">${hoveredPoint.dateStr}</span>
-                      <span className="font-black text-emerald-400 font-mono">$${hoveredPoint.value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USD</span>
+                      <span className="font-bold text-gray-400 font-sans">{hoveredPoint.dateStr}</span>
+                      <span className="font-black text-emerald-400 font-mono">${hoveredPoint.value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USD</span>
                     </div>
                   )}
                 </div>
 
-                {/* Eje X y Selector de rango de tiempo (Foto 3 style) */}
+                {/* Eje X (Only labels at the bottom, Selector moved to header) */}
                 <div className="flex justify-between items-center pt-3 mt-2 border-t border-gray-100 select-none px-2">
                   {/* Labels del Eje X */}
-                  <div className="flex justify-between items-center text-[8px] text-gray-400 font-bold font-mono pl-12 flex-grow pr-8">
+                  <div className="flex justify-between items-center text-[8px] text-gray-400 font-bold font-mono pl-12 flex-grow pr-4">
                     {pointsWithCoords.map((p, i) => {
                       const shouldShow = timeFilter === '1D' ? (i % 2 === 0) :
                                          timeFilter === '1W' ? true :
                                          timeFilter === '1M' ? (i % 3 === 0) : true;
-                      return shouldShow ? <span key={i}>${p.label}</span> : null;
+                      return shouldShow ? <span key={i}>{p.label}</span> : null;
                     })}
-                  </div>
-
-                  {/* Selector de Rango */}
-                  <div className="flex items-center gap-1.5 border border-gray-100 bg-gray-50/70 p-0.5 rounded-full">
-                    {([
-                      { key: '1D', label: '1D' },
-                      { key: '1W', label: '1S' },
-                      { key: '1M', label: '1M' },
-                      { key: '6M', label: '6M' },
-                      { key: '1Y', label: '1A' }
-                    ] as const).map(f => (
-                      <button
-                        key={f.key}
-                        type="button"
-                        onClick={() => setTimeFilter(f.key)}
-                        className={`px-2.5 py-0.5 text-[9px] font-black transition-all uppercase rounded-full ${
-                          timeFilter === f.key 
-                            ? 'bg-white text-gray-800 shadow-3xs' 
-                            : 'text-gray-400 hover:text-gray-650'
-                        }`}
-                      >
-                        {f.label}
-                      </button>
-                    ))}
                   </div>
                 </div>
               </div>
@@ -1243,6 +1261,37 @@ export function CryptoExchangeTab() {
                         <p className="text-3xs text-gray-455 font-mono mt-0.5">
                           {b.coins.toFixed(6)} {key.split('/')[0]}
                         </p>
+                        {/* Mini Sparkline Chart */}
+                        {(() => {
+                          const historyList = priceHistory[key] || [];
+                          if (historyList.length === 0) return null;
+                          const minP = Math.min(...historyList);
+                          const maxP = Math.max(...historyList);
+                          const rP = maxP - minP || 1;
+                          const wS = 80;
+                          const hS = 18;
+                          const stepS = wS / (historyList.length - 1);
+                          const pointsS = historyList.map((val, idx) => {
+                            const x = idx * stepS;
+                            const y = hS - ((val - minP) / rP) * (hS - 4) - 2;
+                            return `${x.toFixed(1)},${y.toFixed(1)}`;
+                          }).join(' ');
+                          const isUp = historyList[historyList.length - 1] >= historyList[0];
+                          return (
+                            <div className="flex justify-start py-1">
+                              <svg width={wS} height={hS} className="overflow-visible">
+                                <polyline
+                                  fill="none"
+                                  stroke={isUp ? '#10b981' : '#ef4444'}
+                                  strokeWidth="1.5"
+                                  points={pointsS}
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                />
+                              </svg>
+                            </div>
+                          );
+                        })()}
                       </div>
                     </div>
                     <div className="text-right">
@@ -1252,38 +1301,6 @@ export function CryptoExchangeTab() {
                       <p className="text-3xs text-gray-455 mt-0.5">
                         ≈ ${(b.valueUsd * usdToMxn).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} MXN
                       </p>
-                      {/* Mini Sparkline Chart */}
-                      {(() => {
-                        const historyList = priceHistory[key] || [];
-                        if (historyList.length === 0) return null;
-                        const minP = Math.min(...historyList);
-                        const maxP = Math.max(...historyList);
-                        const rP = maxP - minP || 1;
-                        const wS = 80;
-                        const hS = 18;
-                        const stepS = wS / (historyList.length - 1);
-                        const pointsS = historyList.map((val, idx) => {
-                          const x = idx * stepS;
-                          const y = hS - ((val - minP) / rP) * (hS - 4) - 2;
-                          return `${x.toFixed(1)},${y.toFixed(1)}`;
-                        }).join(' ');
-                        const isUp = historyList[historyList.length - 1] >= historyList[0];
-                        return (
-                          <div className="flex justify-end py-1">
-                            <svg width={wS} height={hS} className="overflow-visible">
-                              <polyline
-                                fill="none"
-                                stroke={isUp ? '#10b981' : '#ef4444'}
-                                strokeWidth="1.5"
-                                points={pointsS}
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                              />
-                            </svg>
-                          </div>
-                        );
-                      })()}
-
                       {b.coins > 0 && (
                         <p className={`text-3xs font-bold mt-0.5 ${b.profitUsd >= 0 ? 'text-emerald-600' : 'text-red-655'}`}>
                           {b.profitUsd >= 0 ? '▲ +' : '▼ '}${b.profitUsd.toFixed(2)} USD
