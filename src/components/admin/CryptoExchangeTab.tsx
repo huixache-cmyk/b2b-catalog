@@ -945,51 +945,17 @@ export function CryptoExchangeTab() {
           <MessageSquare className={`w-6 h-6 ${whatsappStatus === 'connected' ? 'text-emerald-500' : 'text-amber-500'}`} />
         </div>
 
-        <div className="bg-white p-4 rounded-xl border border-gray-150 shadow-sm flex flex-col justify-between h-full min-h-[82px]">
-          <div className="text-[10px] font-bold text-gray-450 uppercase tracking-wider flex items-center gap-0.5 select-none mb-1">
-            Tasa de conversión
-            <span className="text-[11px] font-extrabold text-gray-400 leading-none ml-0.5">›</span>
+        <div className="bg-white p-4 rounded-xl border border-gray-150 shadow-sm flex items-center justify-between">
+          <div>
+            <p className="text-3xs font-bold text-gray-400 uppercase tracking-wider">Tasa de conversión</p>
+            <h3 className="text-xs font-bold text-gray-800 mt-1">
+              💵 ${usdToMxn.toFixed(3)} MXN
+            </h3>
+            <p className="text-[9px] font-bold text-gray-400 mt-0.5">
+              C: ${(usdToMxn + 0.0015).toFixed(3)} | V: ${(usdToMxn - 0.0015).toFixed(3)}
+            </p>
           </div>
-          
-          <div className="flex items-center justify-between mt-2">
-            {/* Left: Flags & Pair & Variation */}
-            <div className="flex flex-col gap-1.5">
-              <div className="flex items-center gap-1.5 select-none">
-                <div className="flex -space-x-1 flex-shrink-0">
-                  {/* Mexico flag circle */}
-                  <div className="w-3.5 h-3.5 rounded-full overflow-hidden border border-gray-200 flex">
-                    <div className="w-1/3 bg-emerald-600 h-full" />
-                    <div className="w-1/3 bg-white h-full" />
-                    <div className="w-1/3 bg-red-500 h-full" />
-                  </div>
-                  {/* USA flag circle */}
-                  <div className="w-3.5 h-3.5 rounded-full overflow-hidden border border-gray-200 relative flex flex-col">
-                    <div className="w-full h-1/2 bg-red-500" />
-                    <div className="w-full h-1/2 bg-white" />
-                    <div className="absolute top-0 left-0 w-1/2 h-1/2 bg-blue-800" />
-                  </div>
-                </div>
-                <span className="text-[10px] font-black text-gray-500 font-sans tracking-tight">USDc/MXN</span>
-              </div>
-              <div>
-                <span className={`text-[9px] font-black flex items-center gap-0.5 leading-none ${usdChangePercent >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>
-                  {usdChangePercent >= 0 ? '↗' : '↘'} {Math.abs(usdChangePercent).toFixed(2)}%
-                </span>
-              </div>
-            </div>
-
-            {/* Right: Compra & Venta rates stacked */}
-            <div className="flex items-center gap-3.5 pr-1">
-              <div className="text-right">
-                <p className="text-xs font-black text-gray-900 leading-none">${(usdToMxn + 0.0015).toFixed(3)}</p>
-                <p className="text-[8px] font-bold text-gray-400 mt-1 uppercase tracking-wider">Compra</p>
-              </div>
-              <div className="text-right">
-                <p className="text-xs font-black text-gray-900 leading-none">${(usdToMxn - 0.0015).toFixed(3)}</p>
-                <p className="text-[8px] font-bold text-gray-400 mt-1 uppercase tracking-wider">Venta</p>
-              </div>
-            </div>
-          </div>
+          <TrendingUp className={`w-6 h-6 ${usdChangePercent >= 0 ? 'text-emerald-500' : 'text-red-500'}`} />
         </div>
 
         <div className="bg-white p-4 rounded-xl border border-gray-150 shadow-sm flex items-center justify-between">
