@@ -945,56 +945,49 @@ export function CryptoExchangeTab() {
           <MessageSquare className={`w-6 h-6 ${whatsappStatus === 'connected' ? 'text-emerald-500' : 'text-amber-500'}`} />
         </div>
 
-        <div className="bg-white p-3 rounded-xl border border-gray-150 shadow-sm flex flex-col justify-between h-full min-h-[82px]">
+        <div className="bg-white p-4 rounded-xl border border-gray-150 shadow-sm flex flex-col justify-between h-full min-h-[82px]">
           <div className="text-[10px] font-bold text-gray-450 uppercase tracking-wider flex items-center gap-0.5 select-none mb-1">
             Tasa de conversión
             <span className="text-[11px] font-extrabold text-gray-400 leading-none ml-0.5">›</span>
           </div>
           
-          <div className="grid grid-cols-3 gap-x-1 items-center">
-            {/* Col 1: Flags & Pair */}
-            <div className="flex items-center gap-1 select-none pr-1">
-              <div className="relative w-5 h-3.5 flex items-center flex-shrink-0">
-                <span className="text-[10px] absolute left-0 z-10 filter drop-shadow-3xs">🇲🇽</span>
-                <span className="text-[10px] absolute left-1.5 top-0.2 filter drop-shadow-3xs">🇺🇸</span>
+          <div className="flex items-center justify-between mt-2">
+            {/* Left: Flags & Pair & Variation */}
+            <div className="flex flex-col gap-1.5">
+              <div className="flex items-center gap-1.5 select-none">
+                <div className="flex -space-x-1 flex-shrink-0">
+                  {/* Mexico flag circle */}
+                  <div className="w-3.5 h-3.5 rounded-full overflow-hidden border border-gray-200 flex">
+                    <div className="w-1/3 bg-emerald-600 h-full" />
+                    <div className="w-1/3 bg-white h-full" />
+                    <div className="w-1/3 bg-red-500 h-full" />
+                  </div>
+                  {/* USA flag circle */}
+                  <div className="w-3.5 h-3.5 rounded-full overflow-hidden border border-gray-200 relative flex flex-col">
+                    <div className="w-full h-1/2 bg-red-500" />
+                    <div className="w-full h-1/2 bg-white" />
+                    <div className="absolute top-0 left-0 w-1/2 h-1/2 bg-blue-800" />
+                  </div>
+                </div>
+                <span className="text-[10px] font-black text-gray-500 font-sans tracking-tight">USDc/MXN</span>
               </div>
-              <span className="text-[9px] font-black text-gray-400 font-sans tracking-tight ml-2">USDc/MXN</span>
-            </div>
-            
-            {/* Col 2: Compra */}
-            <div className="text-center">
-              <p className="text-[11px] font-black text-gray-900 leading-none">${(usdToMxn + 0.0015).toFixed(3)}</p>
-            </div>
-
-            {/* Col 3: Venta */}
-            <div className="text-center">
-              <p className="text-[11px] font-black text-gray-900 leading-none">${(usdToMxn - 0.0015).toFixed(3)}</p>
-            </div>
-            
-            {/* Row 2 Col 1: Variation */}
-            <div className="mt-1 flex items-center">
-              <span className={`text-[9px] font-black flex items-center gap-0.2 leading-none ${usdChangePercent >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>
-                {usdChangePercent >= 0 ? '↗' : '↘'}{Math.abs(usdChangePercent).toFixed(2)}%
-              </span>
-            </div>
-            
-            {/* Row 2 Col 2: Label Compra */}
-            <div className="text-center mt-1">
-              <p className="text-[8px] font-bold text-gray-400 leading-none uppercase tracking-tight">Compra</p>
+              <div>
+                <span className={`text-[9px] font-black flex items-center gap-0.5 leading-none ${usdChangePercent >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>
+                  {usdChangePercent >= 0 ? '↗' : '↘'} {Math.abs(usdChangePercent).toFixed(2)}%
+                </span>
+              </div>
             </div>
 
-            {/* Row 2 Col 3: Label Venta */}
-            <div className="text-center mt-1">
-              <p className="text-[8px] font-bold text-gray-400 leading-none uppercase tracking-tight">Venta</p>
-            </div>
-          </div>
-          
-          {/* Carousel dots indicator */}
-          <div className="flex justify-end select-none pr-1 mt-1">
-            <div className="flex gap-1 items-center">
-              <span className="w-2.5 h-1 rounded-full bg-gray-500 transition-colors"></span>
-              <span className="w-1 h-1 rounded-full bg-gray-200 transition-colors"></span>
-              <span className="w-1 h-1 rounded-full bg-gray-200 transition-colors"></span>
+            {/* Right: Compra & Venta rates stacked */}
+            <div className="flex items-center gap-3.5 pr-1">
+              <div className="text-right">
+                <p className="text-xs font-black text-gray-900 leading-none">${(usdToMxn + 0.0015).toFixed(3)}</p>
+                <p className="text-[8px] font-bold text-gray-400 mt-1 uppercase tracking-wider">Compra</p>
+              </div>
+              <div className="text-right">
+                <p className="text-xs font-black text-gray-900 leading-none">${(usdToMxn - 0.0015).toFixed(3)}</p>
+                <p className="text-[8px] font-bold text-gray-400 mt-1 uppercase tracking-wider">Venta</p>
+              </div>
             </div>
           </div>
         </div>
@@ -1160,6 +1153,33 @@ export function CryptoExchangeTab() {
                       strokeLinecap="round"
                       strokeLinejoin="round"
                     />
+
+                    {/* Pulsing Dot at current time (last point) */}
+                    {pointsWithCoords && pointsWithCoords.length > 0 && (() => {
+                      const lastPt = pointsWithCoords[pointsWithCoords.length - 1];
+                      return (
+                        <>
+                          <circle
+                            cx={lastPt.x}
+                            cy={lastPt.y}
+                            r="3"
+                            fill="#10b981"
+                            stroke="#ffffff"
+                            strokeWidth="1"
+                          />
+                          <circle
+                            cx={lastPt.x}
+                            cy={lastPt.y}
+                            r="3"
+                            fill="#10b981"
+                            opacity="0.4"
+                          >
+                            <animate attributeName="r" values="3;9;3" dur="2s" repeatCount="indefinite" />
+                            <animate attributeName="opacity" values="0.6;0;0.6" dur="2s" repeatCount="indefinite" />
+                          </circle>
+                        </>
+                      );
+                    })()}
                   </svg>
 
                   {/* Hover Floating Tooltip */}
