@@ -915,48 +915,86 @@ export function CryptoExchangeTab() {
 
       {/* Info Status Cards */}
       <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-        <div className="bg-white p-4 rounded-xl border border-gray-150 shadow-sm flex flex-col justify-between">
-          <div className="text-[10px] font-bold text-gray-450 uppercase tracking-wider mb-1.5 flex items-center gap-0.5 select-none">
+        <div className="bg-white p-4 rounded-xl border border-gray-150 shadow-sm flex items-center justify-between">
+          <div>
+            <p className="text-3xs font-bold text-gray-400 uppercase tracking-wider">Estado General</p>
+            <h3 className="text-xs font-bold text-gray-800 mt-1">
+              {botActive ? '🟢 Monitoreo Activo' : '🔴 Bot Inactivo'}
+            </h3>
+          </div>
+          <Activity className={`w-6 h-6 ${botActive ? 'text-emerald-500 animate-pulse' : 'text-gray-400'}`} />
+        </div>
+
+        <div className="bg-white p-4 rounded-xl border border-gray-150 shadow-sm flex items-center justify-between">
+          <div>
+            <p className="text-3xs font-bold text-gray-400 uppercase tracking-wider">Modo de Operación</p>
+            <h3 className="text-xs font-bold text-gray-800 mt-1 capitalize">
+              {exchangeMode === 'simulation' ? '⚡ Simulación / Sandbox' : '💰 Real en Vivo'}
+            </h3>
+          </div>
+          <Coins className="w-6 h-6 text-amber-500" />
+        </div>
+
+        <div className="bg-white p-4 rounded-xl border border-gray-150 shadow-sm flex items-center justify-between">
+          <div>
+            <p className="text-3xs font-bold text-gray-400 uppercase tracking-wider">WhatsApp (Baileys)</p>
+            <h3 className="text-xs font-bold text-gray-800 mt-1 uppercase">
+              {whatsappStatus}
+            </h3>
+          </div>
+          <MessageSquare className={`w-6 h-6 ${whatsappStatus === 'connected' ? 'text-emerald-500' : 'text-amber-500'}`} />
+        </div>
+
+        <div className="bg-white p-3 rounded-xl border border-gray-150 shadow-sm flex flex-col justify-between h-full min-h-[82px]">
+          <div className="text-[10px] font-bold text-gray-450 uppercase tracking-wider flex items-center gap-0.5 select-none mb-1">
             Tasa de conversión
             <span className="text-[11px] font-extrabold text-gray-400 leading-none ml-0.5">›</span>
           </div>
           
-          <div className="flex flex-col justify-between h-full pt-0.5">
-            <div className="flex items-center justify-between">
-              {/* Flags & Symbol */}
-              <div className="flex items-center gap-1.5">
-                <div className="relative w-6 h-4 flex items-center select-none">
-                  <span className="text-xs absolute left-0 z-10 filter drop-shadow-3xs">🇲🇽</span>
-                  <span className="text-xs absolute left-2 top-0.5 filter drop-shadow-3xs">🇺🇸</span>
-                </div>
-                <span className="text-2xs font-extrabold text-gray-400 font-sans tracking-tight ml-2">USDc/MXN</span>
+          <div className="grid grid-cols-3 gap-x-1 items-center">
+            {/* Col 1: Flags & Pair */}
+            <div className="flex items-center gap-1 select-none pr-1">
+              <div className="relative w-5 h-3.5 flex items-center flex-shrink-0">
+                <span className="text-[10px] absolute left-0 z-10 filter drop-shadow-3xs">🇲🇽</span>
+                <span className="text-[10px] absolute left-1.5 top-0.2 filter drop-shadow-3xs">🇺🇸</span>
               </div>
-              
-              {/* Compra / Venta rates */}
-              <div className="flex items-center gap-4 text-right">
-                <div>
-                  <p className="text-xs font-black text-gray-900">${(usdToMxn + 0.0015).toFixed(3)}</p>
-                  <p className="text-[8px] font-extrabold text-gray-400 tracking-tight">Compra</p>
-                </div>
-                <div>
-                  <p className="text-xs font-black text-gray-900">${(usdToMxn - 0.0015).toFixed(3)}</p>
-                  <p className="text-[8px] font-extrabold text-gray-400 tracking-tight">Venta</p>
-                </div>
-              </div>
+              <span className="text-[9px] font-black text-gray-400 font-sans tracking-tight ml-2">USDc/MXN</span>
             </div>
             
-            {/* Variation & Carousel indicator */}
-            <div className="flex items-center justify-between mt-2 pt-0.5">
-              <span className={`text-[10px] font-black flex items-center gap-0.5 ${usdChangePercent >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>
-                {usdChangePercent >= 0 ? '↗' : '↘'} {Math.abs(usdChangePercent).toFixed(2)}%
+            {/* Col 2: Compra */}
+            <div className="text-center">
+              <p className="text-[11px] font-black text-gray-900 leading-none">${(usdToMxn + 0.0015).toFixed(3)}</p>
+            </div>
+
+            {/* Col 3: Venta */}
+            <div className="text-center">
+              <p className="text-[11px] font-black text-gray-900 leading-none">${(usdToMxn - 0.0015).toFixed(3)}</p>
+            </div>
+            
+            {/* Row 2 Col 1: Variation */}
+            <div className="mt-1 flex items-center">
+              <span className={`text-[9px] font-black flex items-center gap-0.2 leading-none ${usdChangePercent >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>
+                {usdChangePercent >= 0 ? '↗' : '↘'}{Math.abs(usdChangePercent).toFixed(2)}%
               </span>
-              
-              {/* Carousel dots indicator */}
-              <div className="flex gap-1 items-center select-none pr-1">
-                <span className="w-2.5 h-1 rounded-full bg-gray-500 transition-colors"></span>
-                <span className="w-1 h-1 rounded-full bg-gray-200 transition-colors"></span>
-                <span className="w-1 h-1 rounded-full bg-gray-200 transition-colors"></span>
-              </div>
+            </div>
+            
+            {/* Row 2 Col 2: Label Compra */}
+            <div className="text-center mt-1">
+              <p className="text-[8px] font-bold text-gray-400 leading-none uppercase tracking-tight">Compra</p>
+            </div>
+
+            {/* Row 2 Col 3: Label Venta */}
+            <div className="text-center mt-1">
+              <p className="text-[8px] font-bold text-gray-400 leading-none uppercase tracking-tight">Venta</p>
+            </div>
+          </div>
+          
+          {/* Carousel dots indicator */}
+          <div className="flex justify-end select-none pr-1 mt-1">
+            <div className="flex gap-1 items-center">
+              <span className="w-2.5 h-1 rounded-full bg-gray-500 transition-colors"></span>
+              <span className="w-1 h-1 rounded-full bg-gray-200 transition-colors"></span>
+              <span className="w-1 h-1 rounded-full bg-gray-200 transition-colors"></span>
             </div>
           </div>
         </div>
