@@ -81,6 +81,7 @@ export function CryptoExchangeTab() {
   const [initialCapInput, setInitialCapInput] = useState<string>('1000');
   const [isMockTriggering, setIsMockTriggering] = useState<boolean>(false);
   const [usdToMxn, setUsdToMxn] = useState<number>(17.00);
+  const [usdChangePercent, setUsdChangePercent] = useState<number>(0.40);
   const [timeFilter, setTimeFilter] = useState<'1D' | '1W' | '1M' | '6M' | '1Y'>('1D');
   const [historyDateSearch, setHistoryDateSearch] = useState<string>('');
   const [historyCurrentPage, setHistoryCurrentPage] = useState<number>(1);
@@ -264,14 +265,17 @@ export function CryptoExchangeTab() {
 
   useEffect(() => {
     const fetchRate = () => {
-      fetch('https://open.er-api.com/v6/latest/USD')
+      fetch('https://api.binance.com/api/v3/ticker/24hr?symbol=USDCMXN')
         .then(res => res.json())
         .then(data => {
-          if (data && data.rates && data.rates.MXN) {
-            setUsdToMxn(Number(data.rates.MXN));
+          if (data && data.lastPrice) {
+            setUsdToMxn(Number(data.lastPrice));
+            if (data.priceChangePercent) {
+              setUsdChangePercent(Number(data.priceChangePercent));
+            }
           }
         })
-        .catch(e => console.warn('Error al obtener tasa USD/MXN en tiempo real:', e.message));
+        .catch(e => console.warn('Error al obtener tasa USDc/MXN en tiempo real:', e.message));
     };
 
     fetchData();
@@ -757,37 +761,9 @@ export function CryptoExchangeTab() {
     });
   };
 
-  // Custom SVG Chart points calculation using chronological simulation
+  // Custom SVG Chart points calculation using backward state reconciliation
   const getSampledPointsData = () => {
-    const events: { time: number; type: 'DEPOSIT' | 'WITHDRAWAL' | 'BUY' | 'SELL'; amount: number; executed_amount?: number; execution_price?: number; asset?: string }[] = [];
-
-    // Calcular capital pre-existente antes de las transacciones registradas
-    let sumOfDeposits = 0;
-    capitalTransactions.forEach(tx => {
-      const amt = Math.abs(Number(tx.amount));
-      sumOfDeposits += (tx.transaction_type === 'deposit' ? amt : -amt);
-    });
-
-    const now = Date.now();
-    let limitMs = 24 * 60 * 60 * 1000; // 1D por defecto
-    let steps = 12;
-    if (timeFilter === '1W') { limitMs = 7 * 24 * 60 * 60 * 1000; steps = 7; }
-    else if (timeFilter === '1M') { limitMs = 30 * 24 * 60 * 60 * 1000; steps = 15; }
-    else if (timeFilter === '6M') { limitMs = 180 * 24 * 60 * 60 * 1000; steps = 6; }
-    else if (timeFilter === '1Y') { limitMs = 365 * 24 * 60 * 60 * 1000; steps = 12; }
-
-    const startTime = now - limitMs;
-
-    const preExistingCapital = (realTimeTotalCapital - netProfit) - sumOfDeposits;
-    const initialDepositTime = history.length > 0
-      ? Math.min(...history.map(h => new Date(h.created_at).getTime())) - 24 * 60 * 60 * 1000
-      : startTime - 24 * 60 * 60 * 1000;
-    
-    events.push({
-      time: initialDepositTime,
-      type: 'DEPOSIT',
-      amount: Math.max(0, preExistingCapital)
-    });
+    const events: { time: number; type: 'DEPOSIT' | 'WITHDRAWAL' | 'BUY' | 'SELL'; amount: number; asset?: string; qty?: number }[] = [];
 
     capitalTransactions.forEach(tx => {
       events.push({
@@ -799,60 +775,71 @@ export function CryptoExchangeTab() {
 
     history.forEach(h => {
       if (h.status === 'executed' || h.status === 'simulated') {
+        const qty = Number(h.executed_amount) / Number(h.execution_price);
         events.push({
           time: new Date(h.created_at).getTime(),
           type: h.trade_type.toUpperCase() as any,
           amount: Number(h.executed_amount),
-          executed_amount: Number(h.executed_amount),
-          execution_price: Number(h.execution_price),
-          asset: h.asset
+          asset: h.asset,
+          qty
         });
       }
     });
 
-    events.sort((a, b) => a.time - b.time);
+    // Ordenar de más recientes a más antiguos (descendente)
+    events.sort((a, b) => b.time - a.time);
 
+    const now = Date.now();
+    let limitMs = 24 * 60 * 60 * 1000; // 1D por defecto
+    let steps = 12;
+    if (timeFilter === '1W') { limitMs = 7 * 24 * 60 * 60 * 1000; steps = 7; }
+    else if (timeFilter === '1M') { limitMs = 30 * 24 * 60 * 60 * 1000; steps = 15; }
+    else if (timeFilter === '6M') { limitMs = 180 * 24 * 60 * 60 * 1000; steps = 6; }
+    else if (timeFilter === '1Y') { limitMs = 365 * 24 * 60 * 60 * 1000; steps = 12; }
+
+    const startTime = now - limitMs;
     const intervalWidth = limitMs / (steps - 1);
 
     const points: { time: number; value: number; label: string; dateStr: string }[] = [];
 
-    const getPortfolioValueAt = (targetTime: number) => {
-      let cash = 0;
-      const holdings: Record<string, number> = {};
-      const valuationPrice: Record<string, number> = {};
+    // Estado inicial en t = now (datos reales actuales exactos)
+    const currentCash = totalCashCapital;
+    const currentHoldings: Record<string, number> = {};
+    Object.keys(balances).forEach(key => {
+      currentHoldings[key] = balances[key].coins;
+    });
+
+    for (let i = steps - 1; i >= 0; i--) {
+      const t = startTime + i * intervalWidth;
+      
+      // Revertir eventos que ocurrieron después de t
+      let cash = currentCash;
+      const holdings = { ...currentHoldings };
 
       for (const e of events) {
-        if (e.time > targetTime) break;
+        if (e.time <= t) continue;
+        
         if (e.type === 'DEPOSIT') {
-          cash += e.amount;
-        } else if (e.type === 'WITHDRAWAL') {
           cash = Math.max(0, cash - e.amount);
+        } else if (e.type === 'WITHDRAWAL') {
+          cash += e.amount;
         } else if (e.type === 'BUY') {
-          const qty = e.executed_amount! / e.execution_price!;
-          cash = Math.max(0, cash - e.executed_amount!);
-          holdings[e.asset!] = (holdings[e.asset!] || 0) + qty;
-          valuationPrice[e.asset!] = e.execution_price!;
+          cash += e.amount;
+          holdings[e.asset!] = Math.max(0, (holdings[e.asset!] || 0) - e.qty!);
         } else if (e.type === 'SELL') {
-          const qty = e.executed_amount! / e.execution_price!;
-          cash += e.executed_amount!;
-          holdings[e.asset!] = Math.max(0, (holdings[e.asset!] || 0) - qty);
-          valuationPrice[e.asset!] = e.execution_price!;
+          cash = Math.max(0, cash - e.amount);
+          holdings[e.asset!] = (holdings[e.asset!] || 0) + e.qty!;
         }
       }
 
+      // Valuación total en t
       let cryptoValue = 0;
       Object.keys(holdings).forEach(asset => {
-        const livePrice = (assetConfigs.find(c => c.asset === asset) as any)?.current_price || valuationPrice[asset] || (asset.includes('BTC') ? 80000 : asset.includes('ETH') ? 2600 : 180);
-        const usePrice = (targetTime >= now - 5000) ? livePrice : (valuationPrice[asset] || livePrice);
-        cryptoValue += holdings[asset] * usePrice;
+        const livePrice = balances[asset]?.currentPrice || (asset.includes('BTC') ? 80000 : asset.includes('ETH') ? 2600 : 180);
+        cryptoValue += holdings[asset] * livePrice;
       });
 
-      return cash + cryptoValue;
-    };
-
-    for (let i = 0; i < steps; i++) {
-      const t = startTime + i * intervalWidth;
-      const val = getPortfolioValueAt(t);
+      const totalVal = cash + cryptoValue;
 
       const date = new Date(t);
       let label = '';
@@ -873,11 +860,13 @@ export function CryptoExchangeTab() {
         dateStr = `${label} ${date.getFullYear()}`;
       }
 
-      points.push({ time: t, value: val, label, dateStr });
+      points.unshift({ time: t, value: totalVal, label, dateStr });
     }
 
     return points;
-  };  const getChartData = () => {
+  };
+
+  const getChartData = () => {
     const points = getSampledPointsData();
     const values = points.map(p => p.value);
     const min = Math.min(...values);
@@ -926,47 +915,50 @@ export function CryptoExchangeTab() {
 
       {/* Info Status Cards */}
       <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-        <div className="bg-white p-4 rounded-xl border border-gray-150 shadow-sm flex items-center justify-between">
-          <div>
-            <p className="text-3xs font-bold text-gray-400 uppercase tracking-wider">Estado General</p>
-            <h3 className="text-xs font-bold text-gray-800 mt-1">
-              {botActive ? '🟢 Monitoreo Activo' : '🔴 Bot Inactivo'}
-            </h3>
+        <div className="bg-white p-4 rounded-xl border border-gray-150 shadow-sm flex flex-col justify-between">
+          <div className="text-[10px] font-bold text-gray-450 uppercase tracking-wider mb-1.5 flex items-center gap-0.5 select-none">
+            Tasa de conversión
+            <span className="text-[11px] font-extrabold text-gray-400 leading-none ml-0.5">›</span>
           </div>
-          <Activity className={`w-6 h-6 ${botActive ? 'text-emerald-500 animate-pulse' : 'text-gray-400'}`} />
-        </div>
-
-        <div className="bg-white p-4 rounded-xl border border-gray-150 shadow-sm flex items-center justify-between">
-          <div>
-            <p className="text-3xs font-bold text-gray-400 uppercase tracking-wider">Modo de Operación</p>
-            <h3 className="text-xs font-bold text-gray-800 mt-1 capitalize">
-              {exchangeMode === 'simulation' ? '⚡ Simulación / Sandbox' : '💰 Real en Vivo'}
-            </h3>
+          
+          <div className="flex flex-col justify-between h-full pt-0.5">
+            <div className="flex items-center justify-between">
+              {/* Flags & Symbol */}
+              <div className="flex items-center gap-1.5">
+                <div className="relative w-6 h-4 flex items-center select-none">
+                  <span className="text-xs absolute left-0 z-10 filter drop-shadow-3xs">🇲🇽</span>
+                  <span className="text-xs absolute left-2 top-0.5 filter drop-shadow-3xs">🇺🇸</span>
+                </div>
+                <span className="text-2xs font-extrabold text-gray-400 font-sans tracking-tight ml-2">USDc/MXN</span>
+              </div>
+              
+              {/* Compra / Venta rates */}
+              <div className="flex items-center gap-4 text-right">
+                <div>
+                  <p className="text-xs font-black text-gray-900">${(usdToMxn + 0.0015).toFixed(3)}</p>
+                  <p className="text-[8px] font-extrabold text-gray-400 tracking-tight">Compra</p>
+                </div>
+                <div>
+                  <p className="text-xs font-black text-gray-900">${(usdToMxn - 0.0015).toFixed(3)}</p>
+                  <p className="text-[8px] font-extrabold text-gray-400 tracking-tight">Venta</p>
+                </div>
+              </div>
+            </div>
+            
+            {/* Variation & Carousel indicator */}
+            <div className="flex items-center justify-between mt-2 pt-0.5">
+              <span className={`text-[10px] font-black flex items-center gap-0.5 ${usdChangePercent >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>
+                {usdChangePercent >= 0 ? '↗' : '↘'} {Math.abs(usdChangePercent).toFixed(2)}%
+              </span>
+              
+              {/* Carousel dots indicator */}
+              <div className="flex gap-1 items-center select-none pr-1">
+                <span className="w-2.5 h-1 rounded-full bg-gray-500 transition-colors"></span>
+                <span className="w-1 h-1 rounded-full bg-gray-200 transition-colors"></span>
+                <span className="w-1 h-1 rounded-full bg-gray-200 transition-colors"></span>
+              </div>
+            </div>
           </div>
-          <Coins className="w-6 h-6 text-amber-500" />
-        </div>
-
-        <div className="bg-white p-4 rounded-xl border border-gray-150 shadow-sm flex items-center justify-between">
-          <div>
-            <p className="text-3xs font-bold text-gray-400 uppercase tracking-wider">WhatsApp (Baileys)</p>
-            <h3 className="text-xs font-bold text-gray-800 mt-1 uppercase">
-              {whatsappStatus}
-            </h3>
-          </div>
-          <MessageSquare className={`w-6 h-6 ${whatsappStatus === 'connected' ? 'text-emerald-500' : 'text-amber-500'}`} />
-        </div>
-
-        <div className="bg-white p-4 rounded-xl border border-gray-150 shadow-sm flex items-center justify-between">
-          <div>
-            <p className="text-3xs font-bold text-gray-400 uppercase tracking-wider">Tasa de conversión</p>
-            <h3 className="text-xs font-bold text-gray-800 mt-1">
-              💵 ${usdToMxn.toFixed(3)} MXN
-            </h3>
-            <p className="text-[9px] font-bold text-gray-400 mt-0.5">
-              C: ${(usdToMxn - 0.015).toFixed(3)} | V: ${(usdToMxn + 0.015).toFixed(3)}
-            </p>
-          </div>
-          <TrendingUp className="w-6 h-6 text-emerald-500" />
         </div>
 
         <div className="bg-white p-4 rounded-xl border border-gray-150 shadow-sm flex items-center justify-between">
