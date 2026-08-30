@@ -367,7 +367,7 @@ export function CryptoExchangeTab() {
       return;
     }
 
-    const targetHorizon = horizons[0]?.horizon || 'daily';
+    const targetHorizon = 'daily';
 
     setIsTxSaving(true);
     try {
