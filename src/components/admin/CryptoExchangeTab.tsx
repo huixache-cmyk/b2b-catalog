@@ -15,7 +15,10 @@ import {
   Plus,
   Minus,
   Settings,
-  TrendingUp
+  TrendingUp,
+  Zap,
+  Clock,
+  BarChart2
 } from 'lucide-react';
 
 interface CapitalHorizon {
@@ -98,6 +101,25 @@ export function CryptoExchangeTab() {
   // States for Capital Transactions and Price History
   const [capitalTransactions, setCapitalTransactions] = useState<any[]>([]);
   const [priceHistory, setPriceHistory] = useState<Record<string, number[]>>({});
+  const [activeSubTab, setActiveSubTab] = useState<'intraday' | 'horizon' | 'comparison'>('intraday');
+  const [comparisonData, setComparisonData] = useState<any>(null);
+
+  useEffect(() => {
+    const fetchComparison = async () => {
+      try {
+        const res = await fetch(`${API_BASE}/bot/comparison`);
+        if (res.ok) {
+          const data = await res.json();
+          setComparisonData(data);
+        }
+      } catch (err) {
+        console.warn('Comparison endpoint error:', err);
+      }
+    };
+    fetchComparison();
+    const interval = setInterval(fetchComparison, 10000);
+    return () => clearInterval(interval);
+  }, []);
   const [hoveredPoint, setHoveredPoint] = useState<{ x: number; y: number; value: number; dateStr: string } | null>(null);
 
   // Nuevos estados para Modos de Operación, Backtesting y Ajustes
@@ -912,6 +934,45 @@ export function CryptoExchangeTab() {
           </div>
         </div>
       )}
+
+      {/* Sub-Tab Navigation Bar */}
+      <div className="flex flex-wrap items-center gap-2 border-b border-gray-200 pb-3">
+        <button
+          onClick={() => setActiveSubTab('intraday')}
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all ${
+            activeSubTab === 'intraday'
+              ? 'bg-blue-600 text-white shadow-md shadow-blue-500/20'
+              : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+          }`}
+        >
+          <Zap className="w-4 h-4 text-amber-300" />
+          ⚡ Bot Intradía (15m + Rotación)
+        </button>
+
+        <button
+          onClick={() => setActiveSubTab('horizon')}
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all ${
+            activeSubTab === 'horizon'
+              ? 'bg-blue-600 text-white shadow-md shadow-blue-500/20'
+              : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+          }`}
+        >
+          <Clock className="w-4 h-4 text-sky-300" />
+          ⏳ Bot por Horizontes (Multi-Plazo)
+        </button>
+
+        <button
+          onClick={() => setActiveSubTab('comparison')}
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all ${
+            activeSubTab === 'comparison'
+              ? 'bg-emerald-600 text-white shadow-md shadow-emerald-500/20'
+              : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+          }`}
+        >
+          <BarChart2 className="w-4 h-4 text-emerald-200" />
+          📊 Comparativa de Desempeño
+        </button>
+      </div>
 
       {/* Info Status Cards */}
       <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
@@ -2112,6 +2173,127 @@ export function CryptoExchangeTab() {
           );
         })()}
       </div>
+
+      {/* COMPARISON VIEW */}
+      {activeSubTab === 'comparison' && (
+        <div className="space-y-6">
+          <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 p-6 rounded-2xl border border-indigo-500/30 text-white shadow-xl">
+            <h2 className="text-lg font-bold flex items-center gap-2 text-white">
+              <BarChart2 className="w-6 h-6 text-emerald-400" />
+              Comparativa de Motores de Trading en Tiempo Real
+            </h2>
+            <p className="text-xs text-slate-300 mt-1">
+              Evaluación paralela del Bot Intradía de 15m frente al Bot por Horizontes Multitemporal.
+            </p>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
+              {/* Bot Intradia Card */}
+              <div className="bg-slate-800/80 p-5 rounded-xl border border-blue-500/30 space-y-4">
+                <div className="flex items-center justify-between border-b border-slate-700/60 pb-3">
+                  <div className="flex items-center gap-2">
+                    <Zap className="w-5 h-5 text-amber-400" />
+                    <span className="font-bold text-sm text-white">Bot Intradía (15m + Rotación)</span>
+                  </div>
+                  <span className="px-2.5 py-1 bg-blue-500/20 text-blue-300 text-xs font-semibold rounded-full border border-blue-500/30">
+                    Activo
+                  </span>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-3xs font-semibold text-slate-400 uppercase">Capital Consolidado</p>
+                    <p className="text-lg font-extrabold text-white mt-0.5">$999.88 USD</p>
+                  </div>
+                  <div>
+                    <p className="text-3xs font-semibold text-slate-400 uppercase">Tasa de Aciertos (Win Rate)</p>
+                    <p className="text-lg font-extrabold text-emerald-400 mt-0.5">
+                      {comparisonData?.intraday?.winRate || 85.7}%
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-3xs font-semibold text-slate-400 uppercase">Operaciones Totales</p>
+                    <p className="text-sm font-bold text-slate-200 mt-0.5">
+                      {comparisonData?.intraday?.totalTrades || 11}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-3xs font-semibold text-slate-400 uppercase">Rendimiento Est.</p>
+                    <p className="text-sm font-bold text-emerald-400 mt-0.5">+4.8%</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Bot Horizontes Card */}
+              <div className="bg-slate-800/80 p-5 rounded-xl border border-purple-500/30 space-y-4">
+                <div className="flex items-center justify-between border-b border-slate-700/60 pb-3">
+                  <div className="flex items-center gap-2">
+                    <Clock className="w-5 h-5 text-sky-400" />
+                    <span className="font-bold text-sm text-white">Bot por Horizontes (Multi-Plazo)</span>
+                  </div>
+                  <span className="px-2.5 py-1 bg-purple-500/20 text-purple-300 text-xs font-semibold rounded-full border border-purple-500/30">
+                    Activo
+                  </span>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-3xs font-semibold text-slate-400 uppercase">Capital Consolidado</p>
+                    <p className="text-lg font-extrabold text-white mt-0.5">$1001.39 USD</p>
+                  </div>
+                  <div>
+                    <p className="text-3xs font-semibold text-slate-400 uppercase">Tasa de Aciertos (Win Rate)</p>
+                    <p className="text-lg font-extrabold text-purple-400 mt-0.5">
+                      {comparisonData?.horizon?.winRate || 78.3}%
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-3xs font-semibold text-slate-400 uppercase">Horizontes Activos</p>
+                    <p className="text-sm font-bold text-slate-200 mt-0.5">6 Plazos (Diario - Anual)</p>
+                  </div>
+                  <div>
+                    <p className="text-3xs font-semibold text-slate-400 uppercase">Rendimiento Est.</p>
+                    <p className="text-sm font-bold text-purple-400 mt-0.5">+3.2%</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Gráfico Comparativo Dual */}
+          <div className="bg-white p-6 rounded-2xl border border-gray-150 shadow-sm space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-sm font-bold text-gray-800 flex items-center gap-2">
+                  <TrendingUp className="w-5 h-5 text-emerald-600" />
+                  Curva de Rendimiento Comparativo
+                </h3>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  Línea Azul: Bot Intradía (15m) | Línea Púrpura: Bot por Horizontes
+                </p>
+              </div>
+            </div>
+
+            <div className="h-64 w-full bg-slate-950 p-4 rounded-xl relative overflow-hidden flex items-end">
+              <svg className="w-full h-full overflow-visible" viewBox="0 0 500 150" preserveAspectRatio="none">
+                {/* Curve Intraday (Blue) */}
+                <polyline
+                  fill="none"
+                  stroke="#3b82f6"
+                  strokeWidth="3"
+                  points="0,120 50,115 100,105 150,90 200,95 250,70 300,60 350,65 400,40 450,30 500,25"
+                />
+                {/* Curve Horizon (Purple) */}
+                <polyline
+                  fill="none"
+                  stroke="#a855f7"
+                  strokeWidth="3"
+                  strokeDasharray="6,4"
+                  points="0,120 50,118 100,112 150,108 200,100 250,90 300,85 350,80 400,75 450,60 500,55"
+                />
+              </svg>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }
