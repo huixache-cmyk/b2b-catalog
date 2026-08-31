@@ -1033,7 +1033,10 @@ export function CryptoExchangeTab() {
         </div>
       </div>
 
-      {/* Performance Dashboard */}
+      {/* INTRADAY VIEW */}
+      {activeSubTab === 'intraday' && (
+        <div className="space-y-6">
+          {/* Performance Dashboard */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Metric SVG Chart */}
         <div className="bg-white p-6 rounded-xl border border-gray-150 shadow-sm col-span-2 space-y-4">
@@ -2173,6 +2176,87 @@ export function CryptoExchangeTab() {
           );
         })()}
       </div>
+        </div>
+      )}
+
+      {/* HORIZON VIEW */}
+      {activeSubTab === 'horizon' && (
+        <div className="space-y-6">
+          <div className="bg-white p-6 rounded-2xl border border-gray-150 shadow-sm flex items-center justify-between">
+            <div>
+              <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                <Clock className="w-6 h-6 text-sky-500" />
+                Bot por Horizontes de Capital (Multi-Plazo Original)
+              </h2>
+              <p className="text-xs text-gray-500 mt-1">
+                Distribución estratégica de capital a través de 6 horizontes de tiempo (Diario a Anual) con metas de ROI y rebalanceo de IA.
+              </p>
+            </div>
+            <button
+              onClick={handleDistributeCapital}
+              className="px-4 py-2 bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-700 hover:to-indigo-700 text-white rounded-xl font-bold text-xs shadow-md shadow-sky-500/20 transition-all flex items-center gap-2"
+            >
+              <RefreshCw className="w-4 h-4" />
+              Ejecutar Redistribución IA
+            </button>
+          </div>
+
+          {/* 6 Horizons Cards Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4">
+            {horizons.map((hz) => (
+              <div key={hz.id} className="bg-white p-4 rounded-xl border border-gray-150 shadow-sm space-y-3">
+                <div className="flex items-center justify-between border-b border-gray-100 pb-2">
+                  <span className="text-xs font-extrabold uppercase text-gray-800 tracking-wider">
+                    {hz.horizon === 'daily' ? 'Diario' :
+                     hz.horizon === 'weekly' ? 'Semanal' :
+                     hz.horizon === 'monthly' ? 'Mensual' :
+                     hz.horizon === 'quarterly' ? 'Trimestral' :
+                     hz.horizon === 'semiannual' ? 'Semestral' : 'Anual'}
+                  </span>
+                  <span className="text-3xs font-black text-sky-600 bg-sky-50 px-2 py-0.5 rounded-full border border-sky-100">
+                    ROI {hz.target_roi}%
+                  </span>
+                </div>
+
+                <div className="space-y-1">
+                  <p className="text-3xs font-semibold text-gray-400 uppercase">Balance Actual</p>
+                  <p className="text-sm font-black text-gray-900">${Number(hz.current_balance || 0).toFixed(2)} USD</p>
+                </div>
+
+                <div className="pt-2 border-t border-gray-100 flex items-center justify-between text-3xs">
+                  <span className="text-gray-500 font-medium">Asignado: <strong>{hz.allocated_percentage}%</strong></span>
+                  {hz.suggested_percentage_ai !== null && (
+                    <span className="text-indigo-600 font-bold">IA: {hz.suggested_percentage_ai}%</span>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Horizon Proposals Queue */}
+          <div className="bg-white p-6 rounded-xl border border-gray-150 shadow-sm space-y-4">
+            <h3 className="text-sm font-bold text-gray-900 flex items-center gap-2">
+              <Clock className="w-4 h-4 text-sky-500" />
+              Propuestas Pendientes (Bot por Horizontes)
+            </h3>
+            {proposals.filter(p => p.operation_code.startsWith('H_') || (p.justification && p.justification.startsWith('[Bot Horizontes]'))).length === 0 ? (
+              <p className="text-xs text-gray-400 italic py-4 text-center">No hay propuestas pendientes para el Bot por Horizontes.</p>
+            ) : (
+              <div className="space-y-3">
+                {proposals.filter(p => p.operation_code.startsWith('H_') || (p.justification && p.justification.startsWith('[Bot Horizontes]'))).map(p => (
+                  <div key={p.id} className="p-3 bg-sky-50/50 border border-sky-100 rounded-xl flex items-center justify-between">
+                    <div>
+                      <span className="font-bold text-xs text-gray-800">{p.operation_code} - {p.asset}</span>
+                      <p className="text-3xs text-gray-500">{p.justification}</p>
+                    </div>
+                    <span className="text-xs font-extrabold text-sky-700">${p.suggested_amount.toFixed(2)} USD</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* COMPARISON VIEW */}
       {activeSubTab === 'comparison' && (
@@ -2206,13 +2290,13 @@ export function CryptoExchangeTab() {
                   <div>
                     <p className="text-3xs font-semibold text-slate-400 uppercase">Tasa de Aciertos (Win Rate)</p>
                     <p className="text-lg font-extrabold text-emerald-400 mt-0.5">
-                      {comparisonData?.intraday?.winRate || 85.7}%
+                      {`${comparisonData?.intraday?.winRate || 85.7}%`}
                     </p>
                   </div>
                   <div>
                     <p className="text-3xs font-semibold text-slate-400 uppercase">Operaciones Totales</p>
                     <p className="text-sm font-bold text-slate-200 mt-0.5">
-                      {comparisonData?.intraday?.totalTrades || 11}
+                      {`${comparisonData?.intraday?.totalTrades || 11}`}
                     </p>
                   </div>
                   <div>
@@ -2241,7 +2325,7 @@ export function CryptoExchangeTab() {
                   <div>
                     <p className="text-3xs font-semibold text-slate-400 uppercase">Tasa de Aciertos (Win Rate)</p>
                     <p className="text-lg font-extrabold text-purple-400 mt-0.5">
-                      {comparisonData?.horizon?.winRate || 78.3}%
+                      {`${comparisonData?.horizon?.winRate || 78.3}%`}
                     </p>
                   </div>
                   <div>
@@ -2273,14 +2357,12 @@ export function CryptoExchangeTab() {
 
             <div className="h-64 w-full bg-slate-950 p-4 rounded-xl relative overflow-hidden flex items-end">
               <svg className="w-full h-full overflow-visible" viewBox="0 0 500 150" preserveAspectRatio="none">
-                {/* Curve Intraday (Blue) */}
                 <polyline
                   fill="none"
                   stroke="#3b82f6"
                   strokeWidth="3"
                   points="0,120 50,115 100,105 150,90 200,95 250,70 300,60 350,65 400,40 450,30 500,25"
                 />
-                {/* Curve Horizon (Purple) */}
                 <polyline
                   fill="none"
                   stroke="#a855f7"
@@ -2293,7 +2375,6 @@ export function CryptoExchangeTab() {
           </div>
         </div>
       )}
-
     </div>
   );
 }
