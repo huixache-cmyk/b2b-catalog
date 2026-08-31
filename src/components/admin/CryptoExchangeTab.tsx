@@ -18,7 +18,8 @@ import {
   TrendingUp,
   Zap,
   Clock,
-  BarChart2
+  BarChart2,
+  Target
 } from 'lucide-react';
 
 interface CapitalHorizon {
@@ -1030,6 +1031,41 @@ export function CryptoExchangeTab() {
             </p>
           </div>
           <TrendingUp className="w-6 h-6 text-primary-600" />
+        </div>
+      </div>
+
+      {/* Target 15% Daily Yield Banner */}
+      <div className="bg-gradient-to-r from-slate-900 via-emerald-950 to-slate-900 p-5 rounded-2xl border border-emerald-500/30 text-white shadow-md flex flex-col md:flex-row items-center justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <div className="p-3 bg-emerald-500/20 border border-emerald-500/30 rounded-xl">
+            <Target className="w-6 h-6 text-emerald-400" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <h3 className="text-sm font-bold text-white">Meta de Rendimiento Diario (+15%)</h3>
+              <span className="px-2 py-0.5 bg-emerald-500/20 text-emerald-300 text-3xs font-extrabold rounded-full border border-emerald-500/30">
+                $150.00 USD / día
+              </span>
+            </div>
+            <p className="text-3xs text-slate-300 mt-0.5">
+              Estrategia Intradía de 15m con Bloqueo de Posición, Regla 70/30 y Rompimientos por Volatilidad.
+            </p>
+          </div>
+        </div>
+
+        <div className="w-full md:w-72 space-y-1.5">
+          <div className="flex justify-between text-3xs font-bold">
+            <span className="text-slate-300">Ganancia Hoy: <strong className="text-emerald-400">+{netProfit >= 0 ? netProfit.toFixed(2) : '0.00'} USD</strong></span>
+            <span className="text-emerald-400 font-extrabold">
+              {((Math.max(0, netProfit) / 150) * 100).toFixed(1)}% Logrado
+            </span>
+          </div>
+          <div className="w-full bg-slate-800 rounded-full h-2 overflow-hidden border border-slate-700/50">
+            <div
+              className="bg-gradient-to-r from-emerald-500 to-teal-400 h-2 rounded-full transition-all duration-500"
+              style={{ width: `${Math.min(100, Math.max(0, (netProfit / 150) * 100))}%` }}
+            />
+          </div>
         </div>
       </div>
 
