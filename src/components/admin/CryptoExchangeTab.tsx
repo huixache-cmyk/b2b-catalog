@@ -2239,34 +2239,37 @@ export function CryptoExchangeTab() {
 
           {/* 6 Horizons Cards Grid */}
           <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4">
-            {horizons.filter(h => h.horizon !== 'intraday').map((hz) => (
-              <div key={hz.id} className="bg-white p-4 rounded-xl border border-gray-150 shadow-sm space-y-3">
-                <div className="flex items-center justify-between border-b border-gray-100 pb-2">
-                  <span className="text-xs font-extrabold uppercase text-gray-800 tracking-wider">
-                    {hz.horizon === 'daily' ? 'Diario' :
-                     hz.horizon === 'weekly' ? 'Semanal' :
-                     hz.horizon === 'monthly' ? 'Mensual' :
-                     hz.horizon === 'quarterly' ? 'Trimestral' :
-                     hz.horizon === 'semiannual' ? 'Semestral' : 'Anual'}
-                  </span>
-                  <span className="text-3xs font-black text-sky-600 bg-sky-50 px-2 py-0.5 rounded-full border border-sky-100">
-                    ROI {hz.target_roi}%
-                  </span>
-                </div>
+            {(['daily', 'weekly', 'monthly', 'quarterly', 'semiannual', 'annual'] as const)
+              .map(hKey => horizons.find(h => h.horizon === hKey))
+              .filter((hz): hz is CapitalHorizon => Boolean(hz))
+              .map((hz) => (
+                <div key={hz.id} className="bg-white p-3.5 rounded-xl border border-gray-150 shadow-sm space-y-2.5">
+                  <div className="flex items-center justify-between border-b border-gray-100 pb-2 gap-1 flex-wrap">
+                    <span className="text-[11px] font-black uppercase text-gray-800 tracking-wide">
+                      {hz.horizon === 'daily' ? 'Diario' :
+                       hz.horizon === 'weekly' ? 'Semanal' :
+                       hz.horizon === 'monthly' ? 'Mensual' :
+                       hz.horizon === 'quarterly' ? 'Trimestral' :
+                       hz.horizon === 'semiannual' ? 'Semestral' : 'Anual'}
+                    </span>
+                    <span className="text-[9px] font-black text-sky-600 bg-sky-50 px-1.5 py-0.5 rounded-md border border-sky-100 whitespace-nowrap">
+                      ROI {hz.target_roi}%
+                    </span>
+                  </div>
 
-                <div className="space-y-1">
-                  <p className="text-3xs font-semibold text-gray-400 uppercase">Balance Actual</p>
-                  <p className="text-sm font-black text-gray-900">${Number(hz.current_balance || 0).toFixed(2)} USD</p>
-                </div>
+                  <div className="space-y-0.5">
+                    <p className="text-[9px] font-bold text-gray-400 uppercase tracking-wider">Balance Actual</p>
+                    <p className="text-xs font-black text-gray-900">${Number(hz.current_balance || 0).toFixed(2)} USD</p>
+                  </div>
 
-                <div className="pt-2 border-t border-gray-100 flex items-center justify-between text-3xs">
-                  <span className="text-gray-500 font-medium">Asignado: <strong>{hz.allocated_percentage}%</strong></span>
-                  {hz.suggested_percentage_ai !== null && (
-                    <span className="text-indigo-600 font-bold">IA: {hz.suggested_percentage_ai}%</span>
-                  )}
+                  <div className="pt-1.5 border-t border-gray-100 flex items-center justify-between text-[9px]">
+                    <span className="text-gray-500 font-medium">Asignado: <strong>{hz.allocated_percentage}%</strong></span>
+                    {hz.suggested_percentage_ai !== null && (
+                      <span className="text-indigo-600 font-bold">IA: {hz.suggested_percentage_ai}%</span>
+                    )}
+                  </div>
                 </div>
-              </div>
-            ))}
+              ))}
           </div>
 
           {/* Horizon Proposals Queue */}
