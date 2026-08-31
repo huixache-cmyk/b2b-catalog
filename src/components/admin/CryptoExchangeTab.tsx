@@ -24,7 +24,7 @@ import {
 
 interface CapitalHorizon {
   id: string;
-  horizon: 'daily' | 'weekly' | 'monthly' | 'quarterly' | 'semiannual' | 'annual';
+  horizon: 'intraday' | 'daily' | 'weekly' | 'monthly' | 'quarterly' | 'semiannual' | 'annual';
   allocated_percentage: number;
   suggested_percentage_ai: number | null;
   target_roi: number;
@@ -2239,7 +2239,7 @@ export function CryptoExchangeTab() {
 
           {/* 6 Horizons Cards Grid */}
           <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4">
-            {horizons.map((hz) => (
+            {horizons.filter(h => h.horizon !== 'intraday').map((hz) => (
               <div key={hz.id} className="bg-white p-4 rounded-xl border border-gray-150 shadow-sm space-y-3">
                 <div className="flex items-center justify-between border-b border-gray-100 pb-2">
                   <span className="text-xs font-extrabold uppercase text-gray-800 tracking-wider">
