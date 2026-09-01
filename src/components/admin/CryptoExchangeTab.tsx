@@ -826,7 +826,7 @@ export function CryptoExchangeTab() {
     const points: { time: number; value: number; label: string; dateStr: string }[] = [];
 
     // Estado inicial en t = now (datos reales actuales exactos)
-    const currentCash = totalCashCapital;
+    const currentCash = activeCashCapital;
     const currentHoldings: Record<string, number> = {};
     Object.keys(balances).forEach(key => {
       currentHoldings[key] = balances[key].coins;
@@ -917,10 +917,14 @@ export function CryptoExchangeTab() {
     };
   };
 
-  // Calculate Net Profit
+  // Calculate Net Profit and Sub-Tab Isolated Capital
   const { balances, totalInvestmentValue, totalProfit } = calculateCryptoBalances();
-  const totalCashCapital = horizons.reduce((acc, curr) => acc + curr.current_balance, 0);
-  const realTimeTotalCapital = totalCashCapital + totalInvestmentValue;
+
+  const intradayCash = Number(horizons.find(h => h.horizon === 'intraday')?.current_balance || 1000);
+  const multiHorizonCash = horizons.filter(h => h.horizon !== 'intraday').reduce((acc, curr) => acc + Number(curr.current_balance || 0), 0);
+
+  const activeCashCapital = activeSubTab === 'horizon' ? multiHorizonCash : intradayCash;
+  const realTimeTotalCapital = activeCashCapital + totalInvestmentValue;
   const netProfit = totalProfit;
   const pendingProposals = proposals.filter(p => p.status === 'pending_auto_exec');
 
@@ -1417,9 +1421,16 @@ export function CryptoExchangeTab() {
                       <p className="text-3xs text-gray-455 mt-0.5">
                         ≈ ${(b.valueUsd * usdToMxn).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} MXN
                       </p>
-                      {b.coins > 0 && (
-                        <p className={`text-3xs font-bold mt-0.5 ${b.profitUsd >= 0 ? 'text-emerald-600' : 'text-red-655'}`}>
-                          {b.profitUsd >= 0 ? '▲ +' : '▼ '}${b.profitUsd.toFixed(2)} USD
+                      {b.coins > 0 ? (
+                        <p className={`text-3xs font-black mt-0.5 px-1.5 py-0.5 rounded flex items-center justify-end gap-1 ${
+                          b.profitUsd >= 0 ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-red-50 text-red-700 border border-red-200'
+                        }`}>
+                          <span>Ganancia / Pérdida:</span>
+                          <span>{b.profitUsd >= 0 ? '▲ +' : '▼ '}${Math.abs(b.profitUsd).toFixed(2)} USD ({b.profitUsd >= 0 ? '+' : ''}${((b.profitUsd / (b.cost || 1)) * 100).toFixed(2)}%)</span>
+                        </p>
+                      ) : (
+                        <p className="text-3xs font-semibold text-gray-400 mt-0.5">
+                          Sin posición abierta ($0.00 USD)
                         </p>
                       )}
                     </div>
