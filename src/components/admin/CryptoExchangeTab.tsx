@@ -153,13 +153,36 @@ export function CryptoExchangeTab() {
   const [cloneModeName, setCloneModeName] = useState<string>('');
   const [isCloning, setIsCloning] = useState<boolean>(false);
 
-  // URL base de la API del bot
+  // URL base y API Key de la API del bot
   const API_BASE = process.env.NEXT_PUBLIC_CRYPTO_BOT_API_URL || 'http://localhost:3005/api';
+  const API_KEY = process.env.NEXT_PUBLIC_INTERNAL_API_KEY || 'geeky_exchange_secret_key_2026';
+
+  const authHeaders = (extraHeaders?: Record<string, string>) => ({
+    'x-api-key': API_KEY,
+    ...(extraHeaders || {})
+  });
+
+  useEffect(() => {
+    const fetchComparison = async () => {
+      try {
+        const res = await fetch(`${API_BASE}/bot/comparison`, { headers: authHeaders() });
+        if (res.ok) {
+          const data = await res.json();
+          setComparisonData(data);
+        }
+      } catch (err) {
+        console.warn('Comparison endpoint error:', err);
+      }
+    };
+    fetchComparison();
+    const interval = setInterval(fetchComparison, 10000);
+    return () => clearInterval(interval);
+  }, []);
 
   const fetchData = async () => {
     try {
       // 1. Obtener estado general
-      const statusRes = await fetch(`${API_BASE}/status`);
+      const statusRes = await fetch(`${API_BASE}/status`, { headers: authHeaders() });
       if (statusRes.ok) {
         const statusData = await statusRes.json();
         setBotActive(statusData.botActive);
@@ -169,28 +192,28 @@ export function CryptoExchangeTab() {
       }
 
       // 2. Obtener horizontes de capital
-      const horizonsRes = await fetch(`${API_BASE}/config/horizons`);
+      const horizonsRes = await fetch(`${API_BASE}/config/horizons`, { headers: authHeaders() });
       if (horizonsRes.ok) {
         const horizonsData = await horizonsRes.json();
         setHorizons(horizonsData);
       }
 
       // 3. Obtener propuestas activas
-      const proposalsRes = await fetch(`${API_BASE}/proposals`);
+      const proposalsRes = await fetch(`${API_BASE}/proposals`, { headers: authHeaders() });
       if (proposalsRes.ok) {
         const proposalsData = await proposalsRes.json();
         setProposals(proposalsData);
       }
 
       // 4. Obtener historial
-      const historyRes = await fetch(`${API_BASE}/history`);
+      const historyRes = await fetch(`${API_BASE}/history`, { headers: authHeaders() });
       if (historyRes.ok) {
         const historyData = await historyRes.json();
         setHistory(historyData);
       }
 
       // 5. Obtener configuraciones de activos
-      const configsRes = await fetch(`${API_BASE}/config/assets`);
+      const configsRes = await fetch(`${API_BASE}/config/assets`, { headers: authHeaders() });
       if (configsRes.ok) {
         const configsData = await configsRes.json();
         setAssetConfigs(configsData);
@@ -234,49 +257,49 @@ export function CryptoExchangeTab() {
       }
 
       // 6. Obtener Modos de Operación
-      const modesRes = await fetch(`${API_BASE}/bot/modes`);
+      const modesRes = await fetch(`${API_BASE}/bot/modes`, { headers: authHeaders() });
       if (modesRes.ok) {
         const modesData = await modesRes.json();
         setOperationModes(modesData);
       }
 
       // 7. Obtener configuración global
-      const settingsRes = await fetch(`${API_BASE}/bot/global-settings`);
+      const settingsRes = await fetch(`${API_BASE}/bot/global-settings`, { headers: authHeaders() });
       if (settingsRes.ok) {
         const settingsData = await settingsRes.json();
         setGlobalSettings(settingsData);
       }
 
       // 8. Obtener historial de backtests
-      const btHistoryRes = await fetch(`${API_BASE}/bot/backtests`);
+      const btHistoryRes = await fetch(`${API_BASE}/bot/backtests`, { headers: authHeaders() });
       if (btHistoryRes.ok) {
         const btHistoryData = await btHistoryRes.json();
         setBacktestHistory(btHistoryData);
       }
 
       // 9. Obtener propuestas de ajuste pendientes
-      const adjPendingRes = await fetch(`${API_BASE}/bot/adjustments/pending`);
+      const adjPendingRes = await fetch(`${API_BASE}/bot/adjustments/pending`, { headers: authHeaders() });
       if (adjPendingRes.ok) {
         const adjPendingData = await adjPendingRes.json();
         setPendingAdjustments(adjPendingData);
       }
 
       // 10. Obtener historial de ajustes aplicados
-      const adjHistoryRes = await fetch(`${API_BASE}/bot/adjustments/history`);
+      const adjHistoryRes = await fetch(`${API_BASE}/bot/adjustments/history`, { headers: authHeaders() });
       if (adjHistoryRes.ok) {
         const adjHistoryData = await adjHistoryRes.json();
         setAdjustmentHistory(adjHistoryData);
       }
 
       // 11. Obtener historial de asignación de capital
-      const allocHistoryRes = await fetch(`${API_BASE}/bot/global-settings/history`);
+      const allocHistoryRes = await fetch(`${API_BASE}/bot/global-settings/history`, { headers: authHeaders() });
       if (allocHistoryRes.ok) {
         const allocHistoryData = await allocHistoryRes.json();
         setAllocationHistory(allocHistoryData);
       }
 
       // 12. Obtener transacciones de capital
-      const capTxRes = await fetch(`${API_BASE}/capital/transactions`);
+      const capTxRes = await fetch(`${API_BASE}/capital/transactions`, { headers: authHeaders() });
       if (capTxRes.ok) {
         const capTxData = await capTxRes.json();
         setCapitalTransactions(capTxData);
@@ -317,7 +340,7 @@ export function CryptoExchangeTab() {
 
   const handleConnectWhatsApp = async () => {
     try {
-      await fetch(`${API_BASE}/whatsapp/connect`, { method: 'POST' });
+      await fetch(`${API_BASE}/whatsapp/connect`, { method: 'POST', headers: authHeaders() });
       fetchData();
     } catch (e: any) {
       alert('Error al enviar la petición de conexión de WhatsApp.');
@@ -335,7 +358,7 @@ export function CryptoExchangeTab() {
 
       const res = await fetch(`${API_BASE}/config/horizons`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: authHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify(horizons)
       });
 
@@ -374,7 +397,7 @@ export function CryptoExchangeTab() {
   const handleCancelProposal = async (id: string) => {
     if (!confirm('¿Rechazar esta operación programada e impedir su auto-ejecución?')) return;
     try {
-      const res = await fetch(`${API_BASE}/proposals/${id}/cancel`, { method: 'POST' });
+      const res = await fetch(`${API_BASE}/proposals/${id}/cancel`, { method: 'POST', headers: authHeaders() });
       if (res.ok) {
         alert('Operación rechazada con éxito.');
         fetchData();
@@ -399,7 +422,7 @@ export function CryptoExchangeTab() {
     try {
       const res = await fetch(`${API_BASE}/capital/transaction`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: authHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({
           horizon: targetHorizon,
           amount: amountNum,
@@ -440,7 +463,7 @@ export function CryptoExchangeTab() {
     try {
       const res = await fetch(`${API_BASE}/config/update`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: authHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({
           asset,
           rsiThresholdBuy: edits.rsi_threshold_buy,
@@ -468,7 +491,7 @@ export function CryptoExchangeTab() {
     try {
       const res = await fetch(`${API_BASE}/bot/modes/${modeName}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: authHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify(mode)
       });
       if (!res.ok) throw new Error('Error al guardar los parámetros del modo.');
@@ -501,7 +524,7 @@ export function CryptoExchangeTab() {
     try {
       const res = await fetch(`${API_BASE}/bot/modes/clone`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: authHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({
           name: cloneModeName.trim().toLowerCase(),
           sourceName: selectedModeForEdit
@@ -523,7 +546,7 @@ export function CryptoExchangeTab() {
     try {
       const res = await fetch(`${API_BASE}/config/update`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: authHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({
           asset,
           activeMode: modeName
@@ -545,7 +568,7 @@ export function CryptoExchangeTab() {
     try {
       const res = await fetch(`${API_BASE}/bot/backtests/run`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: authHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({
           asset: btAsset,
           timeframe: btTimeframe,
@@ -575,7 +598,7 @@ export function CryptoExchangeTab() {
     try {
       const res = await fetch(`${API_BASE}/bot/backtests/walk-forward`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: authHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({ asset, modeName: mode, timeframe: '1h' })
       });
       if (res.ok) {
@@ -601,7 +624,7 @@ export function CryptoExchangeTab() {
     try {
       const res = await fetch(`${API_BASE}/bot/global-settings`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: authHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({
           tactical_capital_pct: pct,
           total_simulation_capital: realTimeTotalCapital
@@ -617,7 +640,7 @@ export function CryptoExchangeTab() {
   // Aprobar ajuste de parámetro de IA (POST /api/bot/adjustments/:id/approve)
   const handleApproveAdjustment = async (id: string) => {
     try {
-      const res = await fetch(`${API_BASE}/bot/adjustments/${id}/approve`, { method: 'POST' });
+      const res = await fetch(`${API_BASE}/bot/adjustments/${id}/approve`, { method: 'POST', headers: authHeaders() });
       if (res.ok) {
         alert('Ajuste de parámetros aprobado y aplicado con éxito.');
         fetchData();
@@ -630,7 +653,7 @@ export function CryptoExchangeTab() {
   // Rechazar ajuste de parámetro de IA (POST /api/bot/adjustments/:id/reject)
   const handleRejectAdjustment = async (id: string) => {
     try {
-      const res = await fetch(`${API_BASE}/bot/adjustments/${id}/reject`, { method: 'POST' });
+      const res = await fetch(`${API_BASE}/bot/adjustments/${id}/reject`, { method: 'POST', headers: authHeaders() });
       if (res.ok) {
         alert('Ajuste de parámetros rechazado.');
         fetchData();
@@ -663,7 +686,7 @@ export function CryptoExchangeTab() {
 
       const res = await fetch(`${API_BASE}/config/horizons`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: authHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify(distributedHorizons)
       });
 
