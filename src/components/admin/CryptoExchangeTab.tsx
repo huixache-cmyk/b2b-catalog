@@ -707,6 +707,13 @@ export function CryptoExchangeTab() {
 
     const activeTrades = [...history]
       .filter(h => h.status === 'executed' || h.status === 'simulated')
+      .filter(h => {
+        const isIntraday = (h.horizon || '').toLowerCase() === 'intraday';
+        const currentTab = (activeSubTab as string).toLowerCase();
+        if (currentTab === 'intraday') return isIntraday;
+        if (currentTab === 'horizon') return !isIntraday;
+        return true;
+      })
       .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
 
     activeTrades.forEach(trade => {
