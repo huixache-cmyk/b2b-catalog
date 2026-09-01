@@ -977,6 +977,9 @@ export function CryptoExchangeTab() {
   const intradayEquity = intradayCash + intradayCrypto;
   const horizonEquity = multiHorizonCash + horizonCrypto;
 
+  const intradayNetProfit = intradayEquity - 1000.00;
+  const horizonNetProfit = horizonEquity - 1000.00;
+
   let realTimeTotalCapital = 0;
   if (currentSubTabStr === 'comparison') {
     realTimeTotalCapital = intradayEquity + horizonEquity;
@@ -1112,9 +1115,9 @@ export function CryptoExchangeTab() {
               </div>
               <div>
                 <div className="flex items-center gap-2">
-                  <h3 className="text-sm font-bold text-white">Meta de Rendimiento Diario (+15%)</h3>
+                  <h3 className="text-sm font-bold text-white">Meta de Rendimiento Diario (+2% a +3%)</h3>
                   <span className="px-2 py-0.5 bg-emerald-500/20 text-emerald-300 text-3xs font-extrabold rounded-full border border-emerald-500/30">
-                    $150.00 USD / día
+                    $20.00 a $30.00 USD / día
                   </span>
                 </div>
                 <p className="text-3xs text-slate-300 mt-0.5">
@@ -1125,15 +1128,32 @@ export function CryptoExchangeTab() {
 
             <div className="w-full md:w-72 space-y-1.5">
               <div className="flex justify-between text-3xs font-bold">
-                <span className="text-slate-300">Ganancia Hoy: <strong className="text-emerald-400">+{netProfit >= 0 ? netProfit.toFixed(2) : '0.00'} USD</strong></span>
-                <span className="text-emerald-400 font-extrabold">
-                  {((Math.max(0, netProfit) / 150) * 100).toFixed(1)}% Logrado
+                <span className="text-slate-300">
+                  Rendimiento Hoy:{' '}
+                  <strong className={intradayNetProfit >= 0 ? 'text-emerald-400' : 'text-red-400'}>
+                    {intradayNetProfit >= 0 ? '+' : ''}${intradayNetProfit.toFixed(2)} USD
+                  </strong>
+                </span>
+                <span className={intradayNetProfit >= 0 ? 'text-emerald-400 font-extrabold' : 'text-red-400 font-extrabold'}>
+                  {intradayNetProfit >= 0
+                    ? `${((intradayNetProfit / 25) * 100).toFixed(1)}% Logrado`
+                    : `(${((intradayNetProfit / 1000) * 100).toFixed(2)}%)`}
                 </span>
               </div>
               <div className="w-full bg-slate-800 rounded-full h-2 overflow-hidden border border-slate-700/50">
                 <div
-                  className="bg-gradient-to-r from-emerald-500 to-teal-400 h-2 rounded-full transition-all duration-500"
-                  style={{ width: `${Math.min(100, Math.max(0, (netProfit / 150) * 100))}%` }}
+                  className={`h-2 rounded-full transition-all duration-500 ${
+                    intradayNetProfit >= 0
+                      ? 'bg-gradient-to-r from-emerald-500 to-teal-400'
+                      : 'bg-gradient-to-r from-red-500 to-rose-400'
+                  }`}
+                  style={{
+                    width: `${
+                      intradayNetProfit >= 0
+                        ? Math.min(100, Math.max(0, (intradayNetProfit / 25) * 100))
+                        : Math.min(100, Math.max(5, (Math.abs(intradayNetProfit) / 50) * 100))
+                    }%`
+                  }}
                 />
               </div>
             </div>
