@@ -2121,6 +2121,10 @@ export function CryptoExchangeTab() {
           const filtered = [...history]
             .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
             .filter(h => {
+              const isIntraday = h.horizon === 'intraday' || !h.horizon;
+              const subTabStr = activeSubTab as string;
+              if (subTabStr === 'intraday' && !isIntraday) return false;
+              if (subTabStr === 'horizon' && isIntraday) return false;
               if (!historyDateSearch) return true;
               const hDate = new Date(h.created_at).toISOString().split('T')[0];
               return hDate === historyDateSearch;
@@ -2304,6 +2308,62 @@ export function CryptoExchangeTab() {
                 ))}
               </div>
             )}
+          </div>
+
+          {/* Horizon Executed Trades History Table */}
+          <div className="bg-white p-6 rounded-xl border border-gray-150 shadow-sm space-y-4">
+            <h3 className="text-sm font-bold text-gray-900 flex items-center gap-2">
+              <Clock className="w-4 h-4 text-sky-500" />
+              Historial de Operaciones Realizadas (Bot por Horizontes)
+            </h3>
+            {(() => {
+              const horizonHistory = history.filter(h => h.horizon && h.horizon !== 'intraday');
+              if (horizonHistory.length === 0) {
+                return (
+                  <p className="text-xs text-gray-400 italic py-4 text-center">No hay operaciones registradas aún para el Bot por Horizontes.</p>
+                );
+              }
+              return (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm text-left border-collapse">
+                    <thead>
+                      <tr className="border-b border-gray-200 text-gray-500 font-semibold text-xs">
+                        <th className="py-3 px-2">Activo</th>
+                        <th className="py-3 px-2">Tipo</th>
+                        <th className="py-3 px-2">Monto (USD)</th>
+                        <th className="py-3 px-2">Precio de Ejecución</th>
+                        <th className="py-3 px-2">Plazo</th>
+                        <th className="py-3 px-2">Fecha</th>
+                        <th className="py-3 px-2">Estatus</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {horizonHistory.map((h: any) => (
+                        <tr key={h.id} className="border-b border-gray-100 text-xs">
+                          <td className="py-2.5 px-2 font-bold text-gray-800">{h.asset}</td>
+                          <td className="py-2.5 px-2">
+                            <span className={`px-2 py-0.5 rounded text-3xs font-extrabold ${
+                              h.trade_type === 'BUY' ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800'
+                            }`}>
+                              {h.trade_type}
+                            </span>
+                          </td>
+                          <td className="py-2.5 px-2 font-mono font-bold">${Number(h.executed_amount).toFixed(2)}</td>
+                          <td className="py-2.5 px-2 font-mono">${Number(h.execution_price).toLocaleString()}</td>
+                          <td className="py-2.5 px-2 capitalize font-semibold text-sky-700">{h.horizon}</td>
+                          <td className="py-2.5 px-2 text-gray-500">{new Date(h.created_at).toLocaleString('es-MX')}</td>
+                          <td className="py-2.5 px-2">
+                            <span className="px-2 py-0.5 rounded-full text-3xs font-bold uppercase bg-emerald-100 text-emerald-800">
+                              {h.status}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              );
+            })()}
           </div>
         </div>
       )}
