@@ -930,8 +930,48 @@ export function CryptoExchangeTab() {
   const intradayCash = Number(horizons.find(h => h.horizon === 'intraday')?.current_balance || 1000);
   const multiHorizonCash = horizons.filter(h => h.horizon !== 'intraday').reduce((acc, curr) => acc + Number(curr.current_balance || 0), 0);
 
-  const activeCashCapital = activeSubTab === 'horizon' ? multiHorizonCash : intradayCash;
-  const realTimeTotalCapital = activeCashCapital + totalInvestmentValue;
+  const currentSubTabStr = (activeSubTab as string).toLowerCase();
+
+  const activeCashCapital = currentSubTabStr === 'horizon' ? multiHorizonCash : intradayCash;
+
+  let realTimeTotalCapital = 0;
+  if (currentSubTabStr === 'comparison') {
+    const intradayTrades = history.filter(h => (h.status === 'executed' || h.status === 'simulated') && (h.horizon || '').toLowerCase() === 'intraday');
+    const horizonTrades = history.filter(h => (h.status === 'executed' || h.status === 'simulated') && (h.horizon || '').toLowerCase() !== 'intraday');
+    
+    let intradayCrypto = 0;
+    const intradayCoins: Record<string, number> = {};
+    intradayTrades.forEach(t => {
+      const qty = t.executed_amount / t.execution_price;
+      if (!intradayCoins[t.asset]) intradayCoins[t.asset] = 0;
+      if (t.trade_type === 'BUY') intradayCoins[t.asset] += qty;
+      else if (t.trade_type === 'SELL') intradayCoins[t.asset] = Math.max(0, intradayCoins[t.asset] - qty);
+    });
+    Object.keys(intradayCoins).forEach(asset => {
+      const price = (assetConfigs.find(c => c.asset === asset) as any)?.current_price || (asset.includes('BTC') ? 80000 : asset.includes('ETH') ? 2600 : 180);
+      intradayCrypto += intradayCoins[asset] * price;
+    });
+
+    let horizonCrypto = 0;
+    const horizonCoins: Record<string, number> = {};
+    horizonTrades.forEach(t => {
+      const qty = t.executed_amount / t.execution_price;
+      if (!horizonCoins[t.asset]) horizonCoins[t.asset] = 0;
+      if (t.trade_type === 'BUY') horizonCoins[t.asset] += qty;
+      else if (t.trade_type === 'SELL') horizonCoins[t.asset] = Math.max(0, horizonCoins[t.asset] - qty);
+    });
+    Object.keys(horizonCoins).forEach(asset => {
+      const price = (assetConfigs.find(c => c.asset === asset) as any)?.current_price || (asset.includes('BTC') ? 80000 : asset.includes('ETH') ? 2600 : 180);
+      horizonCrypto += horizonCoins[asset] * price;
+    });
+
+    realTimeTotalCapital = intradayCash + intradayCrypto + multiHorizonCash + horizonCrypto;
+  } else if (currentSubTabStr === 'horizon') {
+    realTimeTotalCapital = multiHorizonCash + totalInvestmentValue;
+  } else {
+    realTimeTotalCapital = intradayCash + totalInvestmentValue;
+  }
+
   const netProfit = totalProfit;
   const pendingProposals = proposals.filter(p => p.status === 'pending_auto_exec');
 
