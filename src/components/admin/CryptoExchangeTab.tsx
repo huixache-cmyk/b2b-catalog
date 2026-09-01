@@ -29,6 +29,7 @@ interface CapitalHorizon {
   suggested_percentage_ai: number | null;
   target_roi: number;
   current_balance: number;
+  bot_type?: string;
 }
 
 interface TradeProposal {
@@ -39,6 +40,7 @@ interface TradeProposal {
   suggested_amount: number;
   current_price: number;
   horizon: string;
+  bot_type?: string;
   justification: string;
   status: 'pending_auto_exec' | 'executed' | 'rejected' | 'failed';
   expires_at: string;
@@ -50,6 +52,7 @@ interface TradeHistory {
   asset: string;
   trade_type: 'BUY' | 'SELL';
   horizon: string;
+  bot_type?: string;
   executed_amount: number;
   execution_price: number;
   fees: number;
@@ -708,7 +711,7 @@ export function CryptoExchangeTab() {
     const activeTrades = [...history]
       .filter(h => h.status === 'executed' || h.status === 'simulated')
       .filter(h => {
-        const isIntraday = (h.horizon || '').toLowerCase() === 'intraday';
+        const isIntraday = (h.bot_type || '').toUpperCase() === 'INTRADAY' || (h.horizon || '').toLowerCase() === 'intraday';
         const currentTab = (activeSubTab as string).toLowerCase();
         if (currentTab === 'intraday') return isIntraday;
         if (currentTab === 'horizon') return !isIntraday;
