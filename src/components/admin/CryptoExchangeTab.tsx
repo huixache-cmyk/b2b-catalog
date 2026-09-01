@@ -2287,6 +2287,65 @@ export function CryptoExchangeTab() {
               ))}
           </div>
 
+          {/* Horizon Performance SVG Chart */}
+          <div className="bg-white p-6 rounded-xl border border-gray-150 shadow-sm space-y-4">
+            <div className="flex justify-between items-center pb-2 border-b border-gray-100 flex-wrap gap-3">
+              <div className="flex items-center gap-4 flex-wrap">
+                <div>
+                  <h2 className="text-base font-bold text-gray-900 flex items-center gap-1.5">
+                    <TrendingUp className="w-4 h-4 text-sky-500" /> Rendimiento Acumulado (Bot por Horizontes)
+                  </h2>
+                  <p className="text-2xs text-gray-400 mt-0.5">Evolución del portafolio multitemporal en tiempo real.</p>
+                </div>
+              </div>
+              
+              <div className="text-right">
+                <span className={`text-xs font-extrabold flex items-center justify-end gap-0.5 ${netProfit >= 0 ? 'text-sky-600' : 'text-red-650'}`}>
+                  {netProfit >= 0 ? <ArrowUpRight className="w-3.5 h-3.5" /> : <ArrowDownRight className="w-3.5 h-3.5" />}
+                  {netProfit >= 0 ? '+' : ''}${netProfit.toFixed(2)} USD
+                </span>
+              </div>
+            </div>
+
+            {(() => {
+              const { points: pointsWithCoords, polylinePoints, yMax, yMin } = getChartData();
+              const yMid = (yMax + yMin) / 2;
+              const yUpperMid = yMax - (yMax - yMin) * 0.25;
+              const yLowerMid = yMax - (yMax - yMin) * 0.75;
+
+              return (
+                <div className="bg-white border border-gray-150 rounded-xl p-4 relative flex flex-col justify-between">
+                  <div className="absolute left-3 top-4 bottom-14 flex flex-col justify-between text-[9px] font-bold font-mono text-gray-400 select-none pointer-events-none z-10 border-r border-gray-100 pr-2">
+                    <span>${yMax.toLocaleString(undefined, { maximumFractionDigits: 1 })}</span>
+                    <span>${yUpperMid.toLocaleString(undefined, { maximumFractionDigits: 1 })}</span>
+                    <span>${yMid.toLocaleString(undefined, { maximumFractionDigits: 1 })}</span>
+                    <span>${yLowerMid.toLocaleString(undefined, { maximumFractionDigits: 1 })}</span>
+                    <span>${yMin.toLocaleString(undefined, { maximumFractionDigits: 1 })}</span>
+                  </div>
+
+                  <div className="w-full h-28 pl-14 pr-2 flex items-end relative">
+                    <svg viewBox="0 0 400 100" className="w-full h-full overflow-visible" preserveAspectRatio="none">
+                      <line x1="0" y1="10" x2="400" y2="10" stroke="#f3f4f6" strokeWidth="1" />
+                      <line x1="0" y1="30" x2="400" y2="30" stroke="#f3f4f6" strokeWidth="1" />
+                      <line x1="0" y1="50" x2="400" y2="50" stroke="#f3f4f6" strokeWidth="1" />
+                      <line x1="0" y1="70" x2="400" y2="70" stroke="#f3f4f6" strokeWidth="1" />
+                      <line x1="0" y1="90" x2="400" y2="90" stroke="#f3f4f6" strokeWidth="1" />
+
+                      <polyline
+                        fill="none"
+                        stroke="#0284c7"
+                        strokeWidth="2.2"
+                        points={polylinePoints}
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                    </svg>
+                  </div>
+                </div>
+              );
+            })()}
+          </div>
+
           {/* Horizon Proposals Queue */}
           <div className="bg-white p-6 rounded-xl border border-gray-150 shadow-sm space-y-4">
             <h3 className="text-sm font-bold text-gray-900 flex items-center gap-2">
