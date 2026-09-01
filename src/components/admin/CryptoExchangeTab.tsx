@@ -932,9 +932,14 @@ export function CryptoExchangeTab() {
 
   const currentSubTabStr = (activeSubTab as string).toLowerCase();
 
+  const isIntradayTrade = (h: TradeHistory) => {
+    if (h.bot_type) return h.bot_type.toUpperCase() === 'INTRADAY';
+    return (h.horizon || '').toLowerCase() === 'intraday';
+  };
+
   // Helper calculations for exact crypto equity per bot
   let intradayCrypto = 0;
-  const intradayTrades = history.filter(h => (h.status === 'executed' || h.status === 'simulated') && ((h.bot_type || '').toUpperCase() === 'INTRADAY' || (h.horizon || '').toLowerCase() === 'intraday'));
+  const intradayTrades = history.filter(h => (h.status === 'executed' || h.status === 'simulated') && isIntradayTrade(h));
   const intradayCoins: Record<string, number> = {};
   intradayTrades.forEach(t => {
     const qty = t.executed_amount / t.execution_price;
@@ -948,7 +953,7 @@ export function CryptoExchangeTab() {
   });
 
   let horizonCrypto = 0;
-  const horizonTrades = history.filter(h => (h.status === 'executed' || h.status === 'simulated') && (h.bot_type || '').toUpperCase() !== 'INTRADAY' && (h.horizon || '').toLowerCase() !== 'intraday');
+  const horizonTrades = history.filter(h => (h.status === 'executed' || h.status === 'simulated') && !isIntradayTrade(h));
   const horizonCoins: Record<string, number> = {};
   horizonTrades.forEach(t => {
     const qty = t.executed_amount / t.execution_price;
