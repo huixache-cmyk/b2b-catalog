@@ -930,9 +930,6 @@ export function CryptoExchangeTab() {
   // Calculate Net Profit and Sub-Tab Isolated Capital
   const { balances, totalInvestmentValue, totalProfit } = calculateCryptoBalances();
 
-  const intradayCash = Number(horizons.find(h => (h.horizon || '').toLowerCase() === 'intraday')?.current_balance ?? 766.67);
-  const multiHorizonCash = horizons.filter(h => (h.horizon || '').toLowerCase() !== 'intraday').reduce((acc, curr) => acc + Number(curr.current_balance || 0), 0);
-
   const currentSubTabStr = (activeSubTab as string).toLowerCase();
 
   // Helper calculations for exact crypto equity per bot
@@ -963,6 +960,14 @@ export function CryptoExchangeTab() {
     const price = (assetConfigs.find(c => c.asset === asset) as any)?.current_price || (asset.includes('BTC') ? 80000 : asset.includes('ETH') ? 2600 : 180);
     horizonCrypto += horizonCoins[asset] * price;
   });
+
+  const intradayRow = horizons.find(h => (h.horizon || '').toLowerCase() === 'intraday');
+  const intradayCash = intradayRow ? Number(intradayRow.current_balance) : Math.max(0, 1000 - intradayCrypto);
+
+  const horizonRows = horizons.filter(h => (h.horizon || '').toLowerCase() !== 'intraday');
+  const multiHorizonCash = horizonRows.length > 0
+    ? horizonRows.reduce((acc, curr) => acc + Number(curr.current_balance || 0), 0)
+    : Math.max(0, 1000 - horizonCrypto);
 
   const intradayEquity = intradayCash + intradayCrypto;
   const horizonEquity = multiHorizonCash + horizonCrypto;
