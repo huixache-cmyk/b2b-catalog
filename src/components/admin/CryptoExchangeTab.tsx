@@ -2350,6 +2350,62 @@ export function CryptoExchangeTab() {
               ))}
           </div>
 
+          {/* Tus Criptomonedas (Bot por Horizontes) */}
+          <div className="bg-white p-6 rounded-xl border border-gray-150 shadow-sm space-y-4">
+            <div>
+              <h2 className="text-lg font-bold text-gray-900 flex items-center gap-1.5">
+                💼 Tus Criptomonedas (Bot por Horizontes)
+              </h2>
+              <p className="text-2xs text-gray-455 mt-0.5 font-medium">Capital invertido y rendimiento de activos en la estrategia multitemporal en tiempo real.</p>
+            </div>
+            
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {Object.keys(balances).map(key => {
+                const b = balances[key];
+                const activeConfig = assetConfigs.find(c => c.asset === key);
+                const activeMode = activeConfig?.active_mode || 'moderado';
+                return (
+                  <div key={key} className="bg-gray-50/70 p-4 rounded-xl border border-gray-100 flex flex-col justify-between space-y-3">
+                    <div className="flex justify-between items-start">
+                      <div className="flex items-center gap-3">
+                        <div className="w-9 h-9 rounded-full bg-sky-50 border border-sky-100 flex items-center justify-center font-bold text-xs text-sky-750">
+                          {key.split('/')[0]}
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-1.5">
+                            <p className="text-xs font-bold text-gray-800">{b.name}</p>
+                            <span className="px-1.5 py-0.2 rounded bg-sky-50 text-sky-700 text-[8px] font-extrabold uppercase">
+                              MULTITEMPORAL
+                            </span>
+                          </div>
+                          <p className="text-3xs text-gray-455 font-mono mt-0.5">
+                            {b.coins.toFixed(6)} {key.split('/')[0]}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="text-right">
+                        <p className="text-xs font-black text-gray-900 font-mono">${b.valueUsd.toFixed(2)} USD</p>
+                        <p className="text-[9px] font-bold text-gray-400 font-mono">≈ ${(b.valueUsd * usdToMxn).toFixed(2)} MXN</p>
+                      </div>
+                    </div>
+
+                    <div className="pt-2 border-t border-gray-150/70 flex items-center justify-between">
+                      {b.coins > 0 ? (
+                        <div className={`px-2 py-1 rounded-lg text-2xs font-extrabold flex items-center gap-1 border ${b.profitUsd >= 0 ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-red-50 text-red-700 border-red-200'}`}>
+                          <span>Ganancia / Pérdida:</span>
+                          <span>{b.profitUsd >= 0 ? '▲' : '▼'} ${Math.abs(b.profitUsd).toFixed(2)} USD ({b.cost > 0 ? ((b.profitUsd / b.cost) * 100).toFixed(2) : '0.00'}%)</span>
+                        </div>
+                      ) : (
+                        <span className="text-[10px] text-gray-400 italic font-medium">Sin posición abierta ($0.00 USD)</span>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
           {/* Horizon Performance SVG Chart */}
           <div className="bg-white p-6 rounded-xl border border-gray-150 shadow-sm space-y-4">
             <div className="flex justify-between items-center pb-2 border-b border-gray-100 flex-wrap gap-3">
