@@ -19,7 +19,10 @@ import {
   Zap,
   Clock,
   BarChart2,
-  Target
+  Target,
+  ShieldCheck,
+  ArrowRightLeft,
+  History as HistoryIcon
 } from 'lucide-react';
 
 interface CapitalHorizon {
@@ -70,6 +73,27 @@ interface AssetConfig {
   active_mode?: string;
 }
 
+interface ProfitSweep {
+  id: string;
+  bot_type: string;
+  sweep_amount_usd: number;
+  sweep_amount_mxn: number;
+  target_destination: string;
+  status: string;
+  notes?: string;
+  created_at: string;
+}
+
+interface VaultStatus {
+  vault_balance_usd: number;
+  total_swept_usd: number;
+  total_swept_mxn: number;
+  auto_sweep_enabled: boolean;
+  sweep_target_threshold_usd: number;
+  default_destination: string;
+  sweeps_count: number;
+}
+
 export function CryptoExchangeTab() {
   const [horizons, setHorizons] = useState<CapitalHorizon[]>([]);
   const [proposals, setProposals] = useState<TradeProposal[]>([]);
@@ -79,6 +103,21 @@ export function CryptoExchangeTab() {
   const [whatsappQr, setWhatsappQr] = useState<string | null>(null);
   const [botActive, setBotActive] = useState<boolean>(true);
   const [exchangeMode, setExchangeMode] = useState<string>('simulation');
+  
+  // Vault & Sweeps States
+  const [vaultStatus, setVaultStatus] = useState<VaultStatus>({
+    vault_balance_usd: 0,
+    total_swept_usd: 0,
+    total_swept_mxn: 0,
+    auto_sweep_enabled: true,
+    sweep_target_threshold_usd: 20.00,
+    default_destination: 'boveda_interna',
+    sweeps_count: 0
+  });
+  const [sweepsHistory, setSweepsHistory] = useState<ProfitSweep[]>([]);
+  const [isSweeping, setIsSweeping] = useState<boolean>(false);
+  const [sweepDestination, setSweepDestination] = useState<string>('boveda_interna');
+  const [sweepThresholdInput, setSweepThresholdInput] = useState<string>('20.00');
   
   // States for changes
   const [isSaving, setIsSaving] = useState<boolean>(false);
@@ -305,6 +344,21 @@ export function CryptoExchangeTab() {
       if (capTxRes.ok) {
         const capTxData = await capTxRes.json();
         setCapitalTransactions(capTxData);
+      }
+
+      // 13. Obtener estado e historial de la Bóveda de Ganancias
+      const vaultRes = await fetch(`${API_BASE}/vault/status`, { headers: authHeaders() });
+      if (vaultRes.ok) {
+        const vaultData = await vaultRes.json();
+        setVaultStatus(vaultData);
+        setSweepDestination(vaultData.default_destination || 'boveda_interna');
+        setSweepThresholdInput(String(vaultData.sweep_target_threshold_usd || '20.00'));
+      }
+
+      const sweepsRes = await fetch(`${API_BASE}/vault/history`, { headers: authHeaders() });
+      if (sweepsRes.ok) {
+        const sweepsData = await sweepsRes.json();
+        setSweepsHistory(sweepsData);
       }
 
       setErrorMsg(null);
@@ -662,6 +716,54 @@ export function CryptoExchangeTab() {
       }
     } catch (e) {
       alert('Error al rechazar ajuste.');
+    }
+  };
+
+  const handleTriggerSweep = async (botType: 'INTRADAY' | 'HORIZON') => {
+    setIsSweeping(true);
+    try {
+      const res = await fetch(`${API_BASE}/vault/sweep`, {
+        method: 'POST',
+        headers: authHeaders({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify({
+          botType,
+          targetDestination: sweepDestination,
+          notes: `Quita manual gatillada desde el panel para Bot ${botType}`
+        })
+      });
+
+      if (!res.ok) {
+        const errData = await res.json();
+        throw new Error(errData.error || 'Error al ejecutar quita.');
+      }
+
+      const data = await res.json();
+      alert(`¡Quita ejecutada con éxito! Se han transferido +$${data.swept_usd.toFixed(2)} USD (≈ $${data.swept_mxn.toFixed(2)} MXN) a la Bóveda.`);
+      fetchData();
+    } catch (e: any) {
+      alert(e.message);
+    } finally {
+      setIsSweeping(false);
+    }
+  };
+
+  const handleSaveVaultConfig = async (autoEnabled?: boolean) => {
+    try {
+      const res = await fetch(`${API_BASE}/vault/config`, {
+        method: 'POST',
+        headers: authHeaders({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify({
+          autoSweepEnabled: autoEnabled !== undefined ? autoEnabled : vaultStatus.auto_sweep_enabled,
+          sweepTargetThresholdUsd: parseFloat(sweepThresholdInput) || 20.00,
+          defaultDestination: sweepDestination
+        })
+      });
+
+      if (!res.ok) throw new Error('Error al guardar configuración de Bóveda.');
+      alert('Configuración de Bóveda y Quitas guardada con éxito.');
+      fetchData();
+    } catch (e: any) {
+      alert(e.message);
     }
   };
 
@@ -1122,6 +1224,18 @@ export function CryptoExchangeTab() {
         >
           <BarChart2 className="w-4 h-4 text-emerald-200" />
           📊 Comparativa de Desempeño
+        </button>
+
+        <button
+          onClick={() => setActiveSubTab('vault' as any)}
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all ${
+            (activeSubTab as string) === 'vault'
+              ? 'bg-purple-700 text-white shadow-md shadow-purple-500/20'
+              : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+          }`}
+        >
+          <ShieldCheck className="w-4 h-4 text-purple-300" />
+          🏦 Bóveda de Ganancias y Quitas
         </button>
       </div>
 
@@ -2760,6 +2874,200 @@ export function CryptoExchangeTab() {
                 />
               </svg>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* PROFIT VAULT & SWEEPS VIEW */}
+      {(activeSubTab as string) === 'vault' && (
+        <div className="space-y-6">
+          {/* Header Card */}
+          <div className="bg-gradient-to-r from-slate-900 via-purple-950 to-slate-900 p-6 rounded-2xl border border-purple-500/30 text-white shadow-xl space-y-4">
+            <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 border-b border-purple-800/50 pb-4">
+              <div>
+                <h2 className="text-xl font-bold flex items-center gap-2 text-white">
+                  <ShieldCheck className="w-7 h-7 text-emerald-400" />
+                  Bóveda de Ganancias y Quitas Automáticas
+                </h2>
+                <p className="text-xs text-slate-300 mt-1">
+                  Protección de utilidades obtenidas. El capital activo de trading se estabiliza a $1,000.00 USD y los excedentes se transfieren aquí.
+                </p>
+              </div>
+
+              <div className="flex items-center gap-3">
+                <span className={`px-3 py-1.5 rounded-full text-xs font-bold border ${vaultStatus.auto_sweep_enabled ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30' : 'bg-amber-500/20 text-amber-300 border-amber-500/30'}`}>
+                  {vaultStatus.auto_sweep_enabled ? '🛡️ Quita Automática Activa' : '⏸️ Quitas Pausadas'}
+                </span>
+                <button
+                  onClick={() => handleSaveVaultConfig(!vaultStatus.auto_sweep_enabled)}
+                  className="px-3.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-xs font-semibold rounded-xl border border-slate-600 text-white transition-all"
+                >
+                  {vaultStatus.auto_sweep_enabled ? 'Pausar Quita Automática' : 'Activar Quita Automática'}
+                </button>
+              </div>
+            </div>
+
+            {/* Metrics */}
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 pt-2">
+              <div className="bg-slate-800/80 p-4 rounded-xl border border-purple-500/30">
+                <p className="text-xs font-semibold text-purple-300 uppercase tracking-wider">Saldo Total en Bóveda</p>
+                <p className="text-2xl font-black text-emerald-400 mt-1">${(vaultStatus.vault_balance_usd || 0).toFixed(2)} USD</p>
+                <p className="text-xs text-slate-300 mt-0.5">≈ ${((vaultStatus.vault_balance_usd || 0) * usdToMxn).toFixed(2)} MXN</p>
+              </div>
+
+              <div className="bg-slate-800/80 p-4 rounded-xl border border-slate-700/60">
+                <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Total Quitas Realizadas</p>
+                <p className="text-2xl font-bold text-white mt-1">{vaultStatus.sweeps_count || sweepsHistory.length}</p>
+                <p className="text-xs text-slate-400 mt-0.5">Operaciones de resguardo</p>
+              </div>
+
+              <div className="bg-slate-800/80 p-4 rounded-xl border border-slate-700/60">
+                <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Umbral de Quita Automática</p>
+                <p className="text-2xl font-bold text-amber-300 mt-1">${(vaultStatus.sweep_target_threshold_usd || 20).toFixed(2)} USD</p>
+                <p className="text-xs text-slate-400 mt-0.5">Ganancia mínima para barrido</p>
+              </div>
+
+              <div className="bg-slate-800/80 p-4 rounded-xl border border-slate-700/60">
+                <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Destino Predeterminado</p>
+                <p className="text-sm font-bold text-white mt-2 flex items-center gap-1.5">
+                  {sweepDestination === 'banorte_spei' ? '🇲🇽 Banorte SPEI' : sweepDestination === 'arq_usdt' ? '💲 ARQ Wallet USDT' : '🔒 Bóveda Interna'}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Action & Configuration Box */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* Manual Sweep Control */}
+            <div className="bg-white p-6 rounded-2xl border border-gray-150 shadow-sm space-y-4">
+              <h3 className="text-base font-bold text-gray-900 flex items-center gap-2">
+                <ArrowRightLeft className="w-5 h-5 text-blue-600" />
+                Ejecutar Quita de Ganancias Manual
+              </h3>
+              <p className="text-xs text-gray-500">
+                Transfiere inmediatamente el excedente de ganancias acumuladas sobre el capital base de $1,000.00 USD hacia la Bóveda Protegida o cuenta de destino.
+              </p>
+
+              <div className="space-y-3 pt-2">
+                <div>
+                  <label className="block text-xs font-semibold text-gray-700 mb-1">Seleccionar Destino de Fondos:</label>
+                  <select
+                    value={sweepDestination}
+                    onChange={(e) => setSweepDestination(e.target.value)}
+                    className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium focus:ring-2 focus:ring-purple-500 outline-none text-gray-800"
+                  >
+                    <option value="boveda_interna">🔒 Bóveda de Simulación Interna (Protección de Ganancias)</option>
+                    <option value="banorte_spei">🇲🇽 Banorte Cuenta CLABE / SPEI (Retiro en Pesos MXN)</option>
+                    <option value="arq_usdt">💲 ARQ / Wallet Digital (Dólares Digitales USDT/USDC)</option>
+                  </select>
+                </div>
+
+                <div className="flex gap-3 pt-2">
+                  <button
+                    onClick={() => handleTriggerSweep('INTRADAY')}
+                    disabled={isSweeping}
+                    className="flex-1 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-xs font-bold rounded-xl shadow-md transition-all flex items-center justify-center gap-2"
+                  >
+                    <Zap className="w-4 h-4 text-amber-300" />
+                    Quita Bot Intradía
+                  </button>
+
+                  <button
+                    onClick={() => handleTriggerSweep('HORIZON')}
+                    disabled={isSweeping}
+                    className="flex-1 px-4 py-2.5 bg-purple-600 hover:bg-purple-700 disabled:opacity-50 text-white text-xs font-bold rounded-xl shadow-md transition-all flex items-center justify-center gap-2"
+                  >
+                    <Clock className="w-4 h-4 text-sky-300" />
+                    Quita Bot Horizontes
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Sweep Auto Configuration */}
+            <div className="bg-white p-6 rounded-2xl border border-gray-150 shadow-sm space-y-4">
+              <h3 className="text-base font-bold text-gray-900 flex items-center gap-2">
+                <Settings className="w-5 h-5 text-purple-600" />
+                Configurar Regla de Barrido Automático
+              </h3>
+              <p className="text-xs text-gray-500">
+                Ajusta la ganancia mínima acumulada para gatillar automáticamente la quita al cierre de la jornada o alcanzar el objetivo.
+              </p>
+
+              <div className="space-y-3 pt-2">
+                <div>
+                  <label className="block text-xs font-semibold text-gray-700 mb-1">Umbral Mínimo de Quita ($ USD):</label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-2.5 text-gray-400 font-semibold text-sm">$</span>
+                    <input
+                      type="number"
+                      step="5"
+                      value={sweepThresholdInput}
+                      onChange={(e) => setSweepThresholdInput(e.target.value)}
+                      className="w-full pl-7 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm font-semibold focus:ring-2 focus:ring-purple-500 outline-none text-gray-800"
+                    />
+                  </div>
+                </div>
+
+                <button
+                  onClick={() => handleSaveVaultConfig()}
+                  className="w-full mt-2 px-4 py-2.5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-xl shadow-sm transition-all"
+                >
+                  Guardar Parámetros de la Bóveda
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Sweeps History Table */}
+          <div className="bg-white p-6 rounded-2xl border border-gray-150 shadow-sm space-y-4">
+            <h3 className="text-base font-bold text-gray-900 flex items-center gap-2">
+              <HistoryIcon className="w-5 h-5 text-emerald-600" />
+              Historial Completo de Quitas y Barridos Realizados
+            </h3>
+
+            {sweepsHistory.length === 0 ? (
+              <div className="text-center py-8 text-gray-500 text-xs">
+                Aún no hay quitas de ganancias registradas. Puedes gatillar una quita manual o esperar al barrido automático diario.
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="border-b border-gray-200 text-xs font-bold text-gray-500 uppercase tracking-wider bg-gray-50">
+                      <th className="py-3 px-4">Fecha / Hora</th>
+                      <th className="py-3 px-4">Bot Origen</th>
+                      <th className="py-3 px-4">Monto ($ USD)</th>
+                      <th className="py-3 px-4">Monto (≈ $ MXN)</th>
+                      <th className="py-3 px-4">Destino</th>
+                      <th className="py-3 px-4">Estatus</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-150 text-xs">
+                    {sweepsHistory.map((s) => (
+                      <tr key={s.id} className="hover:bg-gray-50 transition-colors">
+                        <td className="py-3 px-4 font-medium text-gray-800">{new Date(s.created_at).toLocaleString('es-MX')}</td>
+                        <td className="py-3 px-4">
+                          <span className={`px-2.5 py-0.5 rounded-full font-bold text-2xs ${s.bot_type === 'INTRADAY' ? 'bg-blue-100 text-blue-700' : 'bg-purple-100 text-purple-700'}`}>
+                            {s.bot_type === 'INTRADAY' ? '⚡ Intradía' : '⏳ Horizontes'}
+                          </span>
+                        </td>
+                        <td className="py-3 px-4 font-bold text-emerald-600">+${Number(s.sweep_amount_usd).toFixed(2)} USD</td>
+                        <td className="py-3 px-4 font-semibold text-gray-700">+${Number(s.sweep_amount_mxn || Number(s.sweep_amount_usd) * usdToMxn).toFixed(2)} MXN</td>
+                        <td className="py-3 px-4 text-gray-600 font-medium">
+                          {s.target_destination === 'banorte_spei' ? '🇲🇽 Banorte SPEI' : s.target_destination === 'arq_usdt' ? '💲 ARQ / Wallet USDT' : '🔒 Bóveda Interna'}
+                        </td>
+                        <td className="py-3 px-4">
+                          <span className="px-2 py-0.5 bg-emerald-100 text-emerald-700 rounded-md font-semibold text-3xs">
+                            ✓ {s.status.toUpperCase()}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
         </div>
       )}
