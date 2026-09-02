@@ -88,6 +88,10 @@ interface VaultStatus {
   vault_balance_usd: number;
   total_swept_usd: number;
   total_swept_mxn: number;
+  last_sweep_amount_usd?: number;
+  total_available_excess_cash_usd?: number;
+  intraday_excess_cash_usd?: number;
+  horizon_excess_cash_usd?: number;
   auto_sweep_enabled: boolean;
   sweep_target_threshold_usd: number;
   default_destination: string;
@@ -97,6 +101,7 @@ interface VaultStatus {
   deposit_source: string;
   daily_deposit_time: string;
   daily_deposit_amount_usd: number;
+  use_last_sweep_for_deposit?: boolean;
   sweeps_count: number;
 }
 
@@ -115,27 +120,31 @@ export function CryptoExchangeTab() {
     vault_balance_usd: 0,
     total_swept_usd: 0,
     total_swept_mxn: 0,
+    last_sweep_amount_usd: 50.00,
+    total_available_excess_cash_usd: 0,
     auto_sweep_enabled: true,
-    sweep_target_threshold_usd: 20.00,
-    default_destination: 'boveda_interna',
-    daily_sweep_time: '23:50',
+    sweep_target_threshold_usd: 25.00,
+    default_destination: 'banorte_spei',
+    daily_sweep_time: '22:00',
     base_capital_usd: 1000.00,
     auto_deposit_enabled: false,
     deposit_source: 'banorte_spei',
     daily_deposit_time: '08:00',
-    daily_deposit_amount_usd: 100.00,
+    daily_deposit_amount_usd: 50.00,
+    use_last_sweep_for_deposit: true,
     sweeps_count: 0
   });
   const [sweepsHistory, setSweepsHistory] = useState<ProfitSweep[]>([]);
   const [isSweeping, setIsSweeping] = useState<boolean>(false);
-  const [sweepDestination, setSweepDestination] = useState<string>('boveda_interna');
-  const [sweepThresholdInput, setSweepThresholdInput] = useState<string>('20.00');
-  const [sweepTimeInput, setSweepTimeInput] = useState<string>('23:50');
+  const [sweepDestination, setSweepDestination] = useState<string>('banorte_spei');
+  const [sweepThresholdInput, setSweepThresholdInput] = useState<string>('25.00');
+  const [sweepTimeInput, setSweepTimeInput] = useState<string>('22:00');
   const [baseCapitalInput, setBaseCapitalInput] = useState<string>('1000.00');
   const [autoDepositEnabled, setAutoDepositEnabled] = useState<boolean>(false);
   const [depositSource, setDepositSource] = useState<string>('banorte_spei');
   const [depositTimeInput, setDepositTimeInput] = useState<string>('08:00');
-  const [depositAmountInput, setDepositAmountInput] = useState<string>('100.00');
+  const [depositAmountInput, setDepositAmountInput] = useState<string>('50.00');
+  const [useLastSweepForDeposit, setUseLastSweepForDeposit] = useState<boolean>(true);
   
   // States for changes
   const [isSaving, setIsSaving] = useState<boolean>(false);
@@ -268,7 +277,9 @@ export function CryptoExchangeTab() {
       const historyRes = await fetch(`${API_BASE}/history`, { headers: authHeaders() });
       if (historyRes.ok) {
         const historyData = await historyRes.json();
-        setHistory(historyData);
+        // Filtrar quitas/retiros para que el historial comercial solo muestre compra/venta de activos cripto
+        const cryptoTradesOnly = (historyData || []).filter((t: any) => !t.asset || !t.asset.startsWith('SWEEP_'));
+        setHistory(cryptoTradesOnly);
       }
 
       // 5. Obtener configuraciones de activos
@@ -369,14 +380,15 @@ export function CryptoExchangeTab() {
       if (vaultRes.ok) {
         const vaultData = await vaultRes.json();
         setVaultStatus(vaultData);
-        setSweepDestination(vaultData.default_destination || 'boveda_interna');
-        setSweepThresholdInput(String(vaultData.sweep_target_threshold_usd || '20.00'));
-        setSweepTimeInput(vaultData.daily_sweep_time || '23:50');
+        setSweepDestination(vaultData.default_destination || 'banorte_spei');
+        setSweepThresholdInput(String(vaultData.sweep_target_threshold_usd || '25.00'));
+        setSweepTimeInput(vaultData.daily_sweep_time || '22:00');
         setBaseCapitalInput(String(vaultData.base_capital_usd || '1000.00'));
         setAutoDepositEnabled(vaultData.auto_deposit_enabled === true);
         setDepositSource(vaultData.deposit_source || 'banorte_spei');
         setDepositTimeInput(vaultData.daily_deposit_time || '08:00');
-        setDepositAmountInput(String(vaultData.daily_deposit_amount_usd || '100.00'));
+        setDepositAmountInput(String(vaultData.daily_deposit_amount_usd || vaultData.last_sweep_amount_usd || '50.00'));
+        setUseLastSweepForDeposit(vaultData.use_last_sweep_for_deposit !== false);
       }
 
       const sweepsRes = await fetch(`${API_BASE}/vault/history`, { headers: authHeaders() });
@@ -776,14 +788,15 @@ export function CryptoExchangeTab() {
     try {
       const payload = {
         autoSweepEnabled: autoEnabled !== undefined ? autoEnabled : vaultStatus.auto_sweep_enabled,
-        sweepTargetThresholdUsd: parseFloat(sweepThresholdInput) || 20.00,
+        sweepTargetThresholdUsd: parseFloat(sweepThresholdInput) || 25.00,
         defaultDestination: sweepDestination,
-        dailySweepTime: sweepTimeInput || '23:50',
+        dailySweepTime: sweepTimeInput || '22:00',
         baseCapitalUsd: parseFloat(baseCapitalInput) || 1000.00,
         autoDepositEnabled: autoDepEnabled !== undefined ? autoDepEnabled : autoDepositEnabled,
         depositSource: depositSource,
         dailyDepositTime: depositTimeInput || '08:00',
-        dailyDepositAmountUsd: parseFloat(depositAmountInput) || 100.00
+        dailyDepositAmountUsd: useLastSweepForDeposit ? (vaultStatus.last_sweep_amount_usd || 50.00) : (parseFloat(depositAmountInput) || 50.00),
+        useLastSweepForDeposit: useLastSweepForDeposit
       };
 
       const res = await fetch(`${API_BASE}/vault/config`, {
@@ -805,10 +818,11 @@ export function CryptoExchangeTab() {
           auto_deposit_enabled: data.config.auto_deposit_enabled,
           deposit_source: data.config.deposit_source,
           daily_deposit_time: data.config.daily_deposit_time,
-          daily_deposit_amount_usd: data.config.daily_deposit_amount_usd
+          daily_deposit_amount_usd: data.config.daily_deposit_amount_usd,
+          use_last_sweep_for_deposit: data.config.use_last_sweep_for_deposit
         }));
       }
-      alert('¡Ajustes guardados con éxito! Los parámetros, destino y horarios han sido guardados inmutablemente en Supabase DB y Railway.');
+      alert('¡Ajustes guardados con éxito! Los parámetros, destino y horarios se han guardado inmutablemente.');
       fetchData();
     } catch (e: any) {
       alert(e.message);
@@ -2965,22 +2979,22 @@ export function CryptoExchangeTab() {
 
             {/* Metrics */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4 pt-2">
+              <div className="bg-slate-800/80 p-4 rounded-xl border border-emerald-500/30">
+                <p className="text-xs font-semibold text-emerald-300 uppercase tracking-wider">Efectivo Libres por Barrer</p>
+                <p className="text-2xl font-black text-emerald-400 mt-1">${(vaultStatus.total_available_excess_cash_usd || 0).toFixed(2)} USD</p>
+                <p className="text-xs text-slate-300 mt-0.5">Excedente libre sobre $1,000 en bots</p>
+              </div>
+
               <div className="bg-slate-800/80 p-4 rounded-xl border border-purple-500/30">
-                <p className="text-xs font-semibold text-purple-300 uppercase tracking-wider">Saldo Total en Bóveda</p>
-                <p className="text-2xl font-black text-emerald-400 mt-1">${(vaultStatus.vault_balance_usd || 0).toFixed(2)} USD</p>
+                <p className="text-xs font-semibold text-purple-300 uppercase tracking-wider">Total Acumulado en Bóveda</p>
+                <p className="text-2xl font-bold text-white mt-1">${(vaultStatus.vault_balance_usd || 0).toFixed(2)} USD</p>
                 <p className="text-xs text-slate-300 mt-0.5">≈ ${((vaultStatus.vault_balance_usd || 0) * usdToMxn).toFixed(2)} MXN</p>
               </div>
 
               <div className="bg-slate-800/80 p-4 rounded-xl border border-slate-700/60">
-                <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Total Quitas Realizadas</p>
-                <p className="text-2xl font-bold text-white mt-1">{vaultStatus.sweeps_count || sweepsHistory.length}</p>
-                <p className="text-xs text-slate-400 mt-0.5">Operaciones de resguardo</p>
-              </div>
-
-              <div className="bg-slate-800/80 p-4 rounded-xl border border-slate-700/60">
-                <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Umbral de Quita Automática</p>
-                <p className="text-2xl font-bold text-amber-300 mt-1">${(vaultStatus.sweep_target_threshold_usd || 20).toFixed(2)} USD</p>
-                <p className="text-xs text-slate-400 mt-0.5">Ganancia mínima para barrido</p>
+                <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Gatillo Quita Automática</p>
+                <p className="text-2xl font-bold text-amber-300 mt-1">${(vaultStatus.sweep_target_threshold_usd || 25).toFixed(2)} USD</p>
+                <p className="text-xs text-slate-400 mt-0.5">Barrido total al alcanzar umbral</p>
               </div>
 
               <div className="bg-slate-800/80 p-4 rounded-xl border border-slate-700/60">
@@ -3114,7 +3128,7 @@ export function CryptoExchangeTab() {
                   </div>
 
                   {autoDepositEnabled && (
-                    <div className="space-y-2 pt-1">
+                    <div className="space-y-2.5 pt-1">
                       <div>
                         <label className="block text-3xs font-semibold text-gray-600 mb-1">Banco o Wallet Origen del Depósito:</label>
                         <select
@@ -3128,18 +3142,45 @@ export function CryptoExchangeTab() {
                         </select>
                       </div>
 
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                        <div>
-                          <label className="block text-3xs font-semibold text-gray-600 mb-1">Monto a Depositar ($ USD):</label>
-                          <input
-                            type="number"
-                            value={depositAmountInput}
-                            onChange={(e) => setDepositAmountInput(e.target.value)}
-                            className="w-full px-3 py-1.5 bg-gray-50 border border-gray-200 rounded-xl text-xs font-semibold text-gray-800"
-                          />
+                      <div className="flex items-center gap-2 pt-1">
+                        <input
+                          type="checkbox"
+                          id="useLastSweepCheck"
+                          checked={useLastSweepForDeposit}
+                          onChange={(e) => setUseLastSweepForDeposit(e.target.checked)}
+                          className="w-4 h-4 text-purple-600 rounded focus:ring-purple-500 cursor-pointer"
+                        />
+                        <label htmlFor="useLastSweepCheck" className="text-xs font-semibold text-gray-800 cursor-pointer">
+                          Depositar monto de la última quita realizada (${(vaultStatus.last_sweep_amount_usd || 50).toFixed(2)} USD)
+                        </label>
+                      </div>
+
+                      {!useLastSweepForDeposit && (
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                          <div>
+                            <label className="block text-3xs font-semibold text-gray-600 mb-1">Monto Fijo a Depositar ($ USD):</label>
+                            <input
+                              type="number"
+                              value={depositAmountInput}
+                              onChange={(e) => setDepositAmountInput(e.target.value)}
+                              className="w-full px-3 py-1.5 bg-gray-50 border border-gray-200 rounded-xl text-xs font-semibold text-gray-800"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-3xs font-semibold text-gray-600 mb-1">Horario Depósito (HH:MM):</label>
+                            <input
+                              type="time"
+                              value={depositTimeInput}
+                              onChange={(e) => setDepositTimeInput(e.target.value)}
+                              className="w-full px-3 py-1.5 bg-gray-50 border border-gray-200 rounded-xl text-xs font-semibold text-gray-800"
+                            />
+                          </div>
                         </div>
+                      )}
+
+                      {useLastSweepForDeposit && (
                         <div>
-                          <label className="block text-3xs font-semibold text-gray-600 mb-1">Horario Depósito (HH:MM):</label>
+                          <label className="block text-3xs font-semibold text-gray-600 mb-1">Horario Diario del Depósito (HH:MM):</label>
                           <input
                             type="time"
                             value={depositTimeInput}
@@ -3147,7 +3188,7 @@ export function CryptoExchangeTab() {
                             className="w-full px-3 py-1.5 bg-gray-50 border border-gray-200 rounded-xl text-xs font-semibold text-gray-800"
                           />
                         </div>
-                      </div>
+                      )}
                     </div>
                   )}
                 </div>
