@@ -720,9 +720,9 @@ export function CryptoExchangeTab() {
 
   const calculateCryptoBalances = () => {
     const balances: Record<string, { name: string; coins: number; cost: number; currentPrice: number; valueUsd: number; profitUsd: number }> = {
-      'BTC/USDT': { name: 'Bitcoin', coins: 0, cost: 0, currentPrice: 80000, valueUsd: 0, profitUsd: 0 },
-      'ETH/USDT': { name: 'Ethereum', coins: 0, cost: 0, currentPrice: 2600, valueUsd: 0, profitUsd: 0 },
-      'SOL/USDT': { name: 'Solana', coins: 0, cost: 0, currentPrice: 180, valueUsd: 0, profitUsd: 0 }
+      'BTC/USDT': { name: 'Bitcoin', coins: 0, cost: 0, currentPrice: 77248, valueUsd: 0, profitUsd: 0 },
+      'ETH/USDT': { name: 'Ethereum', coins: 0, cost: 0, currentPrice: 2420, valueUsd: 0, profitUsd: 0 },
+      'SOL/USDT': { name: 'Solana', coins: 0, cost: 0, currentPrice: 99.44, valueUsd: 0, profitUsd: 0 }
     };
 
     assetConfigs.forEach(c => {
@@ -971,7 +971,7 @@ export function CryptoExchangeTab() {
     else if (t.trade_type === 'SELL') intradayCoins[t.asset] = Math.max(0, intradayCoins[t.asset] - qty);
   });
   Object.keys(intradayCoins).forEach(asset => {
-    const price = (assetConfigs.find(c => c.asset === asset) as any)?.current_price || (asset.includes('BTC') ? 80000 : asset.includes('ETH') ? 2600 : 180);
+    const price = (assetConfigs.find(c => c.asset === asset) as any)?.current_price || (asset.includes('BTC') ? 77248 : asset.includes('ETH') ? 2420 : 99.44);
     intradayCrypto += intradayCoins[asset] * price;
   });
 
@@ -985,7 +985,7 @@ export function CryptoExchangeTab() {
     else if (t.trade_type === 'SELL') horizonCoins[t.asset] = Math.max(0, horizonCoins[t.asset] - qty);
   });
   Object.keys(horizonCoins).forEach(asset => {
-    const price = (assetConfigs.find(c => c.asset === asset) as any)?.current_price || (asset.includes('BTC') ? 80000 : asset.includes('ETH') ? 2600 : 180);
+    const price = (assetConfigs.find(c => c.asset === asset) as any)?.current_price || (asset.includes('BTC') ? 77248 : asset.includes('ETH') ? 2420 : 99.44);
     horizonCrypto += horizonCoins[asset] * price;
   });
 
