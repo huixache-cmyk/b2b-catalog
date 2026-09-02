@@ -1115,7 +1115,9 @@ export function CryptoExchangeTab() {
 
         <div className="bg-white p-4 rounded-xl border border-gray-150 shadow-sm flex items-center justify-between">
           <div>
-            <p className="text-3xs font-bold text-gray-400 uppercase tracking-wider">Capital Neto Consolidado</p>
+            <p className="text-3xs font-bold text-gray-400 uppercase tracking-wider">
+              {currentSubTabStr === 'comparison' ? 'Capital Neto Consolidado (Ambos Bots)' : currentSubTabStr === 'horizon' ? 'Capital Neto (Bot por Horizontes)' : 'Capital Neto (Bot Intradía)'}
+            </p>
             <h3 className="text-xs font-bold text-gray-800 mt-1">
               ${realTimeTotalCapital.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USD
             </h3>
