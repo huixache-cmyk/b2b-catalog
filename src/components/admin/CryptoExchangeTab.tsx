@@ -962,48 +962,103 @@ export function CryptoExchangeTab() {
     return (h.horizon || '').toLowerCase() === 'intraday';
   };
 
-  // Helper calculations for exact crypto equity per bot
-  let intradayCrypto = 0;
-  const intradayTrades = history.filter(h => (h.status === 'executed' || h.status === 'simulated') && isIntradayTrade(h));
-  const intradayCoins: Record<string, number> = {};
-  intradayTrades.forEach(t => {
-    const qty = t.executed_amount / t.execution_price;
-    if (!intradayCoins[t.asset]) intradayCoins[t.asset] = 0;
-    if (t.trade_type === 'BUY') intradayCoins[t.asset] += qty;
-    else if (t.trade_type === 'SELL') intradayCoins[t.asset] = Math.max(0, intradayCoins[t.asset] - qty);
+  // GROUND-TRUTH FINANCIAL FORMULA FOR INTRADAY BOT EQUITY
+  let intradayClosedPnl = 0;
+  const intradayBuyCosts: Record<string, number> = {};
+  const intradayBuyCoins: Record<string, number> = {};
+
+  const sortedIntradayTrades = [...history]
+    .filter(h => (h.status === 'executed' || h.status === 'simulated') && isIntradayTrade(h))
+    .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+
+  sortedIntradayTrades.forEach(t => {
+    const price = t.execution_price || 1;
+    const amountUsd = t.executed_amount;
+    const qty = amountUsd / price;
+    const asset = t.asset;
+
+    if (!intradayBuyCoins[asset]) intradayBuyCoins[asset] = 0;
+    if (!intradayBuyCosts[asset]) intradayBuyCosts[asset] = 0;
+
+    if (t.trade_type === 'BUY') {
+      intradayBuyCoins[asset] += qty;
+      intradayBuyCosts[asset] += amountUsd;
+    } else if (t.trade_type === 'SELL') {
+      const prevCoins = intradayBuyCoins[asset];
+      const ratio = prevCoins > 0 ? Math.min(1, qty / prevCoins) : 1;
+      const costBasis = intradayBuyCosts[asset] * ratio;
+      const pnl = (t as any).profit_usd !== null && (t as any).profit_usd !== undefined ? Number((t as any).profit_usd) : (amountUsd - costBasis);
+      intradayClosedPnl += pnl;
+
+      intradayBuyCoins[asset] = Math.max(0, intradayBuyCoins[asset] - qty);
+      intradayBuyCosts[asset] = Math.max(0, intradayBuyCosts[asset] - costBasis);
+    }
   });
-  Object.keys(intradayCoins).forEach(asset => {
-    const price = (assetConfigs.find(c => c.asset === asset) as any)?.current_price || (asset.includes('BTC') ? 77248 : asset.includes('ETH') ? 2420 : 99.44);
-    intradayCrypto += intradayCoins[asset] * price;
+
+  let intradayOpenCryptoVal = 0;
+  let intradayOpenCostBasis = 0;
+  Object.keys(intradayBuyCoins).forEach(asset => {
+    const coins = intradayBuyCoins[asset];
+    if (coins > 0.000001) {
+      const price = (assetConfigs.find(c => c.asset === asset) as any)?.current_price || (asset.includes('BTC') ? 77248 : asset.includes('ETH') ? 2420 : 99.44);
+      intradayOpenCryptoVal += coins * price;
+      intradayOpenCostBasis += intradayBuyCosts[asset];
+    }
   });
 
-  let horizonCrypto = 0;
-  const horizonTrades = history.filter(h => (h.status === 'executed' || h.status === 'simulated') && !isIntradayTrade(h));
-  const horizonCoins: Record<string, number> = {};
-  horizonTrades.forEach(t => {
-    const qty = t.executed_amount / t.execution_price;
-    if (!horizonCoins[t.asset]) horizonCoins[t.asset] = 0;
-    if (t.trade_type === 'BUY') horizonCoins[t.asset] += qty;
-    else if (t.trade_type === 'SELL') horizonCoins[t.asset] = Math.max(0, horizonCoins[t.asset] - qty);
+  const intradayUnrealizedPnl = intradayOpenCryptoVal - intradayOpenCostBasis;
+  const intradayNetProfit = intradayClosedPnl + intradayUnrealizedPnl;
+  const intradayEquity = 1000.00 + intradayNetProfit;
+  const intradayCash = Math.max(0, intradayEquity - intradayOpenCryptoVal);
+
+  // GROUND-TRUTH FINANCIAL FORMULA FOR HORIZON BOT EQUITY
+  let horizonClosedPnl = 0;
+  const horizonBuyCosts: Record<string, number> = {};
+  const horizonBuyCoins: Record<string, number> = {};
+
+  const sortedHorizonTrades = [...history]
+    .filter(h => (h.status === 'executed' || h.status === 'simulated') && !isIntradayTrade(h))
+    .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+
+  sortedHorizonTrades.forEach(t => {
+    const price = t.execution_price || 1;
+    const amountUsd = t.executed_amount;
+    const qty = amountUsd / price;
+    const asset = t.asset;
+
+    if (!horizonBuyCoins[asset]) horizonBuyCoins[asset] = 0;
+    if (!horizonBuyCosts[asset]) horizonBuyCosts[asset] = 0;
+
+    if (t.trade_type === 'BUY') {
+      horizonBuyCoins[asset] += qty;
+      horizonBuyCosts[asset] += amountUsd;
+    } else if (t.trade_type === 'SELL') {
+      const prevCoins = horizonBuyCoins[asset];
+      const ratio = prevCoins > 0 ? Math.min(1, qty / prevCoins) : 1;
+      const costBasis = horizonBuyCosts[asset] * ratio;
+      const pnl = (t as any).profit_usd !== null && (t as any).profit_usd !== undefined ? Number((t as any).profit_usd) : (amountUsd - costBasis);
+      horizonClosedPnl += pnl;
+
+      horizonBuyCoins[asset] = Math.max(0, horizonBuyCoins[asset] - qty);
+      horizonBuyCosts[asset] = Math.max(0, horizonBuyCosts[asset] - costBasis);
+    }
   });
-  Object.keys(horizonCoins).forEach(asset => {
-    const price = (assetConfigs.find(c => c.asset === asset) as any)?.current_price || (asset.includes('BTC') ? 77248 : asset.includes('ETH') ? 2420 : 99.44);
-    horizonCrypto += horizonCoins[asset] * price;
+
+  let horizonOpenCryptoVal = 0;
+  let horizonOpenCostBasis = 0;
+  Object.keys(horizonBuyCoins).forEach(asset => {
+    const coins = horizonBuyCoins[asset];
+    if (coins > 0.000001) {
+      const price = (assetConfigs.find(c => c.asset === asset) as any)?.current_price || (asset.includes('BTC') ? 77248 : asset.includes('ETH') ? 2420 : 99.44);
+      horizonOpenCryptoVal += coins * price;
+      horizonOpenCostBasis += horizonBuyCosts[asset];
+    }
   });
 
-  const intradayRow = horizons.find(h => (h.horizon || '').toLowerCase() === 'intraday');
-  const intradayCash = intradayRow ? Number(intradayRow.current_balance) : Math.max(0, 1000 - intradayCrypto);
-
-  const horizonRows = horizons.filter(h => (h.horizon || '').toLowerCase() !== 'intraday');
-  const multiHorizonCash = horizonRows.length > 0
-    ? horizonRows.reduce((acc, curr) => acc + Number(curr.current_balance || 0), 0)
-    : Math.max(0, 1000 - horizonCrypto);
-
-  const intradayEquity = intradayCash + intradayCrypto;
-  const horizonEquity = multiHorizonCash + horizonCrypto;
-
-  const intradayNetProfit = intradayEquity - 1000.00;
-  const horizonNetProfit = horizonEquity - 1000.00;
+  const horizonUnrealizedPnl = horizonOpenCryptoVal - horizonOpenCostBasis;
+  const horizonNetProfit = horizonClosedPnl + horizonUnrealizedPnl;
+  const horizonEquity = 1000.00 + horizonNetProfit;
+  const multiHorizonCash = Math.max(0, horizonEquity - horizonOpenCryptoVal);
 
   let realTimeTotalCapital = 0;
   if (currentSubTabStr === 'comparison') {
