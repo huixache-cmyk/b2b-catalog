@@ -91,6 +91,10 @@ interface VaultStatus {
   auto_sweep_enabled: boolean;
   sweep_target_threshold_usd: number;
   default_destination: string;
+  daily_sweep_time: string;
+  auto_deposit_enabled: boolean;
+  daily_deposit_time: string;
+  daily_deposit_amount_usd: number;
   sweeps_count: number;
 }
 
@@ -112,12 +116,20 @@ export function CryptoExchangeTab() {
     auto_sweep_enabled: true,
     sweep_target_threshold_usd: 20.00,
     default_destination: 'boveda_interna',
+    daily_sweep_time: '23:50',
+    auto_deposit_enabled: false,
+    daily_deposit_time: '08:00',
+    daily_deposit_amount_usd: 100.00,
     sweeps_count: 0
   });
   const [sweepsHistory, setSweepsHistory] = useState<ProfitSweep[]>([]);
   const [isSweeping, setIsSweeping] = useState<boolean>(false);
   const [sweepDestination, setSweepDestination] = useState<string>('boveda_interna');
   const [sweepThresholdInput, setSweepThresholdInput] = useState<string>('20.00');
+  const [sweepTimeInput, setSweepTimeInput] = useState<string>('23:50');
+  const [autoDepositEnabled, setAutoDepositEnabled] = useState<boolean>(false);
+  const [depositTimeInput, setDepositTimeInput] = useState<string>('08:00');
+  const [depositAmountInput, setDepositAmountInput] = useState<string>('100.00');
   
   // States for changes
   const [isSaving, setIsSaving] = useState<boolean>(false);
@@ -353,6 +365,10 @@ export function CryptoExchangeTab() {
         setVaultStatus(vaultData);
         setSweepDestination(vaultData.default_destination || 'boveda_interna');
         setSweepThresholdInput(String(vaultData.sweep_target_threshold_usd || '20.00'));
+        setSweepTimeInput(vaultData.daily_sweep_time || '23:50');
+        setAutoDepositEnabled(vaultData.auto_deposit_enabled === true);
+        setDepositTimeInput(vaultData.daily_deposit_time || '08:00');
+        setDepositAmountInput(String(vaultData.daily_deposit_amount_usd || '100.00'));
       }
 
       const sweepsRes = await fetch(`${API_BASE}/vault/history`, { headers: authHeaders() });
@@ -747,20 +763,39 @@ export function CryptoExchangeTab() {
     }
   };
 
-  const handleSaveVaultConfig = async (autoEnabled?: boolean) => {
+  const handleSaveVaultConfig = async (autoEnabled?: boolean, autoDepEnabled?: boolean) => {
     try {
+      const payload = {
+        autoSweepEnabled: autoEnabled !== undefined ? autoEnabled : vaultStatus.auto_sweep_enabled,
+        sweepTargetThresholdUsd: parseFloat(sweepThresholdInput) || 20.00,
+        defaultDestination: sweepDestination,
+        dailySweepTime: sweepTimeInput || '23:50',
+        autoDepositEnabled: autoDepEnabled !== undefined ? autoDepEnabled : autoDepositEnabled,
+        dailyDepositTime: depositTimeInput || '08:00',
+        dailyDepositAmountUsd: parseFloat(depositAmountInput) || 100.00
+      };
+
       const res = await fetch(`${API_BASE}/vault/config`, {
         method: 'POST',
         headers: authHeaders({ 'Content-Type': 'application/json' }),
-        body: JSON.stringify({
-          autoSweepEnabled: autoEnabled !== undefined ? autoEnabled : vaultStatus.auto_sweep_enabled,
-          sweepTargetThresholdUsd: parseFloat(sweepThresholdInput) || 20.00,
-          defaultDestination: sweepDestination
-        })
+        body: JSON.stringify(payload)
       });
 
       if (!res.ok) throw new Error('Error al guardar configuración de Bóveda.');
-      alert('Configuración de Bóveda y Quitas guardada con éxito.');
+      const data = await res.json();
+      if (data.config) {
+        setVaultStatus(prev => ({
+          ...prev,
+          auto_sweep_enabled: data.config.auto_sweep_enabled,
+          sweep_target_threshold_usd: data.config.sweep_target_threshold_usd,
+          default_destination: data.config.default_destination,
+          daily_sweep_time: data.config.daily_sweep_time,
+          auto_deposit_enabled: data.config.auto_deposit_enabled,
+          daily_deposit_time: data.config.daily_deposit_time,
+          daily_deposit_amount_usd: data.config.daily_deposit_amount_usd
+        }));
+      }
+      alert('¡Ajustes guardados con éxito! Los parámetros, destino y horarios han sido sincronizados en Railway y en todo el ecosistema.');
       fetchData();
     } catch (e: any) {
       alert(e.message);
@@ -2984,36 +3019,87 @@ export function CryptoExchangeTab() {
               </div>
             </div>
 
-            {/* Sweep Auto Configuration */}
+            {/* Sweep & Deposit Auto Configuration */}
             <div className="bg-white p-6 rounded-2xl border border-gray-150 shadow-sm space-y-4">
               <h3 className="text-base font-bold text-gray-900 flex items-center gap-2">
                 <Settings className="w-5 h-5 text-purple-600" />
-                Configurar Regla de Barrido Automático
+                Configurar Parámetros y Horarios del Ecosistema
               </h3>
               <p className="text-xs text-gray-500">
-                Ajusta la ganancia mínima acumulada para gatillar automáticamente la quita al cierre de la jornada o alcanzar el objetivo.
+                Define el umbral de ganancia, horario de barrido diario y regla de depósitos programados. Sincronizado automáticamente en Railway.
               </p>
 
-              <div className="space-y-3 pt-2">
-                <div>
-                  <label className="block text-xs font-semibold text-gray-700 mb-1">Umbral Mínimo de Quita ($ USD):</label>
-                  <div className="relative">
-                    <span className="absolute left-3 top-2.5 text-gray-400 font-semibold text-sm">$</span>
+              <div className="space-y-3 pt-1">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-700 mb-1">Umbral Mínimo de Quita ($ USD):</label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-2 text-gray-400 font-semibold text-sm">$</span>
+                      <input
+                        type="number"
+                        step="5"
+                        value={sweepThresholdInput}
+                        onChange={(e) => setSweepThresholdInput(e.target.value)}
+                        className="w-full pl-7 pr-3 py-1.5 bg-gray-50 border border-gray-200 rounded-xl text-xs font-semibold focus:ring-2 focus:ring-purple-500 outline-none text-gray-800"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-700 mb-1">Horario Diario de Quita (HH:MM):</label>
                     <input
-                      type="number"
-                      step="5"
-                      value={sweepThresholdInput}
-                      onChange={(e) => setSweepThresholdInput(e.target.value)}
-                      className="w-full pl-7 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm font-semibold focus:ring-2 focus:ring-purple-500 outline-none text-gray-800"
+                      type="time"
+                      value={sweepTimeInput}
+                      onChange={(e) => setSweepTimeInput(e.target.value)}
+                      className="w-full px-3 py-1.5 bg-gray-50 border border-gray-200 rounded-xl text-xs font-semibold focus:ring-2 focus:ring-purple-500 outline-none text-gray-800"
                     />
                   </div>
                 </div>
 
+                <div className="border-t border-gray-100 pt-3">
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="text-xs font-bold text-gray-800">Depósito Automático Programado:</label>
+                    <button
+                      type="button"
+                      onClick={() => setAutoDepositEnabled(!autoDepositEnabled)}
+                      className={`px-2.5 py-1 rounded-lg text-3xs font-bold transition-all ${
+                        autoDepositEnabled ? 'bg-emerald-100 text-emerald-700 border border-emerald-300' : 'bg-gray-100 text-gray-500 border border-gray-200'
+                      }`}
+                    >
+                      {autoDepositEnabled ? '✓ Activado' : 'Off / Desactivado'}
+                    </button>
+                  </div>
+
+                  {autoDepositEnabled && (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1">
+                      <div>
+                        <label className="block text-3xs font-semibold text-gray-600 mb-1">Monto a Depositar ($ USD):</label>
+                        <input
+                          type="number"
+                          value={depositAmountInput}
+                          onChange={(e) => setDepositAmountInput(e.target.value)}
+                          className="w-full px-3 py-1.5 bg-gray-50 border border-gray-200 rounded-xl text-xs font-semibold text-gray-800"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-3xs font-semibold text-gray-600 mb-1">Horario Depósito (HH:MM):</label>
+                        <input
+                          type="time"
+                          value={depositTimeInput}
+                          onChange={(e) => setDepositTimeInput(e.target.value)}
+                          className="w-full px-3 py-1.5 bg-gray-50 border border-gray-200 rounded-xl text-xs font-semibold text-gray-800"
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+
                 <button
                   onClick={() => handleSaveVaultConfig()}
-                  className="w-full mt-2 px-4 py-2.5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-xl shadow-sm transition-all"
+                  className="w-full mt-2 px-4 py-2.5 bg-purple-700 hover:bg-purple-800 text-white text-xs font-bold rounded-xl shadow-md transition-all flex items-center justify-center gap-2"
                 >
-                  Guardar Parámetros de la Bóveda
+                  <Save className="w-4 h-4 text-purple-200" />
+                  Guardar Ajustes y Sincronizar con Railway
                 </button>
               </div>
             </div>
