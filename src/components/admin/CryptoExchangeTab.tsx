@@ -2660,44 +2660,6 @@ export function CryptoExchangeTab() {
               Evaluación paralela del Bot Intradía de 15m frente al Bot por Horizontes Multitemporal.
             </p>
 
-            {(() => {
-              const intradayCashVal = Number(horizons.find(h => h.horizon === 'intraday')?.current_balance || 766.67);
-              let intradayCryptoVal = 0;
-              const intradayTrades = history.filter(h => (h.status === 'executed' || h.status === 'simulated') && (h.horizon === 'intraday' || !h.horizon));
-              const intradayCoins: Record<string, number> = {};
-              intradayTrades.forEach(t => {
-                const qty = Number(t.executed_amount) / Number(t.execution_price || 1);
-                if (!intradayCoins[t.asset]) intradayCoins[t.asset] = 0;
-                if (t.trade_type === 'BUY') intradayCoins[t.asset] += qty;
-                else if (t.trade_type === 'SELL') intradayCoins[t.asset] = Math.max(0, intradayCoins[t.asset] - qty);
-              });
-              Object.keys(intradayCoins).forEach(asset => {
-                const price = (assetConfigs.find(c => c.asset === asset) as any)?.current_price || (asset.includes('BTC') ? 80000 : asset.includes('ETH') ? 2600 : 180);
-                intradayCryptoVal += intradayCoins[asset] * price;
-              });
-
-              const intradayEquity = intradayCashVal + intradayCryptoVal;
-              const intradayNetPnl = intradayEquity - 1000;
-
-              const horizonCashVal = horizons.filter(h => h.horizon !== 'intraday').reduce((acc, curr) => acc + Number(curr.current_balance || 0), 0);
-              let horizonCryptoVal = 0;
-              const horizonTrades = history.filter(h => (h.status === 'executed' || h.status === 'simulated') && h.horizon && h.horizon !== 'intraday');
-              const horizonCoins: Record<string, number> = {};
-              horizonTrades.forEach(t => {
-                const qty = Number(t.executed_amount) / Number(t.execution_price || 1);
-                if (!horizonCoins[t.asset]) horizonCoins[t.asset] = 0;
-                if (t.trade_type === 'BUY') horizonCoins[t.asset] += qty;
-                else if (t.trade_type === 'SELL') horizonCoins[t.asset] = Math.max(0, horizonCoins[t.asset] - qty);
-              });
-              Object.keys(horizonCoins).forEach(asset => {
-                const price = (assetConfigs.find(c => c.asset === asset) as any)?.current_price || (asset.includes('BTC') ? 80000 : asset.includes('ETH') ? 2600 : 180);
-                horizonCryptoVal += horizonCoins[asset] * price;
-              });
-
-              const horizonEquity = horizonCashVal + horizonCryptoVal;
-              const horizonNetPnl = horizonEquity - 1000;
-
-              return (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
                   {/* Bot Intradia Card */}
                   <div className="bg-slate-800/80 p-5 rounded-xl border border-blue-500/30 space-y-4">
@@ -2717,13 +2679,13 @@ export function CryptoExchangeTab() {
                       </div>
                       <div>
                         <p className="text-3xs font-semibold text-slate-400 uppercase">Ganancia / Pérdida Total</p>
-                        <p className={`text-lg font-extrabold mt-0.5 ${intradayNetPnl >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                          {intradayNetPnl >= 0 ? '+' : ''}${intradayNetPnl.toFixed(2)} USD ({intradayNetPnl >= 0 ? '+' : ''}${((intradayNetPnl / 1000) * 100).toFixed(2)}%)
+                        <p className={`text-lg font-extrabold mt-0.5 ${intradayNetProfit >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                          {intradayNetProfit >= 0 ? '+' : ''}${intradayNetProfit.toFixed(2)} USD ({intradayNetProfit >= 0 ? '+' : ''}${((intradayNetProfit / 1000) * 100).toFixed(2)}%)
                         </p>
                       </div>
                       <div>
                         <p className="text-3xs font-semibold text-slate-400 uppercase">Operaciones Ejecutadas</p>
-                        <p className="text-sm font-bold text-slate-200 mt-0.5">{intradayTrades.length}</p>
+                        <p className="text-sm font-bold text-slate-200 mt-0.5">{sortedIntradayTrades.length}</p>
                       </div>
                       <div>
                         <p className="text-3xs font-semibold text-slate-400 uppercase">Capital Base Inicial</p>
@@ -2750,13 +2712,13 @@ export function CryptoExchangeTab() {
                       </div>
                       <div>
                         <p className="text-3xs font-semibold text-slate-400 uppercase">Ganancia / Pérdida Total</p>
-                        <p className={`text-lg font-extrabold mt-0.5 ${horizonNetPnl >= 0 ? 'text-purple-400' : 'text-red-400'}`}>
-                          {horizonNetPnl >= 0 ? '+' : ''}${horizonNetPnl.toFixed(2)} USD ({horizonNetPnl >= 0 ? '+' : ''}${((horizonNetPnl / 1000) * 100).toFixed(2)}%)
+                        <p className={`text-lg font-extrabold mt-0.5 ${horizonNetProfit >= 0 ? 'text-purple-400' : 'text-red-400'}`}>
+                          {horizonNetProfit >= 0 ? '+' : ''}${horizonNetProfit.toFixed(2)} USD ({horizonNetProfit >= 0 ? '+' : ''}${((horizonNetProfit / 1000) * 100).toFixed(2)}%)
                         </p>
                       </div>
                       <div>
                         <p className="text-3xs font-semibold text-slate-400 uppercase">Operaciones Ejecutadas</p>
-                        <p className="text-sm font-bold text-slate-200 mt-0.5">{horizonTrades.length}</p>
+                        <p className="text-sm font-bold text-slate-200 mt-0.5">{sortedHorizonTrades.length}</p>
                       </div>
                       <div>
                         <p className="text-3xs font-semibold text-slate-400 uppercase">Capital Base Inicial</p>
@@ -2765,8 +2727,6 @@ export function CryptoExchangeTab() {
                     </div>
                   </div>
                 </div>
-              );
-            })()}
           </div>
 
           {/* Gráfico Comparativo Dual */}
