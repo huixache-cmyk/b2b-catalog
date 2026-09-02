@@ -94,6 +94,7 @@ interface VaultStatus {
   horizon_excess_cash_usd?: number;
   auto_sweep_enabled: boolean;
   sweep_target_threshold_usd: number;
+  target_bot_for_sweep?: string;
   default_destination: string;
   daily_sweep_time: string;
   base_capital_usd: number;
@@ -124,6 +125,7 @@ export function CryptoExchangeTab() {
     total_available_excess_cash_usd: 0,
     auto_sweep_enabled: true,
     sweep_target_threshold_usd: 25.00,
+    target_bot_for_sweep: 'INTRADAY',
     default_destination: 'banorte_spei',
     daily_sweep_time: '22:00',
     base_capital_usd: 1000.00,
@@ -138,6 +140,7 @@ export function CryptoExchangeTab() {
   const [isSweeping, setIsSweeping] = useState<boolean>(false);
   const [sweepDestination, setSweepDestination] = useState<string>('banorte_spei');
   const [sweepThresholdInput, setSweepThresholdInput] = useState<string>('25.00');
+  const [targetBotForSweep, setTargetBotForSweep] = useState<string>('INTRADAY');
   const [sweepTimeInput, setSweepTimeInput] = useState<string>('22:00');
   const [baseCapitalInput, setBaseCapitalInput] = useState<string>('1000.00');
   const [autoDepositEnabled, setAutoDepositEnabled] = useState<boolean>(false);
@@ -382,6 +385,7 @@ export function CryptoExchangeTab() {
         setVaultStatus(vaultData);
         setSweepDestination(vaultData.default_destination || 'banorte_spei');
         setSweepThresholdInput(String(vaultData.sweep_target_threshold_usd || '25.00'));
+        setTargetBotForSweep(vaultData.target_bot_for_sweep || 'INTRADAY');
         setSweepTimeInput(vaultData.daily_sweep_time || '22:00');
         setBaseCapitalInput(String(vaultData.base_capital_usd || '1000.00'));
         setAutoDepositEnabled(vaultData.auto_deposit_enabled === true);
@@ -789,6 +793,7 @@ export function CryptoExchangeTab() {
       const payload = {
         autoSweepEnabled: autoEnabled !== undefined ? autoEnabled : vaultStatus.auto_sweep_enabled,
         sweepTargetThresholdUsd: parseFloat(sweepThresholdInput) || 25.00,
+        targetBotForSweep: targetBotForSweep,
         defaultDestination: sweepDestination,
         dailySweepTime: sweepTimeInput || '22:00',
         baseCapitalUsd: parseFloat(baseCapitalInput) || 1000.00,
@@ -812,6 +817,7 @@ export function CryptoExchangeTab() {
           ...prev,
           auto_sweep_enabled: data.config.auto_sweep_enabled,
           sweep_target_threshold_usd: data.config.sweep_target_threshold_usd,
+          target_bot_for_sweep: data.config.target_bot_for_sweep,
           default_destination: data.config.default_destination,
           daily_sweep_time: data.config.daily_sweep_time,
           base_capital_usd: data.config.base_capital_usd,
@@ -3087,6 +3093,19 @@ export function CryptoExchangeTab() {
               </p>
 
               <div className="space-y-3 pt-1">
+                <div>
+                  <label className="block text-xs font-semibold text-gray-700 mb-1">Bot Objetivo del Barrido Automático:</label>
+                  <select
+                    value={targetBotForSweep}
+                    onChange={(e) => setTargetBotForSweep(e.target.value)}
+                    className="w-full px-3 py-1.5 bg-gray-50 border border-gray-200 rounded-xl text-xs font-semibold text-gray-800 outline-none focus:ring-2 focus:ring-purple-500"
+                  >
+                    <option value="INTRADAY">⚡ Bot Intradía (15m + Rotación de Criptoactivos)</option>
+                    <option value="HORIZON">⏳ Bot por Horizontes (Estrategia Multi-Plazo)</option>
+                    <option value="BOTH">🤖 Ambos Bots (Evaluación Consolidada de Ganancias)</option>
+                  </select>
+                </div>
+
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   <div>
                     <label className="block text-xs font-semibold text-gray-700 mb-1">Gatillo Mínimo de Quita ($ USD):</label>
@@ -3129,6 +3148,10 @@ export function CryptoExchangeTab() {
 
                   {autoDepositEnabled && (
                     <div className="space-y-2.5 pt-1">
+                      <div className="bg-amber-50 border border-amber-200 p-2.5 rounded-xl text-3xs text-amber-800 font-medium">
+                        ⚠️ <strong>Regla de Ejecución:</strong> El depósito diario solo se procesará si existió una quita efectiva en las últimas 24 horas (al cierre del día anterior). Si no hubo quita, el depósito se omite automáticamente.
+                      </div>
+
                       <div>
                         <label className="block text-3xs font-semibold text-gray-600 mb-1">Banco o Wallet Origen del Depósito:</label>
                         <select
