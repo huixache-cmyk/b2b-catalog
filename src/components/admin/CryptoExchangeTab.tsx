@@ -159,6 +159,8 @@ export function CryptoExchangeTab() {
 
   const authHeaders = (extraHeaders?: Record<string, string>) => ({
     'x-api-key': API_KEY,
+    'Cache-Control': 'no-cache, no-store, must-revalidate',
+    'Pragma': 'no-cache',
     ...(extraHeaders || {})
   });
 
