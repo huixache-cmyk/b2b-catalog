@@ -92,7 +92,9 @@ interface VaultStatus {
   sweep_target_threshold_usd: number;
   default_destination: string;
   daily_sweep_time: string;
+  base_capital_usd: number;
   auto_deposit_enabled: boolean;
+  deposit_source: string;
   daily_deposit_time: string;
   daily_deposit_amount_usd: number;
   sweeps_count: number;
@@ -117,7 +119,9 @@ export function CryptoExchangeTab() {
     sweep_target_threshold_usd: 20.00,
     default_destination: 'boveda_interna',
     daily_sweep_time: '23:50',
+    base_capital_usd: 1000.00,
     auto_deposit_enabled: false,
+    deposit_source: 'banorte_spei',
     daily_deposit_time: '08:00',
     daily_deposit_amount_usd: 100.00,
     sweeps_count: 0
@@ -127,7 +131,9 @@ export function CryptoExchangeTab() {
   const [sweepDestination, setSweepDestination] = useState<string>('boveda_interna');
   const [sweepThresholdInput, setSweepThresholdInput] = useState<string>('20.00');
   const [sweepTimeInput, setSweepTimeInput] = useState<string>('23:50');
+  const [baseCapitalInput, setBaseCapitalInput] = useState<string>('1000.00');
   const [autoDepositEnabled, setAutoDepositEnabled] = useState<boolean>(false);
+  const [depositSource, setDepositSource] = useState<string>('banorte_spei');
   const [depositTimeInput, setDepositTimeInput] = useState<string>('08:00');
   const [depositAmountInput, setDepositAmountInput] = useState<string>('100.00');
   
@@ -366,7 +372,9 @@ export function CryptoExchangeTab() {
         setSweepDestination(vaultData.default_destination || 'boveda_interna');
         setSweepThresholdInput(String(vaultData.sweep_target_threshold_usd || '20.00'));
         setSweepTimeInput(vaultData.daily_sweep_time || '23:50');
+        setBaseCapitalInput(String(vaultData.base_capital_usd || '1000.00'));
         setAutoDepositEnabled(vaultData.auto_deposit_enabled === true);
+        setDepositSource(vaultData.deposit_source || 'banorte_spei');
         setDepositTimeInput(vaultData.daily_deposit_time || '08:00');
         setDepositAmountInput(String(vaultData.daily_deposit_amount_usd || '100.00'));
       }
@@ -743,6 +751,7 @@ export function CryptoExchangeTab() {
         headers: authHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({
           botType,
+          baseCapitalUsd: parseFloat(baseCapitalInput) || 1000.00,
           targetDestination: sweepDestination,
           notes: `Quita manual gatillada desde el panel para Bot ${botType}`
         })
@@ -754,7 +763,7 @@ export function CryptoExchangeTab() {
       }
 
       const data = await res.json();
-      alert(`¡Quita ejecutada con éxito! Se han transferido +$${data.swept_usd.toFixed(2)} USD (≈ $${data.swept_mxn.toFixed(2)} MXN) a la Bóveda.`);
+      alert(`¡Quita ejecutada con éxito! Se retiraron +$${data.swept_usd.toFixed(2)} USD (≈ $${data.swept_mxn.toFixed(2)} MXN). Efectivo activo ajustado a $${data.new_cash_balance.toFixed(2)} USD.`);
       fetchData();
     } catch (e: any) {
       alert(e.message);
@@ -770,7 +779,9 @@ export function CryptoExchangeTab() {
         sweepTargetThresholdUsd: parseFloat(sweepThresholdInput) || 20.00,
         defaultDestination: sweepDestination,
         dailySweepTime: sweepTimeInput || '23:50',
+        baseCapitalUsd: parseFloat(baseCapitalInput) || 1000.00,
         autoDepositEnabled: autoDepEnabled !== undefined ? autoDepEnabled : autoDepositEnabled,
+        depositSource: depositSource,
         dailyDepositTime: depositTimeInput || '08:00',
         dailyDepositAmountUsd: parseFloat(depositAmountInput) || 100.00
       };
@@ -790,12 +801,14 @@ export function CryptoExchangeTab() {
           sweep_target_threshold_usd: data.config.sweep_target_threshold_usd,
           default_destination: data.config.default_destination,
           daily_sweep_time: data.config.daily_sweep_time,
+          base_capital_usd: data.config.base_capital_usd,
           auto_deposit_enabled: data.config.auto_deposit_enabled,
+          deposit_source: data.config.deposit_source,
           daily_deposit_time: data.config.daily_deposit_time,
           daily_deposit_amount_usd: data.config.daily_deposit_amount_usd
         }));
       }
-      alert('¡Ajustes guardados con éxito! Los parámetros, destino y horarios han sido sincronizados en Railway y en todo el ecosistema.');
+      alert('¡Ajustes guardados con éxito! Los parámetros, destino y horarios han sido guardados inmutablemente en Supabase DB y Railway.');
       fetchData();
     } catch (e: any) {
       alert(e.message);
@@ -1275,63 +1288,71 @@ export function CryptoExchangeTab() {
       </div>
 
       {/* Info Status Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-        <div className="bg-white p-4 rounded-xl border border-gray-150 shadow-sm flex items-center justify-between">
+      <div className="grid grid-cols-1 md:grid-cols-6 gap-3">
+        <div className="bg-white p-3.5 rounded-xl border border-gray-150 shadow-sm flex items-center justify-between">
           <div>
             <p className="text-3xs font-bold text-gray-400 uppercase tracking-wider">Estado General</p>
             <h3 className="text-xs font-bold text-gray-800 mt-1">
               {botActive ? '🟢 Monitoreo Activo' : '🔴 Bot Inactivo'}
             </h3>
           </div>
-          <Activity className={`w-6 h-6 ${botActive ? 'text-emerald-500 animate-pulse' : 'text-gray-400'}`} />
+          <Activity className={`w-5 h-5 ${botActive ? 'text-emerald-500 animate-pulse' : 'text-gray-400'}`} />
         </div>
 
-        <div className="bg-white p-4 rounded-xl border border-gray-150 shadow-sm flex items-center justify-between">
+        <div className="bg-white p-3.5 rounded-xl border border-gray-150 shadow-sm flex items-center justify-between">
           <div>
-            <p className="text-3xs font-bold text-gray-400 uppercase tracking-wider">Modo de Operación</p>
+            <p className="text-3xs font-bold text-gray-400 uppercase tracking-wider">Modo Operación</p>
             <h3 className="text-xs font-bold text-gray-800 mt-1 capitalize">
-              {exchangeMode === 'simulation' ? '⚡ Simulación / Sandbox' : '💰 Real en Vivo'}
+              {exchangeMode === 'simulation' ? '⚡ Simulación' : '💰 Real en Vivo'}
             </h3>
           </div>
-          <Coins className="w-6 h-6 text-amber-500" />
+          <Coins className="w-5 h-5 text-amber-500" />
         </div>
 
-        <div className="bg-white p-4 rounded-xl border border-gray-150 shadow-sm flex items-center justify-between">
+        <div className="bg-white p-3.5 rounded-xl border border-gray-150 shadow-sm flex items-center justify-between">
           <div>
-            <p className="text-3xs font-bold text-gray-400 uppercase tracking-wider">WhatsApp (Baileys)</p>
+            <p className="text-3xs font-bold text-gray-400 uppercase tracking-wider">WhatsApp</p>
             <h3 className="text-xs font-bold text-gray-800 mt-1 uppercase">
               {whatsappStatus}
             </h3>
           </div>
-          <MessageSquare className={`w-6 h-6 ${whatsappStatus === 'connected' ? 'text-emerald-500' : 'text-amber-500'}`} />
+          <MessageSquare className={`w-5 h-5 ${whatsappStatus === 'connected' ? 'text-emerald-500' : 'text-amber-500'}`} />
         </div>
 
-        <div className="bg-white p-4 rounded-xl border border-gray-150 shadow-sm flex items-center justify-between">
+        <div className="bg-white p-3.5 rounded-xl border border-gray-150 shadow-sm flex items-center justify-between">
           <div>
-            <p className="text-3xs font-bold text-gray-400 uppercase tracking-wider">Tasa de conversión</p>
+            <p className="text-3xs font-bold text-gray-400 uppercase tracking-wider">Tipo Cambio</p>
             <h3 className="text-xs font-bold text-gray-800 mt-1">
-              💵 ${usdToMxn.toFixed(3)} MXN
+              💵 ${usdToMxn.toFixed(2)} MXN
+            </h3>
+          </div>
+          <TrendingUp className={`w-5 h-5 ${usdChangePercent >= 0 ? 'text-emerald-500' : 'text-red-500'}`} />
+        </div>
+
+        <div className="bg-white p-3.5 rounded-xl border border-gray-150 shadow-sm flex items-center justify-between">
+          <div>
+            <p className="text-3xs font-bold text-blue-600 uppercase tracking-wider">Capital Bot Intradía</p>
+            <h3 className="text-xs font-black text-gray-900 mt-1">
+              ${intradayEquity.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USD
             </h3>
             <p className="text-[9px] font-bold text-gray-400 mt-0.5">
-              C: ${(usdToMxn + 0.0015).toFixed(3)} | V: ${(usdToMxn - 0.0015).toFixed(3)}
+              ≈ ${(intradayEquity * usdToMxn).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} MXN
             </p>
           </div>
-          <TrendingUp className={`w-6 h-6 ${usdChangePercent >= 0 ? 'text-emerald-500' : 'text-red-500'}`} />
+          <Zap className="w-5 h-5 text-amber-500" />
         </div>
 
-        <div className="bg-white p-4 rounded-xl border border-gray-150 shadow-sm flex items-center justify-between">
+        <div className="bg-white p-3.5 rounded-xl border border-gray-150 shadow-sm flex items-center justify-between">
           <div>
-            <p className="text-3xs font-bold text-gray-400 uppercase tracking-wider">
-              {currentSubTabStr === 'comparison' ? 'Capital Neto Consolidado (Ambos Bots)' : currentSubTabStr === 'horizon' ? 'Capital Neto (Bot por Horizontes)' : 'Capital Neto (Bot Intradía)'}
-            </p>
-            <h3 className="text-xs font-bold text-gray-800 mt-1">
-              ${realTimeTotalCapital.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USD
+            <p className="text-3xs font-bold text-purple-600 uppercase tracking-wider">Capital Bot Horizontes</p>
+            <h3 className="text-xs font-black text-gray-900 mt-1">
+              ${horizonEquity.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USD
             </h3>
-            <p className="text-[9px] font-bold text-gray-455 mt-0.5">
-              ≈ ${(realTimeTotalCapital * usdToMxn).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} MXN
+            <p className="text-[9px] font-bold text-gray-400 mt-0.5">
+              ≈ ${(horizonEquity * usdToMxn).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} MXN
             </p>
           </div>
-          <TrendingUp className="w-6 h-6 text-primary-600" />
+          <Clock className="w-5 h-5 text-sky-500" />
         </div>
       </div>
 
@@ -2980,16 +3001,38 @@ export function CryptoExchangeTab() {
                 Ejecutar Quita de Ganancias Manual
               </h3>
               <p className="text-xs text-gray-500">
-                Transfiere inmediatamente el excedente de ganancias acumuladas sobre el capital base de $1,000.00 USD hacia la Bóveda Protegida o cuenta de destino.
+                Retira las ganancias sobre el Capital Base. La quita está restringida exclusivamente al <strong>efectivo disponible</strong> sin tocar posiciones cripto abiertas.
               </p>
 
-              <div className="space-y-3 pt-2">
+              <div className="space-y-3 pt-1">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-700 mb-1">Capital Base Operativo ($ USD):</label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-2 text-gray-400 font-semibold text-xs">$</span>
+                      <input
+                        type="number"
+                        value={baseCapitalInput}
+                        onChange={(e) => setBaseCapitalInput(e.target.value)}
+                        className="w-full pl-6 pr-3 py-1.5 bg-gray-50 border border-gray-200 rounded-xl text-xs font-bold text-gray-900 focus:ring-2 focus:ring-purple-500 outline-none"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-700 mb-1">Efectivo Disponible para Quitas:</label>
+                    <div className="px-3 py-1.5 bg-emerald-50 border border-emerald-200 rounded-xl text-xs font-bold text-emerald-700">
+                      💵 ${intradayCash.toFixed(2)} USD
+                    </div>
+                  </div>
+                </div>
+
                 <div>
-                  <label className="block text-xs font-semibold text-gray-700 mb-1">Seleccionar Destino de Fondos:</label>
+                  <label className="block text-xs font-semibold text-gray-700 mb-1">Destino de la Quita Manual:</label>
                   <select
                     value={sweepDestination}
                     onChange={(e) => setSweepDestination(e.target.value)}
-                    className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium focus:ring-2 focus:ring-purple-500 outline-none text-gray-800"
+                    className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs font-semibold focus:ring-2 focus:ring-purple-500 outline-none text-gray-800"
                   >
                     <option value="boveda_interna">🔒 Bóveda de Simulación Interna (Protección de Ganancias)</option>
                     <option value="banorte_spei">🇲🇽 Banorte Cuenta CLABE / SPEI (Retiro en Pesos MXN)</option>
@@ -3026,13 +3069,13 @@ export function CryptoExchangeTab() {
                 Configurar Parámetros y Horarios del Ecosistema
               </h3>
               <p className="text-xs text-gray-500">
-                Define el umbral de ganancia, horario de barrido diario y regla de depósitos programados. Sincronizado automáticamente en Railway.
+                Al alcanzar el umbral mínimo, se barre la <strong>ganancia total</strong> sobre el capital base dejándolo exactamente en $1,000 USD.
               </p>
 
               <div className="space-y-3 pt-1">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-xs font-semibold text-gray-700 mb-1">Umbral Mínimo de Quita ($ USD):</label>
+                    <label className="block text-xs font-semibold text-gray-700 mb-1">Gatillo Mínimo de Quita ($ USD):</label>
                     <div className="relative">
                       <span className="absolute left-3 top-2 text-gray-400 font-semibold text-sm">$</span>
                       <input
@@ -3071,24 +3114,39 @@ export function CryptoExchangeTab() {
                   </div>
 
                   {autoDepositEnabled && (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1">
+                    <div className="space-y-2 pt-1">
                       <div>
-                        <label className="block text-3xs font-semibold text-gray-600 mb-1">Monto a Depositar ($ USD):</label>
-                        <input
-                          type="number"
-                          value={depositAmountInput}
-                          onChange={(e) => setDepositAmountInput(e.target.value)}
+                        <label className="block text-3xs font-semibold text-gray-600 mb-1">Banco o Wallet Origen del Depósito:</label>
+                        <select
+                          value={depositSource}
+                          onChange={(e) => setDepositSource(e.target.value)}
                           className="w-full px-3 py-1.5 bg-gray-50 border border-gray-200 rounded-xl text-xs font-semibold text-gray-800"
-                        />
+                        >
+                          <option value="banorte_spei">🇲🇽 Banorte Cuenta CLABE / SPEI (Depósito en Pesos MXN)</option>
+                          <option value="arq_usdt">💲 ARQ / Wallet Digital (Depósito Dólares Digitales USDT/USDC)</option>
+                          <option value="boveda_interna">🔒 Bóveda Externa de Simulación</option>
+                        </select>
                       </div>
-                      <div>
-                        <label className="block text-3xs font-semibold text-gray-600 mb-1">Horario Depósito (HH:MM):</label>
-                        <input
-                          type="time"
-                          value={depositTimeInput}
-                          onChange={(e) => setDepositTimeInput(e.target.value)}
-                          className="w-full px-3 py-1.5 bg-gray-50 border border-gray-200 rounded-xl text-xs font-semibold text-gray-800"
-                        />
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-3xs font-semibold text-gray-600 mb-1">Monto a Depositar ($ USD):</label>
+                          <input
+                            type="number"
+                            value={depositAmountInput}
+                            onChange={(e) => setDepositAmountInput(e.target.value)}
+                            className="w-full px-3 py-1.5 bg-gray-50 border border-gray-200 rounded-xl text-xs font-semibold text-gray-800"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-3xs font-semibold text-gray-600 mb-1">Horario Depósito (HH:MM):</label>
+                          <input
+                            type="time"
+                            value={depositTimeInput}
+                            onChange={(e) => setDepositTimeInput(e.target.value)}
+                            className="w-full px-3 py-1.5 bg-gray-50 border border-gray-200 rounded-xl text-xs font-semibold text-gray-800"
+                          />
+                        </div>
                       </div>
                     </div>
                   )}
@@ -3099,7 +3157,7 @@ export function CryptoExchangeTab() {
                   className="w-full mt-2 px-4 py-2.5 bg-purple-700 hover:bg-purple-800 text-white text-xs font-bold rounded-xl shadow-md transition-all flex items-center justify-center gap-2"
                 >
                   <Save className="w-4 h-4 text-purple-200" />
-                  Guardar Ajustes y Sincronizar con Railway
+                  Guardar Ajustes y Sincronizar con Supabase DB
                 </button>
               </div>
             </div>
