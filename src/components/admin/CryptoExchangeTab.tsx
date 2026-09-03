@@ -2922,12 +2922,9 @@ export function CryptoExchangeTab() {
                   .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
 
                 const now = Date.now();
-                const todayStart = new Date();
-                todayStart.setHours(0, 0, 0, 0);
-
                 let thresholdTime = 0;
                 if (timeFilter === '1D') {
-                  thresholdTime = todayStart.getTime();
+                  thresholdTime = now - (24 * 60 * 60 * 1000);
                 } else if (timeFilter === '1W') {
                   thresholdTime = now - (7 * 24 * 60 * 60 * 1000);
                 } else if (timeFilter === '1M') {
@@ -2953,9 +2950,16 @@ export function CryptoExchangeTab() {
                   const qty = amountUsd / price;
                   const asset = t.asset;
                   const tradeTime = new Date(t.created_at).getTime();
-                  const isInFrame = tradeTime >= thresholdTime;
+
+                  const isInFrame = timeFilter === '1D'
+                    ? (tradeTime >= (now - 24 * 60 * 60 * 1000) && t.trade_type !== 'RETIRO')
+                    : (thresholdTime === 0 || tradeTime >= thresholdTime);
 
                   if (t.trade_type === 'RETIRO' || (asset && asset.startsWith('SWEEP_'))) {
+                    if (isInFrame && timeFilter !== '1D') {
+                      closedPnlInFrame += amountUsd;
+                      tradesCountInFrame += 1;
+                    }
                     return;
                   }
 
