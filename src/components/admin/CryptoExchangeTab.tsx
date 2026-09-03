@@ -2911,35 +2911,91 @@ export function CryptoExchangeTab() {
             </div>
 
             {(() => {
-              const filteredHist = filterHistoryByTime();
+              const computeBotMetricsForTimeframe = (botKind: 'intraday' | 'horizon') => {
+                const isTargetBot = (h: TradeHistory) => {
+                  const isIntra = isIntradayTrade(h);
+                  return botKind === 'intraday' ? isIntra : !isIntra;
+                };
 
-              // Intraday filtered metrics
-              const intraTrades = filteredHist.filter(h => (h.status === 'executed' || h.status === 'simulated') && isIntradayTrade(h));
-              let intraFees = 0;
-              let intraPnl = 0;
-              intraTrades.forEach(t => {
-                const amt = Math.abs(t.executed_amount);
-                if (t.trade_type === 'RETIRO' || (t.asset && t.asset.startsWith('SWEEP_'))) return;
-                intraFees += t.fees !== null && t.fees !== undefined ? Number(t.fees) : (amt * 0.0010);
-                if (t.trade_type === 'SELL') {
-                  intraPnl += (t as any).profit_usd !== null && (t as any).profit_usd !== undefined ? Number((t as any).profit_usd) : 0;
-                }
-              });
-              const intraNetPnl = intraPnl - intraFees;
+                const allTrades = [...history]
+                  .filter(h => (h.status === 'executed' || h.status === 'simulated') && isTargetBot(h))
+                  .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
 
-              // Horizon filtered metrics
-              const horizTrades = filteredHist.filter(h => (h.status === 'executed' || h.status === 'simulated') && !isIntradayTrade(h));
-              let horizFees = 0;
-              let horizPnl = 0;
-              horizTrades.forEach(t => {
-                const amt = Math.abs(t.executed_amount);
-                if (t.trade_type === 'RETIRO' || (t.asset && t.asset.startsWith('SWEEP_'))) return;
-                horizFees += t.fees !== null && t.fees !== undefined ? Number(t.fees) : (amt * 0.0010);
-                if (t.trade_type === 'SELL') {
-                  horizPnl += (t as any).profit_usd !== null && (t as any).profit_usd !== undefined ? Number((t as any).profit_usd) : 0;
-                }
-              });
-              const horizNetPnl = horizPnl - horizFees;
+                const now = Date.now();
+                let limitMs = Infinity;
+                if (timeFilter === '1D') limitMs = 24 * 60 * 60 * 1000;
+                else if (timeFilter === '1W') limitMs = 7 * 24 * 60 * 60 * 1000;
+                else if (timeFilter === '1M') limitMs = 30 * 24 * 60 * 60 * 1000;
+                else if (timeFilter === '6M') limitMs = 180 * 24 * 60 * 60 * 1000;
+                else if (timeFilter === '1Y') limitMs = 365 * 24 * 60 * 60 * 1000;
+
+                const thresholdTime = (timeFilter as string) === 'ALL' ? 0 : (now - limitMs);
+
+                let closedPnlInFrame = 0;
+                let feesInFrame = 0;
+                let tradesCountInFrame = 0;
+
+                const buyCosts: Record<string, number> = {};
+                const buyCoins: Record<string, number> = {};
+
+                allTrades.forEach(t => {
+                  const price = t.execution_price || 1;
+                  const amountUsd = Math.abs(t.executed_amount);
+                  const qty = amountUsd / price;
+                  const asset = t.asset;
+                  const tradeTime = new Date(t.created_at).getTime();
+                  const isInFrame = tradeTime >= thresholdTime;
+
+                  if (t.trade_type === 'RETIRO' || (asset && asset.startsWith('SWEEP_'))) {
+                    return;
+                  }
+
+                  const fee = t.fees !== null && t.fees !== undefined ? Number(t.fees) : (amountUsd * 0.0010);
+                  if (isInFrame) {
+                    feesInFrame += fee;
+                    tradesCountInFrame += 1;
+                  }
+
+                  if (!buyCoins[asset]) buyCoins[asset] = 0;
+                  if (!buyCosts[asset]) buyCosts[asset] = 0;
+
+                  if (t.trade_type === 'BUY') {
+                    buyCoins[asset] += qty;
+                    buyCosts[asset] += amountUsd;
+                  } else if (t.trade_type === 'SELL') {
+                    const prevCoins = buyCoins[asset];
+                    const ratio = prevCoins > 0 ? Math.min(1, qty / prevCoins) : 1;
+                    const costBasis = buyCosts[asset] * ratio;
+                    const pnl = amountUsd - costBasis;
+
+                    if (isInFrame) {
+                      closedPnlInFrame += pnl;
+                    }
+
+                    buyCoins[asset] = Math.max(0, buyCoins[asset] - qty);
+                    buyCosts[asset] = Math.max(0, buyCosts[asset] - costBasis);
+                  }
+                });
+
+                const netPnlInFrame = closedPnlInFrame - feesInFrame;
+                return {
+                  netPnl: netPnlInFrame,
+                  grossPnl: closedPnlInFrame,
+                  fees: feesInFrame,
+                  tradesCount: tradesCountInFrame
+                };
+              };
+
+              const intraMetrics = computeBotMetricsForTimeframe('intraday');
+              const horizMetrics = computeBotMetricsForTimeframe('horizon');
+
+              const intraNetPnl = intraMetrics.netPnl;
+              const intraFees = intraMetrics.fees;
+              const intraCount = intraMetrics.tradesCount;
+
+              const horizNetPnl = horizMetrics.netPnl;
+              const horizFees = horizMetrics.fees;
+              const horizCount = horizMetrics.tradesCount;
 
               const labelMap: Record<string, string> = {
                 '1D': '1 Día (Hoy)',
@@ -2980,7 +3036,7 @@ export function CryptoExchangeTab() {
                       </div>
                       <div>
                         <p className="text-3xs font-semibold text-slate-400 uppercase">Operaciones ({timeFilter})</p>
-                        <p className="text-sm font-bold text-slate-200 mt-0.5">{intraTrades.length}</p>
+                        <p className="text-sm font-bold text-slate-200 mt-0.5">{intraCount}</p>
                       </div>
                     </div>
                   </div>
@@ -3013,7 +3069,7 @@ export function CryptoExchangeTab() {
                       </div>
                       <div>
                         <p className="text-3xs font-semibold text-slate-400 uppercase">Operaciones ({timeFilter})</p>
-                        <p className="text-sm font-bold text-slate-200 mt-0.5">{horizTrades.length}</p>
+                        <p className="text-sm font-bold text-slate-200 mt-0.5">{horizCount}</p>
                       </div>
                     </div>
                   </div>
