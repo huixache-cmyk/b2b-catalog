@@ -2922,14 +2922,23 @@ export function CryptoExchangeTab() {
                   .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
 
                 const now = Date.now();
-                let limitMs = Infinity;
-                if (timeFilter === '1D') limitMs = 24 * 60 * 60 * 1000;
-                else if (timeFilter === '1W') limitMs = 7 * 24 * 60 * 60 * 1000;
-                else if (timeFilter === '1M') limitMs = 30 * 24 * 60 * 60 * 1000;
-                else if (timeFilter === '6M') limitMs = 180 * 24 * 60 * 60 * 1000;
-                else if (timeFilter === '1Y') limitMs = 365 * 24 * 60 * 60 * 1000;
+                const todayStart = new Date();
+                todayStart.setHours(0, 0, 0, 0);
 
-                const thresholdTime = (timeFilter as string) === 'ALL' ? 0 : (now - limitMs);
+                let thresholdTime = 0;
+                if (timeFilter === '1D') {
+                  thresholdTime = todayStart.getTime();
+                } else if (timeFilter === '1W') {
+                  thresholdTime = now - (7 * 24 * 60 * 60 * 1000);
+                } else if (timeFilter === '1M') {
+                  thresholdTime = now - (30 * 24 * 60 * 60 * 1000);
+                } else if (timeFilter === '6M') {
+                  thresholdTime = now - (180 * 24 * 60 * 60 * 1000);
+                } else if (timeFilter === '1Y') {
+                  thresholdTime = now - (365 * 24 * 60 * 60 * 1000);
+                } else {
+                  thresholdTime = 0; // ALL (Histórico)
+                }
 
                 let closedPnlInFrame = 0;
                 let feesInFrame = 0;
