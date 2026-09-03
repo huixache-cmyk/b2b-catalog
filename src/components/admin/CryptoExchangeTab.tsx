@@ -161,7 +161,7 @@ export function CryptoExchangeTab() {
   const [isMockTriggering, setIsMockTriggering] = useState<boolean>(false);
   const [usdToMxn, setUsdToMxn] = useState<number>(17.00);
   const [usdChangePercent, setUsdChangePercent] = useState<number>(0.40);
-  const [timeFilter, setTimeFilter] = useState<'1D' | '1W' | '1M' | '6M' | '1Y'>('1D');
+  const [timeFilter, setTimeFilter] = useState<'1D' | '1W' | '1M' | '6M' | '1Y' | 'ALL'>('1D');
   const [historyDateSearch, setHistoryDateSearch] = useState<string>('');
   const [historyCurrentPage, setHistoryCurrentPage] = useState<number>(1);
   
@@ -981,6 +981,7 @@ export function CryptoExchangeTab() {
 
   // Filtrar historial de transacciones según el rango de tiempo seleccionado
   const filterHistoryByTime = () => {
+    if ((timeFilter as string) === 'ALL') return history;
     const now = new Date().getTime();
     let limitMs = 24 * 60 * 60 * 1000; // 1D por defecto
     if (timeFilter === '1W') limitMs = 7 * 24 * 60 * 60 * 1000;
@@ -2872,14 +2873,84 @@ export function CryptoExchangeTab() {
       {activeSubTab === 'comparison' && (
         <div className="space-y-6">
           <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 p-6 rounded-2xl border border-indigo-500/30 text-white shadow-xl">
-            <h2 className="text-lg font-bold flex items-center gap-2 text-white">
-              <BarChart2 className="w-6 h-6 text-emerald-400" />
-              Comparativa de Motores de Trading en Tiempo Real
-            </h2>
-            <p className="text-xs text-slate-300 mt-1">
-              Evaluación paralela del Bot Intradía de 15m frente al Bot por Horizontes Multitemporal.
-            </p>
+            <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 pb-4 border-b border-indigo-800/40">
+              <div>
+                <h2 className="text-lg font-bold flex items-center gap-2 text-white">
+                  <BarChart2 className="w-6 h-6 text-emerald-400" />
+                  Comparativa de Motores de Trading en Tiempo Real
+                </h2>
+                <p className="text-xs text-slate-300 mt-1">
+                  Evaluación paralela del Bot Intradía de 15m frente al Bot por Horizontes Multitemporal.
+                </p>
+              </div>
 
+              {/* Timeframe Selector Buttons (1D, 1S, 1M, 1A, HISTÓRICO) */}
+              <div className="flex items-center gap-1 bg-slate-950/80 p-1.5 rounded-xl border border-indigo-500/30 select-none flex-wrap">
+                <span className="text-3xs font-extrabold text-slate-400 uppercase tracking-wider px-2">Rango:</span>
+                {([
+                  { key: '1D', label: '1D (Hoy)' },
+                  { key: '1W', label: '1S (Semana)' },
+                  { key: '1M', label: '1M (Mes)' },
+                  { key: '1Y', label: '1A (Año)' },
+                  { key: 'ALL', label: 'HISTÓRICO' }
+                ] as const).map(f => (
+                  <button
+                    key={f.key}
+                    type="button"
+                    onClick={() => setTimeFilter(f.key as any)}
+                    className={`px-3 py-1 text-2xs font-extrabold transition-all uppercase rounded-lg ${
+                      timeFilter === f.key
+                        ? 'bg-gradient-to-r from-emerald-500 to-teal-400 text-slate-950 shadow-sm font-black'
+                        : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+                    }`}
+                  >
+                    {f.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {(() => {
+              const filteredHist = filterHistoryByTime();
+
+              // Intraday filtered metrics
+              const intraTrades = filteredHist.filter(h => (h.status === 'executed' || h.status === 'simulated') && isIntradayTrade(h));
+              let intraFees = 0;
+              let intraPnl = 0;
+              intraTrades.forEach(t => {
+                const amt = Math.abs(t.executed_amount);
+                if (t.trade_type === 'RETIRO' || (t.asset && t.asset.startsWith('SWEEP_'))) return;
+                intraFees += t.fees !== null && t.fees !== undefined ? Number(t.fees) : (amt * 0.0010);
+                if (t.trade_type === 'SELL') {
+                  intraPnl += (t as any).profit_usd !== null && (t as any).profit_usd !== undefined ? Number((t as any).profit_usd) : 0;
+                }
+              });
+              const intraNetPnl = intraPnl - intraFees;
+
+              // Horizon filtered metrics
+              const horizTrades = filteredHist.filter(h => (h.status === 'executed' || h.status === 'simulated') && !isIntradayTrade(h));
+              let horizFees = 0;
+              let horizPnl = 0;
+              horizTrades.forEach(t => {
+                const amt = Math.abs(t.executed_amount);
+                if (t.trade_type === 'RETIRO' || (t.asset && t.asset.startsWith('SWEEP_'))) return;
+                horizFees += t.fees !== null && t.fees !== undefined ? Number(t.fees) : (amt * 0.0010);
+                if (t.trade_type === 'SELL') {
+                  horizPnl += (t as any).profit_usd !== null && (t as any).profit_usd !== undefined ? Number((t as any).profit_usd) : 0;
+                }
+              });
+              const horizNetPnl = horizPnl - horizFees;
+
+              const labelMap: Record<string, string> = {
+                '1D': '1 Día (Hoy)',
+                '1W': '1 Semana',
+                '1M': '1 Mes',
+                '1Y': '1 Año',
+                'ALL': 'Histórico Acumulado'
+              };
+              const activeLabel = labelMap[timeFilter] || timeFilter;
+
+              return (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
                   {/* Bot Intradia Card */}
                   <div className="bg-slate-800/80 p-5 rounded-xl border border-blue-500/30 space-y-4">
@@ -2888,8 +2959,8 @@ export function CryptoExchangeTab() {
                         <Zap className="w-5 h-5 text-amber-400" />
                         <span className="font-bold text-sm text-white">Bot Intradía (15m + Rotación)</span>
                       </div>
-                      <span className="px-2.5 py-1 bg-blue-500/20 text-blue-300 text-xs font-semibold rounded-full border border-blue-500/30">
-                        Activo
+                      <span className="px-2.5 py-1 bg-blue-500/20 text-blue-300 text-xs font-bold rounded-full border border-blue-500/30">
+                        {activeLabel}
                       </span>
                     </div>
                     <div className="grid grid-cols-2 gap-4">
@@ -2898,18 +2969,18 @@ export function CryptoExchangeTab() {
                         <p className="text-lg font-extrabold text-white mt-0.5">${intradayEquity.toFixed(2)} USD</p>
                       </div>
                       <div>
-                        <p className="text-3xs font-semibold text-slate-400 uppercase">Ganancia Neta (Post-Comisiones)</p>
-                        <p className={`text-lg font-extrabold mt-0.5 ${intradayNetProfit >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                          {intradayNetProfit >= 0 ? '+' : ''}${intradayNetProfit.toFixed(2)} USD ({intradayNetProfit >= 0 ? '+' : ''}${((intradayNetProfit / 1000) * 100).toFixed(2)}%)
+                        <p className="text-3xs font-semibold text-slate-400 uppercase">Ganancia Neta ({timeFilter})</p>
+                        <p className={`text-lg font-extrabold mt-0.5 ${intraNetPnl >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                          {intraNetPnl >= 0 ? '+' : ''}${intraNetPnl.toFixed(2)} USD ({intraNetPnl >= 0 ? '+' : ''}${((intraNetPnl / 1000) * 100).toFixed(2)}%)
                         </p>
                       </div>
                       <div>
-                        <p className="text-3xs font-semibold text-slate-400 uppercase">Comisiones Trading (0.10%)</p>
-                        <p className="text-sm font-bold text-amber-300 mt-0.5">-${intradayTotalFees.toFixed(2)} USD</p>
+                        <p className="text-3xs font-semibold text-slate-400 uppercase">Comisiones Trading ({timeFilter})</p>
+                        <p className="text-sm font-bold text-amber-300 mt-0.5">-${intraFees.toFixed(2)} USD</p>
                       </div>
                       <div>
-                        <p className="text-3xs font-semibold text-slate-400 uppercase">Operaciones Ejecutadas</p>
-                        <p className="text-sm font-bold text-slate-200 mt-0.5">{sortedIntradayTrades.length}</p>
+                        <p className="text-3xs font-semibold text-slate-400 uppercase">Operaciones ({timeFilter})</p>
+                        <p className="text-sm font-bold text-slate-200 mt-0.5">{intraTrades.length}</p>
                       </div>
                     </div>
                   </div>
@@ -2921,8 +2992,8 @@ export function CryptoExchangeTab() {
                         <Clock className="w-5 h-5 text-sky-400" />
                         <span className="font-bold text-sm text-white">Bot por Horizontes (Multi-Plazo)</span>
                       </div>
-                      <span className="px-2.5 py-1 bg-purple-500/20 text-purple-300 text-xs font-semibold rounded-full border border-purple-500/30">
-                        Activo
+                      <span className="px-2.5 py-1 bg-purple-500/20 text-purple-300 text-xs font-bold rounded-full border border-purple-500/30">
+                        {activeLabel}
                       </span>
                     </div>
                     <div className="grid grid-cols-2 gap-4">
@@ -2931,22 +3002,24 @@ export function CryptoExchangeTab() {
                         <p className="text-lg font-extrabold text-white mt-0.5">${horizonEquity.toFixed(2)} USD</p>
                       </div>
                       <div>
-                        <p className="text-3xs font-semibold text-slate-400 uppercase">Ganancia Neta (Post-Comisiones)</p>
-                        <p className={`text-lg font-extrabold mt-0.5 ${horizonNetProfit >= 0 ? 'text-purple-400' : 'text-red-400'}`}>
-                          {horizonNetProfit >= 0 ? '+' : ''}${horizonNetProfit.toFixed(2)} USD ({horizonNetProfit >= 0 ? '+' : ''}${((horizonNetProfit / 1000) * 100).toFixed(2)}%)
+                        <p className="text-3xs font-semibold text-slate-400 uppercase">Ganancia Neta ({timeFilter})</p>
+                        <p className={`text-lg font-extrabold mt-0.5 ${horizNetPnl >= 0 ? 'text-purple-400' : 'text-red-400'}`}>
+                          {horizNetPnl >= 0 ? '+' : ''}${horizNetPnl.toFixed(2)} USD ({horizNetPnl >= 0 ? '+' : ''}${((horizNetPnl / 1000) * 100).toFixed(2)}%)
                         </p>
                       </div>
                       <div>
-                        <p className="text-3xs font-semibold text-slate-400 uppercase">Comisiones Trading (0.10%)</p>
-                        <p className="text-sm font-bold text-amber-300 mt-0.5">-$0.00 USD</p>
+                        <p className="text-3xs font-semibold text-slate-400 uppercase">Comisiones Trading ({timeFilter})</p>
+                        <p className="text-sm font-bold text-amber-300 mt-0.5">-${horizFees.toFixed(2)} USD</p>
                       </div>
                       <div>
-                        <p className="text-3xs font-semibold text-slate-400 uppercase">Operaciones Ejecutadas</p>
-                        <p className="text-sm font-bold text-slate-200 mt-0.5">{sortedHorizonTrades.length}</p>
+                        <p className="text-3xs font-semibold text-slate-400 uppercase">Operaciones ({timeFilter})</p>
+                        <p className="text-sm font-bold text-slate-200 mt-0.5">{horizTrades.length}</p>
                       </div>
                     </div>
                   </div>
                 </div>
+              );
+            })()}
           </div>
 
           {/* Gráfico Comparativo Dual */}
