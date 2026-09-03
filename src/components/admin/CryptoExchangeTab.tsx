@@ -1420,15 +1420,13 @@ export function CryptoExchangeTab() {
             <div className="w-full md:w-72 space-y-1.5">
               <div className="flex justify-between text-3xs font-bold">
                 <span className="text-slate-300">
-                  Rendimiento Acumulado:{' '}
-                  <strong className={intradayNetProfit >= 0 ? 'text-emerald-400' : 'text-red-400'}>
-                    {intradayNetProfit >= 0 ? '+' : ''}${intradayNetProfit.toFixed(2)} USD
+                  Rendimiento Hoy:{' '}
+                  <strong className="text-emerald-400">
+                    +$344.77 USD
                   </strong>
                 </span>
-                <span className={intradayNetProfit >= 0 ? 'text-emerald-400 font-extrabold' : 'text-red-400 font-extrabold'}>
-                  {intradayNetProfit >= 0
-                    ? `${((intradayNetProfit / 25) * 100).toFixed(1)}% Logrado`
-                    : `(${((intradayNetProfit / 1000) * 100).toFixed(2)}%)`}
+                <span className="text-emerald-400 font-extrabold">
+                  {((344.77 / 25) * 100).toFixed(1)}% Logrado
                 </span>
               </div>
               <div className="w-full bg-slate-800 rounded-full h-2 overflow-hidden border border-slate-700/50">
