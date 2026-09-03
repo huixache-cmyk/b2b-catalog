@@ -53,14 +53,17 @@ interface TradeProposal {
 interface TradeHistory {
   id: string;
   asset: string;
-  trade_type: 'BUY' | 'SELL';
+  trade_type: 'BUY' | 'SELL' | 'RETIRO' | string;
   horizon: string;
   bot_type?: string;
   executed_amount: number;
   execution_price: number;
   fees: number;
-  status: 'executed' | 'rejected' | 'failed' | 'simulated';
+  status: 'executed' | 'rejected' | 'failed' | 'simulated' | string;
   created_at: string;
+  display_label?: string;
+  is_sweep?: boolean;
+  net_profit?: number;
 }
 
 interface AssetConfig {
@@ -276,13 +279,11 @@ export function CryptoExchangeTab() {
         setProposals(proposalsData);
       }
 
-      // 4. Obtener historial
+      // 4. Obtener historial completo (incluyendo retiros de bóveda y comisiones)
       const historyRes = await fetch(`${API_BASE}/history`, { headers: authHeaders() });
       if (historyRes.ok) {
         const historyData = await historyRes.json();
-        // Filtrar quitas/retiros para que el historial comercial solo muestre compra/venta de activos cripto
-        const cryptoTradesOnly = (historyData || []).filter((t: any) => !t.asset || !t.asset.startsWith('SWEEP_'));
-        setHistory(cryptoTradesOnly);
+        setHistory(historyData);
       }
 
       // 5. Obtener configuraciones de activos
@@ -2514,36 +2515,47 @@ export function CryptoExchangeTab() {
                         </td>
                       </tr>
                     ) : (
-                      paginated.map((h) => (
-                        <tr key={h.id} className="border-b border-gray-100 hover:bg-gray-50/50 text-xs">
-                          <td className="py-3.5 px-2 font-bold text-gray-800">{h.asset}</td>
-                          <td className="py-3.5 px-2">
-                            <span className={`font-bold ${h.trade_type === 'BUY' ? 'text-emerald-600' : 'text-red-650'}`}>
-                              {h.trade_type === 'BUY' ? 'COMPRA' : 'VENTA'}
-                            </span>
-                          </td>
-                          <td className={`py-3.5 px-2 font-semibold ${h.trade_type === 'BUY' ? 'text-red-600' : 'text-emerald-600'}`}>
-                            {h.trade_type === 'BUY' ? '-' : '+'}${h.executed_amount.toFixed(2)} USD
-                          </td>
-                          <td className={`py-3.5 px-2 font-bold ${h.trade_type === 'BUY' ? 'text-red-400' : 'text-emerald-500'}`}>
-                            {h.trade_type === 'BUY' ? '-' : '+'}${(h.executed_amount * usdToMxn).toFixed(2)} MXN
-                          </td>
-                          <td className="py-3.5 px-2 font-mono text-gray-650">
-                            ${h.execution_price.toLocaleString(undefined, { minimumFractionDigits: 2 })} USD
-                          </td>
-                          <td className="py-3.5 px-2 uppercase font-semibold text-[10px] text-gray-400">{h.horizon}</td>
-                          <td className="py-3.5 px-2 text-gray-500">
-                            {new Date(h.created_at).toLocaleString()}
-                          </td>
-                          <td className="py-3.5 px-2">
-                            <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold uppercase ${
-                              h.status === 'executed' || h.status === 'simulated' ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800'
-                            }`}>
-                              {h.status}
-                            </span>
-                          </td>
-                        </tr>
-                      ))
+                      paginated.map((h) => {
+                        const isSweep = h.trade_type === 'RETIRO' || (h.asset && h.asset.startsWith('SWEEP_'));
+                        return (
+                          <tr key={h.id} className={`border-b border-gray-100 hover:bg-gray-50/50 text-xs ${isSweep ? 'bg-purple-50/40' : ''}`}>
+                            <td className="py-3.5 px-2 font-bold text-gray-800">
+                              {isSweep ? (h.display_label || '🛡️ RETIRO DE BÓVEDA') : h.asset}
+                            </td>
+                            <td className="py-3.5 px-2">
+                              {isSweep ? (
+                                <span className="px-2 py-0.5 rounded-full text-3xs font-bold bg-purple-100 text-purple-800 border border-purple-200">
+                                  🛡️ RETIRO
+                                </span>
+                              ) : (
+                                <span className={`font-bold ${h.trade_type === 'BUY' ? 'text-emerald-600' : 'text-red-650'}`}>
+                                  {h.trade_type === 'BUY' ? 'COMPRA' : 'VENTA'}
+                                </span>
+                              )}
+                            </td>
+                            <td className={`py-3.5 px-2 font-semibold ${isSweep ? 'text-purple-700' : h.trade_type === 'BUY' ? 'text-red-600' : 'text-emerald-600'}`}>
+                              {isSweep ? `-$${Math.abs(h.executed_amount).toFixed(2)} USD` : `${h.trade_type === 'BUY' ? '-' : '+'}$${h.executed_amount.toFixed(2)} USD`}
+                            </td>
+                            <td className={`py-3.5 px-2 font-bold ${isSweep ? 'text-purple-600' : h.trade_type === 'BUY' ? 'text-red-400' : 'text-emerald-500'}`}>
+                              {isSweep ? `-$${(Math.abs(h.executed_amount) * usdToMxn).toFixed(2)} MXN` : `${h.trade_type === 'BUY' ? '-' : '+'}${(h.executed_amount * usdToMxn).toFixed(2)} MXN`}
+                            </td>
+                            <td className="py-3.5 px-2 font-mono text-gray-650">
+                              {isSweep ? '$1.00 USD' : `$${h.execution_price.toLocaleString(undefined, { minimumFractionDigits: 2 })} USD`}
+                            </td>
+                            <td className="py-3.5 px-2 uppercase font-semibold text-[10px] text-gray-400">{h.horizon}</td>
+                            <td className="py-3.5 px-2 text-gray-500">
+                              {new Date(h.created_at).toLocaleString()}
+                            </td>
+                            <td className="py-3.5 px-2">
+                              <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold uppercase ${
+                                isSweep ? 'bg-purple-100 text-purple-800 border border-purple-200' : h.status === 'executed' || h.status === 'simulated' ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800'
+                              }`}>
+                                {isSweep ? 'COMPLETADO' : h.status}
+                              </span>
+                            </td>
+                          </tr>
+                        );
+                      })
                     )}
                   </tbody>
                 </table>
