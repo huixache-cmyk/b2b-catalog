@@ -2995,10 +2995,10 @@ export function CryptoExchangeTab() {
                   }
                 });
 
-                const netPnlInFrame = closedPnlInFrame - feesInFrame;
+                const netPnlInFrame = closedPnlInFrame;
                 return {
                   netPnl: netPnlInFrame,
-                  grossPnl: closedPnlInFrame,
+                  grossPnl: closedPnlInFrame + feesInFrame,
                   fees: feesInFrame,
                   tradesCount: tradesCountInFrame
                 };
