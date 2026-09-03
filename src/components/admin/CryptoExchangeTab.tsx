@@ -1421,7 +1421,7 @@ export function CryptoExchangeTab() {
             <div className="w-full md:w-72 space-y-1.5">
               <div className="flex justify-between text-3xs font-bold">
                 <span className="text-slate-300">
-                  Rendimiento Hoy:{' '}
+                  Rendimiento Acumulado:{' '}
                   <strong className={intradayNetProfit >= 0 ? 'text-emerald-400' : 'text-red-400'}>
                     {intradayNetProfit >= 0 ? '+' : ''}${intradayNetProfit.toFixed(2)} USD
                   </strong>
@@ -2926,14 +2926,18 @@ export function CryptoExchangeTab() {
                 todayStart.setHours(0, 0, 0, 0);
 
                 let thresholdTime = 0;
-                if (timeFilter === '1M') {
-                  thresholdTime = Date.now() - (30 * 24 * 60 * 60 * 1000);
+                if (timeFilter === '1D') {
+                  thresholdTime = todayStart.getTime();
+                } else if (timeFilter === '1W') {
+                  thresholdTime = now - (7 * 24 * 60 * 60 * 1000);
+                } else if (timeFilter === '1M') {
+                  thresholdTime = now - (30 * 24 * 60 * 60 * 1000);
                 } else if (timeFilter === '6M') {
-                  thresholdTime = Date.now() - (180 * 24 * 60 * 60 * 1000);
+                  thresholdTime = now - (180 * 24 * 60 * 60 * 1000);
                 } else if (timeFilter === '1Y') {
-                  thresholdTime = Date.now() - (365 * 24 * 60 * 60 * 1000);
+                  thresholdTime = now - (365 * 24 * 60 * 60 * 1000);
                 } else {
-                  thresholdTime = 0; // 1D, 1W, ALL (Histórico de Sesión Completo)
+                  thresholdTime = 0; // ALL (Histórico Acumulado)
                 }
 
                 let closedPnlInFrame = 0;
