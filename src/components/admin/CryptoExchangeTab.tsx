@@ -2898,18 +2898,18 @@ export function CryptoExchangeTab() {
                         <p className="text-lg font-extrabold text-white mt-0.5">${intradayEquity.toFixed(2)} USD</p>
                       </div>
                       <div>
-                        <p className="text-3xs font-semibold text-slate-400 uppercase">Ganancia / Pérdida Total</p>
+                        <p className="text-3xs font-semibold text-slate-400 uppercase">Ganancia Neta (Post-Comisiones)</p>
                         <p className={`text-lg font-extrabold mt-0.5 ${intradayNetProfit >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
                           {intradayNetProfit >= 0 ? '+' : ''}${intradayNetProfit.toFixed(2)} USD ({intradayNetProfit >= 0 ? '+' : ''}${((intradayNetProfit / 1000) * 100).toFixed(2)}%)
                         </p>
                       </div>
                       <div>
-                        <p className="text-3xs font-semibold text-slate-400 uppercase">Operaciones Ejecutadas</p>
-                        <p className="text-sm font-bold text-slate-200 mt-0.5">{sortedIntradayTrades.length}</p>
+                        <p className="text-3xs font-semibold text-slate-400 uppercase">Comisiones Trading (0.10%)</p>
+                        <p className="text-sm font-bold text-amber-300 mt-0.5">-${intradayTotalFees.toFixed(2)} USD</p>
                       </div>
                       <div>
-                        <p className="text-3xs font-semibold text-slate-400 uppercase">Capital Base Inicial</p>
-                        <p className="text-sm font-bold text-slate-200 mt-0.5">$1,000.00 USD</p>
+                        <p className="text-3xs font-semibold text-slate-400 uppercase">Operaciones Ejecutadas</p>
+                        <p className="text-sm font-bold text-slate-200 mt-0.5">{sortedIntradayTrades.length}</p>
                       </div>
                     </div>
                   </div>
@@ -2931,18 +2931,18 @@ export function CryptoExchangeTab() {
                         <p className="text-lg font-extrabold text-white mt-0.5">${horizonEquity.toFixed(2)} USD</p>
                       </div>
                       <div>
-                        <p className="text-3xs font-semibold text-slate-400 uppercase">Ganancia / Pérdida Total</p>
+                        <p className="text-3xs font-semibold text-slate-400 uppercase">Ganancia Neta (Post-Comisiones)</p>
                         <p className={`text-lg font-extrabold mt-0.5 ${horizonNetProfit >= 0 ? 'text-purple-400' : 'text-red-400'}`}>
                           {horizonNetProfit >= 0 ? '+' : ''}${horizonNetProfit.toFixed(2)} USD ({horizonNetProfit >= 0 ? '+' : ''}${((horizonNetProfit / 1000) * 100).toFixed(2)}%)
                         </p>
                       </div>
                       <div>
-                        <p className="text-3xs font-semibold text-slate-400 uppercase">Operaciones Ejecutadas</p>
-                        <p className="text-sm font-bold text-slate-200 mt-0.5">{sortedHorizonTrades.length}</p>
+                        <p className="text-3xs font-semibold text-slate-400 uppercase">Comisiones Trading (0.10%)</p>
+                        <p className="text-sm font-bold text-amber-300 mt-0.5">-$0.00 USD</p>
                       </div>
                       <div>
-                        <p className="text-3xs font-semibold text-slate-400 uppercase">Capital Base Inicial</p>
-                        <p className="text-sm font-bold text-slate-200 mt-0.5">$1,000.00 USD</p>
+                        <p className="text-3xs font-semibold text-slate-400 uppercase">Operaciones Ejecutadas</p>
+                        <p className="text-sm font-bold text-slate-200 mt-0.5">{sortedHorizonTrades.length}</p>
                       </div>
                     </div>
                   </div>
