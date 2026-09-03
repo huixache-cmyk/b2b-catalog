@@ -1133,15 +1133,18 @@ export function CryptoExchangeTab() {
     return (h.horizon || '').toLowerCase() === 'intraday';
   };
 
-  // GROUND-TRUTH FINANCIAL FORMULA FOR INTRADAY BOT EQUITY
+  // GROUND-TRUTH FINANCIAL FORMULA FOR INTRADAY BOT EQUITY (WITH TRADING FEES)
   let intradayClosedPnl = 0;
   let intradaySweptUsd = 0;
+  let intradayTotalFees = 0;
   const intradayBuyCosts: Record<string, number> = {};
   const intradayBuyCoins: Record<string, number> = {};
 
   const sortedIntradayTrades = [...history]
     .filter(h => (h.status === 'executed' || h.status === 'simulated') && isIntradayTrade(h))
     .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+
+  const feeRate = 0.0010; // 0.10% Binance Spot Estándar
 
   sortedIntradayTrades.forEach(t => {
     const price = t.execution_price || 1;
@@ -1153,6 +1156,9 @@ export function CryptoExchangeTab() {
       intradaySweptUsd += amountUsd;
       return;
     }
+
+    const fee = t.fees !== null && t.fees !== undefined ? Number(t.fees) : (amountUsd * feeRate);
+    intradayTotalFees += fee;
 
     if (!intradayBuyCoins[asset]) intradayBuyCoins[asset] = 0;
     if (!intradayBuyCosts[asset]) intradayBuyCosts[asset] = 0;
@@ -1184,8 +1190,9 @@ export function CryptoExchangeTab() {
   });
 
   const intradayUnrealizedPnl = intradayOpenCryptoVal - intradayOpenCostBasis;
-  const intradayNetProfit = intradayClosedPnl + intradayUnrealizedPnl;
-  // DEDUCT SWEEPS/RETIROS FROM INTRADAY BOT NET EQUITY & AVAILABLE CASH
+  // DEDUCT TRADING FEES (0.10%) EXPLICITLY FROM NET PROFIT AND BOT EQUITY
+  const intradayGrossProfit = intradayClosedPnl + intradayUnrealizedPnl;
+  const intradayNetProfit = intradayGrossProfit - intradayTotalFees;
   const intradayEquity = Math.max(1000.00, 1000.00 + intradayNetProfit - intradaySweptUsd);
   const intradayCash = Math.max(0, intradayEquity - intradayOpenCryptoVal);
 
