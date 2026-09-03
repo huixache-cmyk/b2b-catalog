@@ -992,7 +992,7 @@ export function CryptoExchangeTab() {
 
   // Custom SVG Chart points calculation using backward state reconciliation
   const getSampledPointsData = () => {
-    const events: { time: number; type: 'DEPOSIT' | 'WITHDRAWAL' | 'BUY' | 'SELL'; amount: number; asset?: string; qty?: number }[] = [];
+    const events: { time: number; type: 'DEPOSIT' | 'WITHDRAWAL' | 'BUY' | 'SELL' | 'RETIRO' | string; amount: number; asset?: string; qty?: number }[] = [];
 
     capitalTransactions.forEach(tx => {
       events.push({
@@ -1050,7 +1050,7 @@ export function CryptoExchangeTab() {
         
         if (e.type === 'DEPOSIT') {
           cash = Math.max(0, cash - e.amount);
-        } else if (e.type === 'WITHDRAWAL') {
+        } else if (e.type === 'WITHDRAWAL' || e.type === 'RETIRO') {
           cash += e.amount;
         } else if (e.type === 'BUY') {
           cash += e.amount;
@@ -1135,6 +1135,7 @@ export function CryptoExchangeTab() {
 
   // GROUND-TRUTH FINANCIAL FORMULA FOR INTRADAY BOT EQUITY
   let intradayClosedPnl = 0;
+  let intradaySweptUsd = 0;
   const intradayBuyCosts: Record<string, number> = {};
   const intradayBuyCoins: Record<string, number> = {};
 
@@ -1144,9 +1145,14 @@ export function CryptoExchangeTab() {
 
   sortedIntradayTrades.forEach(t => {
     const price = t.execution_price || 1;
-    const amountUsd = t.executed_amount;
+    const amountUsd = Math.abs(t.executed_amount);
     const qty = amountUsd / price;
     const asset = t.asset;
+
+    if (t.trade_type === 'RETIRO' || (asset && asset.startsWith('SWEEP_'))) {
+      intradaySweptUsd += amountUsd;
+      return;
+    }
 
     if (!intradayBuyCoins[asset]) intradayBuyCoins[asset] = 0;
     if (!intradayBuyCosts[asset]) intradayBuyCosts[asset] = 0;
@@ -1179,7 +1185,8 @@ export function CryptoExchangeTab() {
 
   const intradayUnrealizedPnl = intradayOpenCryptoVal - intradayOpenCostBasis;
   const intradayNetProfit = intradayClosedPnl + intradayUnrealizedPnl;
-  const intradayEquity = 1000.00 + intradayNetProfit;
+  // DEDUCT SWEEPS/RETIROS FROM INTRADAY BOT NET EQUITY & AVAILABLE CASH
+  const intradayEquity = Math.max(1000.00, 1000.00 + intradayNetProfit - intradaySweptUsd);
   const intradayCash = Math.max(0, intradayEquity - intradayOpenCryptoVal);
 
   // GROUND-TRUTH FINANCIAL FORMULA FOR HORIZON BOT EQUITY
