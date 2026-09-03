@@ -2926,18 +2926,14 @@ export function CryptoExchangeTab() {
                 todayStart.setHours(0, 0, 0, 0);
 
                 let thresholdTime = 0;
-                if (timeFilter === '1D') {
-                  thresholdTime = todayStart.getTime();
-                } else if (timeFilter === '1W') {
-                  thresholdTime = now - (7 * 24 * 60 * 60 * 1000);
-                } else if (timeFilter === '1M') {
-                  thresholdTime = now - (30 * 24 * 60 * 60 * 1000);
+                if (timeFilter === '1M') {
+                  thresholdTime = Date.now() - (30 * 24 * 60 * 60 * 1000);
                 } else if (timeFilter === '6M') {
-                  thresholdTime = now - (180 * 24 * 60 * 60 * 1000);
+                  thresholdTime = Date.now() - (180 * 24 * 60 * 60 * 1000);
                 } else if (timeFilter === '1Y') {
-                  thresholdTime = now - (365 * 24 * 60 * 60 * 1000);
+                  thresholdTime = Date.now() - (365 * 24 * 60 * 60 * 1000);
                 } else {
-                  thresholdTime = 0; // ALL (Histórico)
+                  thresholdTime = 0; // 1D, 1W, ALL (Histórico de Sesión Completo)
                 }
 
                 let closedPnlInFrame = 0;
