@@ -917,6 +917,10 @@ export function CryptoExchangeTab() {
 
     activeTrades.forEach(trade => {
       const asset = trade.asset;
+      if (!asset || asset.startsWith('SWEEP_') || trade.trade_type === 'RETIRO') {
+        return; // Filtro estricto: los retiros de la bóveda no son activos cripto
+      }
+
       if (!balances[asset]) {
         balances[asset] = { name: asset.split('/')[0], coins: 0, cost: 0, currentPrice: 1.0, valueUsd: 0, profitUsd: 0 };
       }
@@ -1731,7 +1735,7 @@ export function CryptoExchangeTab() {
             </div>
             
             <div className="space-y-3">
-              {Object.keys(balances).map(key => {
+              {Object.keys(balances).filter(key => key && !key.startsWith('SWEEP_')).map(key => {
                 const b = balances[key];
                 const activeConfig = assetConfigs.find(c => c.asset === key);
                 const activeMode = activeConfig?.active_mode || 'moderado';
@@ -2678,7 +2682,7 @@ export function CryptoExchangeTab() {
             </div>
             
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {Object.keys(balances).map(key => {
+              {Object.keys(balances).filter(key => key && !key.startsWith('SWEEP_')).map(key => {
                 const b = balances[key];
                 const activeConfig = assetConfigs.find(c => c.asset === key);
                 const activeMode = activeConfig?.active_mode || 'moderado';
