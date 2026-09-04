@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   Coins, 
   Activity, 
@@ -151,6 +151,7 @@ export function CryptoExchangeTab() {
   const [depositTimeInput, setDepositTimeInput] = useState<string>('08:00');
   const [depositAmountInput, setDepositAmountInput] = useState<string>('50.00');
   const [useLastSweepForDeposit, setUseLastSweepForDeposit] = useState<boolean>(true);
+  const isVaultInputsInitialized = useRef<boolean>(false);
   
   // States for changes
   const [isSaving, setIsSaving] = useState<boolean>(false);
@@ -384,16 +385,19 @@ export function CryptoExchangeTab() {
       if (vaultRes.ok) {
         const vaultData = await vaultRes.json();
         setVaultStatus(vaultData);
-        setSweepDestination(vaultData.default_destination || 'banorte_spei');
-        setSweepThresholdInput(String(vaultData.sweep_target_threshold_usd || '25.00'));
-        setTargetBotForSweep(vaultData.target_bot_for_sweep || 'INTRADAY');
-        setSweepTimeInput(vaultData.daily_sweep_time || '22:00');
-        setBaseCapitalInput(String(vaultData.base_capital_usd || '1000.00'));
-        setAutoDepositEnabled(vaultData.auto_deposit_enabled === true);
-        setDepositSource(vaultData.deposit_source || 'banorte_spei');
-        setDepositTimeInput(vaultData.daily_deposit_time || '08:00');
-        setDepositAmountInput(String(vaultData.daily_deposit_amount_usd || vaultData.last_sweep_amount_usd || '50.00'));
-        setUseLastSweepForDeposit(vaultData.use_last_sweep_for_deposit !== false);
+        if (!isVaultInputsInitialized.current) {
+          setSweepDestination(vaultData.default_destination || 'banorte_spei');
+          setSweepThresholdInput(String(vaultData.sweep_target_threshold_usd || '25.00'));
+          setTargetBotForSweep(vaultData.target_bot_for_sweep || 'INTRADAY');
+          setSweepTimeInput(vaultData.daily_sweep_time || '22:00');
+          setBaseCapitalInput(String(vaultData.base_capital_usd || '1000.00'));
+          setAutoDepositEnabled(vaultData.auto_deposit_enabled === true);
+          setDepositSource(vaultData.deposit_source || 'banorte_spei');
+          setDepositTimeInput(vaultData.daily_deposit_time || '08:00');
+          setDepositAmountInput(String(vaultData.daily_deposit_amount_usd || vaultData.last_sweep_amount_usd || '50.00'));
+          setUseLastSweepForDeposit(vaultData.use_last_sweep_for_deposit !== false);
+          isVaultInputsInitialized.current = true;
+        }
       }
 
       const sweepsRes = await fetch(`${API_BASE}/vault/history`, { headers: authHeaders() });
