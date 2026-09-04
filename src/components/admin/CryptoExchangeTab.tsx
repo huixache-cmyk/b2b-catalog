@@ -3200,123 +3200,27 @@ export function CryptoExchangeTab() {
           </div>
 
           {/* Action & Configuration Box */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Manual Sweep Control */}
-            <div className="bg-white p-6 rounded-2xl border border-gray-150 shadow-sm space-y-4">
-              <h3 className="text-base font-bold text-gray-900 flex items-center gap-2">
-                <ArrowRightLeft className="w-5 h-5 text-blue-600" />
-                Ejecutar Quita de Ganancias Manual
-              </h3>
-              <p className="text-xs text-gray-500">
-                Retira las ganancias sobre el Capital Base. La quita está restringida exclusivamente al <strong>efectivo disponible</strong> sin tocar posiciones cripto abiertas.
-              </p>
-
-              <div className="space-y-3 pt-1">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs font-semibold text-gray-700 mb-1">Capital Base Operativo ($ USD):</label>
-                    <div className="relative">
-                      <span className="absolute left-3 top-2 text-gray-400 font-semibold text-xs">$</span>
-                      <input
-                        type="number"
-                        value={baseCapitalInput}
-                        onChange={(e) => setBaseCapitalInput(e.target.value)}
-                        className="w-full pl-6 pr-3 py-1.5 bg-gray-50 border border-gray-200 rounded-xl text-xs font-bold text-gray-900 focus:ring-2 focus:ring-purple-500 outline-none"
-                      />
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-semibold text-gray-700 mb-1">Efectivo Disponible para Quitas:</label>
-                    <div className="px-3 py-1.5 bg-emerald-50 border border-emerald-200 rounded-xl text-xs font-bold text-emerald-700">
-                      💵 ${intradayCash.toFixed(2)} USD
-                    </div>
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-gray-700 mb-1">Destino de la Quita Manual:</label>
-                  <select
-                    value={sweepDestination}
-                    onChange={(e) => setSweepDestination(e.target.value)}
-                    className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs font-semibold focus:ring-2 focus:ring-purple-500 outline-none text-gray-800"
-                  >
-                    <option value="boveda_interna">🔒 Bóveda de Simulación Interna (Protección de Ganancias)</option>
-                    <option value="banorte_spei">🇲🇽 Banorte Cuenta CLABE / SPEI (Retiro en Pesos MXN)</option>
-                    <option value="arq_usdt">💲 ARQ / Wallet Digital (Dólares Digitales USDT/USDC)</option>
-                  </select>
-                </div>
-
-                <div className="flex gap-3 pt-2">
-                  <button
-                    onClick={() => handleTriggerSweep('INTRADAY')}
-                    disabled={isSweeping}
-                    className="flex-1 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-xs font-bold rounded-xl shadow-md transition-all flex items-center justify-center gap-2"
-                  >
-                    <Zap className="w-4 h-4 text-amber-300" />
-                    Quita Bot Intradía
-                  </button>
-
-                  <button
-                    onClick={() => handleTriggerSweep('HORIZON')}
-                    disabled={isSweeping}
-                    className="flex-1 px-4 py-2.5 bg-purple-600 hover:bg-purple-700 disabled:opacity-50 text-white text-xs font-bold rounded-xl shadow-md transition-all flex items-center justify-center gap-2"
-                  >
-                    <Clock className="w-4 h-4 text-sky-300" />
-                    Quita Bot Horizontes
-                  </button>
-                </div>
-              </div>
-            </div>
-
+          <div className="grid grid-cols-1 gap-6">
             {/* Sweep & Deposit Auto Configuration */}
             <div className="bg-white p-6 rounded-2xl border border-gray-150 shadow-sm space-y-4">
               <h3 className="text-base font-bold text-gray-900 flex items-center gap-2">
                 <Settings className="w-5 h-5 text-purple-600" />
-                Configurar Parámetros y Horarios del Ecosistema
+                Configurar Parámetros y Depósito Programado de Bóveda
               </h3>
               <p className="text-xs text-gray-500">
-                Al alcanzar el umbral mínimo, se barre la <strong>ganancia total</strong> sobre el capital base dejándolo exactamente en $1,000 USD.
+                El barrido de ganancias opera automáticamente al alcanzar $25.00 USD de utilidad sobre el capital base ($1,000 USD).
               </p>
 
-              <div className="space-y-3 pt-1">
-                <div>
-                  <label className="block text-xs font-semibold text-gray-700 mb-1">Bot Objetivo del Barrido Automático:</label>
-                  <select
-                    value={targetBotForSweep}
-                    onChange={(e) => setTargetBotForSweep(e.target.value)}
-                    className="w-full px-3 py-1.5 bg-gray-50 border border-gray-200 rounded-xl text-xs font-semibold text-gray-800 outline-none focus:ring-2 focus:ring-purple-500"
-                  >
-                    <option value="INTRADAY">⚡ Bot Intradía (15m + Rotación de Criptoactivos)</option>
-                    <option value="HORIZON">⏳ Bot por Horizontes (Estrategia Multi-Plazo)</option>
-                    <option value="BOTH">🤖 Ambos Bots (Evaluación Consolidada de Ganancias)</option>
-                  </select>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs font-semibold text-gray-700 mb-1">Gatillo Mínimo de Quita ($ USD):</label>
-                    <div className="relative">
-                      <span className="absolute left-3 top-2 text-gray-400 font-semibold text-sm">$</span>
-                      <input
-                        type="number"
-                        step="5"
-                        value={sweepThresholdInput}
-                        onChange={(e) => setSweepThresholdInput(e.target.value)}
-                        className="w-full pl-7 pr-3 py-1.5 bg-gray-50 border border-gray-200 rounded-xl text-xs font-semibold focus:ring-2 focus:ring-purple-500 outline-none text-gray-800"
-                      />
-                    </div>
+              <div className="space-y-4 pt-1">
+                {/* Fixed Trigger Information Banner */}
+                <div className="bg-purple-50 border border-purple-200 p-3.5 rounded-xl space-y-1">
+                  <div className="flex items-center gap-2 text-purple-900 font-bold text-xs">
+                    <Zap className="w-4 h-4 text-purple-600" />
+                    Gatillo de Barrido Automático ($25.00 USD)
                   </div>
-
-                  <div>
-                    <label className="block text-xs font-semibold text-gray-700 mb-1">Horario Diario de Quita (HH:MM):</label>
-                    <input
-                      type="time"
-                      value={sweepTimeInput}
-                      onChange={(e) => setSweepTimeInput(e.target.value)}
-                      className="w-full px-3 py-1.5 bg-gray-50 border border-gray-200 rounded-xl text-xs font-semibold focus:ring-2 focus:ring-purple-500 outline-none text-gray-800"
-                    />
-                  </div>
+                  <p className="text-3xs text-purple-700 font-medium leading-relaxed">
+                    Al obtener $25.00 USD de ganancia en cualquiera de los bots, el excedente sobre el capital base de $1,000 USD se transfiere automáticamente a la bóveda en tiempo real.
+                  </p>
                 </div>
 
                 <div className="border-t border-gray-100 pt-3">
@@ -3334,17 +3238,17 @@ export function CryptoExchangeTab() {
                   </div>
 
                   {autoDepositEnabled && (
-                    <div className="space-y-2.5 pt-1">
-                      <div className="bg-amber-50 border border-amber-200 p-2.5 rounded-xl text-3xs text-amber-800 font-medium">
-                        ⚠️ <strong>Regla de Ejecución:</strong> El depósito diario solo se procesará si existió una quita efectiva en las últimas 24 horas (al cierre del día anterior). Si no hubo quita, el depósito se omite automáticamente.
+                    <div className="space-y-3 pt-1">
+                      <div className="bg-amber-50 border border-amber-200 p-3 rounded-xl text-3xs text-amber-800 font-medium">
+                        ⚠️ <strong>Regla de Ejecución:</strong> El depósito diario se procesará abonando el <strong>total acumulado en la bóveda</strong>. Si la bóveda está en <strong>$0.00 USD</strong>, el depósito se omite automáticamente.
                       </div>
 
                       <div>
-                        <label className="block text-3xs font-semibold text-gray-600 mb-1">Banco o Wallet Origen del Depósito:</label>
+                        <label className="block text-xs font-semibold text-gray-700 mb-1">Banco o Wallet Origen del Depósito:</label>
                         <select
                           value={depositSource}
                           onChange={(e) => setDepositSource(e.target.value)}
-                          className="w-full px-3 py-1.5 bg-gray-50 border border-gray-200 rounded-xl text-xs font-semibold text-gray-800"
+                          className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs font-semibold text-gray-800 focus:ring-2 focus:ring-purple-500 outline-none"
                         >
                           <option value="banorte_spei">🇲🇽 Banorte Cuenta CLABE / SPEI (Depósito en Pesos MXN)</option>
                           <option value="arq_usdt">💲 ARQ / Wallet Digital (Depósito Dólares Digitales USDT/USDC)</option>
@@ -3352,53 +3256,33 @@ export function CryptoExchangeTab() {
                         </select>
                       </div>
 
-                      <div className="flex items-center gap-2 pt-1">
-                        <input
-                          type="checkbox"
-                          id="useLastSweepCheck"
-                          checked={useLastSweepForDeposit}
-                          onChange={(e) => setUseLastSweepForDeposit(e.target.checked)}
-                          className="w-4 h-4 text-purple-600 rounded focus:ring-purple-500 cursor-pointer"
-                        />
-                        <label htmlFor="useLastSweepCheck" className="text-xs font-semibold text-gray-800 cursor-pointer">
-                          Depositar monto de la última quita realizada (${(vaultStatus.last_sweep_amount_usd || 50).toFixed(2)} USD)
-                        </label>
+                      <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="checkbox"
+                            id="useLastSweepCheck"
+                            checked={useLastSweepForDeposit}
+                            onChange={(e) => setUseLastSweepForDeposit(e.target.checked)}
+                            className="w-4 h-4 text-purple-600 rounded focus:ring-purple-500 cursor-pointer"
+                          />
+                          <label htmlFor="useLastSweepCheck" className="text-xs font-bold text-gray-900 cursor-pointer">
+                            Depositar el total disponible acumulado en la bóveda (${(vaultStatus.vault_balance_usd || 0).toFixed(2)} USD)
+                          </label>
+                        </div>
+                        <p className="text-3xs text-slate-500 pl-6">
+                          Traspasa íntegramente los fondos acumulados en la bóveda hacia tu cuenta bancaria SPEI en el horario configurado. Si el saldo es $0, la ejecución se salta automáticamente.
+                        </p>
                       </div>
 
-                      {!useLastSweepForDeposit && (
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                          <div>
-                            <label className="block text-3xs font-semibold text-gray-600 mb-1">Monto Fijo a Depositar ($ USD):</label>
-                            <input
-                              type="number"
-                              value={depositAmountInput}
-                              onChange={(e) => setDepositAmountInput(e.target.value)}
-                              className="w-full px-3 py-1.5 bg-gray-50 border border-gray-200 rounded-xl text-xs font-semibold text-gray-800"
-                            />
-                          </div>
-                          <div>
-                            <label className="block text-3xs font-semibold text-gray-600 mb-1">Horario Depósito (HH:MM):</label>
-                            <input
-                              type="time"
-                              value={depositTimeInput}
-                              onChange={(e) => setDepositTimeInput(e.target.value)}
-                              className="w-full px-3 py-1.5 bg-gray-50 border border-gray-200 rounded-xl text-xs font-semibold text-gray-800"
-                            />
-                          </div>
-                        </div>
-                      )}
-
-                      {useLastSweepForDeposit && (
-                        <div>
-                          <label className="block text-3xs font-semibold text-gray-600 mb-1">Horario Diario del Depósito (HH:MM):</label>
-                          <input
-                            type="time"
-                            value={depositTimeInput}
-                            onChange={(e) => setDepositTimeInput(e.target.value)}
-                            className="w-full px-3 py-1.5 bg-gray-50 border border-gray-200 rounded-xl text-xs font-semibold text-gray-800"
-                          />
-                        </div>
-                      )}
+                      <div>
+                        <label className="block text-xs font-semibold text-gray-700 mb-1">Horario Diario del Depósito (HH:MM):</label>
+                        <input
+                          type="time"
+                          value={depositTimeInput}
+                          onChange={(e) => setDepositTimeInput(e.target.value)}
+                          className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs font-semibold focus:ring-2 focus:ring-purple-500 outline-none text-gray-800"
+                        />
+                      </div>
                     </div>
                   )}
                 </div>
@@ -3414,16 +3298,16 @@ export function CryptoExchangeTab() {
             </div>
           </div>
 
-          {/* Sweeps History Table */}
+          {/* Sweeps & Deposits History Table */}
           <div className="bg-white p-6 rounded-2xl border border-gray-150 shadow-sm space-y-4">
             <h3 className="text-base font-bold text-gray-900 flex items-center gap-2">
               <HistoryIcon className="w-5 h-5 text-emerald-600" />
-              Historial Completo de Quitas y Barridos Realizados
+              Historial Completo de Quitas y Depósitos Realizados
             </h3>
 
             {sweepsHistory.length === 0 ? (
               <div className="text-center py-8 text-gray-500 text-xs">
-                Aún no hay quitas de ganancias registradas. Puedes gatillar una quita manual o esperar al barrido automático diario.
+                Aún no hay registros de quitas o depósitos. Se registrarán automáticamente con los barridos de ganancias y depósitos programados.
               </div>
             ) : (
               <div className="overflow-x-auto">
@@ -3431,34 +3315,41 @@ export function CryptoExchangeTab() {
                   <thead>
                     <tr className="border-b border-gray-200 text-xs font-bold text-gray-500 uppercase tracking-wider bg-gray-50">
                       <th className="py-3 px-4">Fecha / Hora</th>
-                      <th className="py-3 px-4">Bot Origen</th>
+                      <th className="py-3 px-4">Tipo de Movimiento</th>
                       <th className="py-3 px-4">Monto ($ USD)</th>
                       <th className="py-3 px-4">Monto (≈ $ MXN)</th>
-                      <th className="py-3 px-4">Destino</th>
+                      <th className="py-3 px-4">Origen / Destino</th>
                       <th className="py-3 px-4">Estatus</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-150 text-xs">
-                    {sweepsHistory.map((s) => (
-                      <tr key={s.id} className="hover:bg-gray-50 transition-colors">
-                        <td className="py-3 px-4 font-medium text-gray-800">{new Date(s.created_at).toLocaleString('es-MX')}</td>
-                        <td className="py-3 px-4">
-                          <span className={`px-2.5 py-0.5 rounded-full font-bold text-2xs ${s.bot_type === 'INTRADAY' ? 'bg-blue-100 text-blue-700' : 'bg-purple-100 text-purple-700'}`}>
-                            {s.bot_type === 'INTRADAY' ? '⚡ Intradía' : '⏳ Horizontes'}
-                          </span>
-                        </td>
-                        <td className="py-3 px-4 font-bold text-emerald-600">+${Number(s.sweep_amount_usd).toFixed(2)} USD</td>
-                        <td className="py-3 px-4 font-semibold text-gray-700">+${Number(s.sweep_amount_mxn || Number(s.sweep_amount_usd) * usdToMxn).toFixed(2)} MXN</td>
-                        <td className="py-3 px-4 text-gray-600 font-medium">
-                          {s.target_destination === 'banorte_spei' ? '🇲🇽 Banorte SPEI' : s.target_destination === 'arq_usdt' ? '💲 ARQ / Wallet USDT' : '🔒 Bóveda Interna'}
-                        </td>
-                        <td className="py-3 px-4">
-                          <span className="px-2 py-0.5 bg-emerald-100 text-emerald-700 rounded-md font-semibold text-3xs">
-                            ✓ {s.status.toUpperCase()}
-                          </span>
-                        </td>
-                      </tr>
-                    ))}
+                    {sweepsHistory.map((s: any) => {
+                      const isDeposit = s.type === 'DEPOSITO' || s.trade_type === 'ABONO' || (s.asset || '').includes('DEPOSITO');
+                      return (
+                        <tr key={s.id} className="hover:bg-gray-50 transition-colors">
+                          <td className="py-3 px-4 font-medium text-gray-800">{new Date(s.created_at).toLocaleString('es-MX')}</td>
+                          <td className="py-3 px-4">
+                            <span className={`px-2.5 py-0.5 rounded-full font-bold text-2xs ${isDeposit ? 'bg-emerald-100 text-emerald-800' : 'bg-purple-100 text-purple-800'}`}>
+                              {isDeposit ? '🏦 Depósito (Abono)' : '⚡ Quita (Retiro)'}
+                            </span>
+                          </td>
+                          <td className={`py-3 px-4 font-bold ${isDeposit ? 'text-blue-600' : 'text-emerald-600'}`}>
+                            {isDeposit ? '-' : '+'}${Number(s.sweep_amount_usd).toFixed(2)} USD
+                          </td>
+                          <td className="py-3 px-4 font-semibold text-gray-700">
+                            ${Number(s.sweep_amount_mxn || Number(s.sweep_amount_usd) * usdToMxn).toFixed(2)} MXN
+                          </td>
+                          <td className="py-3 px-4 text-gray-600 font-medium">
+                            {s.target_destination === 'banorte_spei' ? '🇲🇽 Banorte SPEI' : s.target_destination === 'arq_usdt' ? '💲 ARQ / Wallet USDT' : '🔒 Bóveda Interna'}
+                          </td>
+                          <td className="py-3 px-4">
+                            <span className="px-2 py-0.5 bg-emerald-100 text-emerald-700 rounded-md font-semibold text-3xs">
+                              ✓ {(s.status || 'COMPLETED').toUpperCase()}
+                            </span>
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
