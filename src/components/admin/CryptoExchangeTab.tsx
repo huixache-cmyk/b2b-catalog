@@ -789,6 +789,30 @@ export function CryptoExchangeTab() {
     }
   };
 
+  const handleTriggerDeposit = async () => {
+    setIsSweeping(true);
+    try {
+      const res = await fetch(`${API_BASE}/vault/deposit`, {
+        method: 'POST',
+        headers: authHeaders({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify({ depositSource })
+      });
+
+      if (!res.ok) {
+        const errData = await res.json();
+        throw new Error(errData.error || 'Error al ejecutar depósito.');
+      }
+
+      const data = await res.json();
+      alert(`¡Depósito ejecutado con éxito! Se transfirieron $${data.deposited_usd.toFixed(2)} USD (≈ $${data.deposited_mxn.toFixed(2)} MXN). Saldo restante en bóveda: $0.00 USD.`);
+      fetchData();
+    } catch (e: any) {
+      alert(e.message);
+    } finally {
+      setIsSweeping(false);
+    }
+  };
+
   const handleSaveVaultConfig = async (autoEnabled?: boolean, autoDepEnabled?: boolean) => {
     try {
       const payload = {
@@ -3287,13 +3311,24 @@ export function CryptoExchangeTab() {
                   )}
                 </div>
 
-                <button
-                  onClick={() => handleSaveVaultConfig()}
-                  className="w-full mt-2 px-4 py-2.5 bg-purple-700 hover:bg-purple-800 text-white text-xs font-bold rounded-xl shadow-md transition-all flex items-center justify-center gap-2"
-                >
-                  <Save className="w-4 h-4 text-purple-200" />
-                  Guardar Ajustes y Sincronizar con Supabase DB
-                </button>
+                <div className="flex flex-col md:flex-row gap-3 mt-2">
+                  <button
+                    onClick={() => handleSaveVaultConfig()}
+                    className="flex-1 px-4 py-2.5 bg-purple-700 hover:bg-purple-800 text-white text-xs font-bold rounded-xl shadow-md transition-all flex items-center justify-center gap-2"
+                  >
+                    <Save className="w-4 h-4 text-purple-200" />
+                    Guardar Ajustes y Sincronizar con Supabase DB
+                  </button>
+
+                  <button
+                    onClick={handleTriggerDeposit}
+                    disabled={isSweeping || (vaultStatus.vault_balance_usd || 0) <= 0}
+                    className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-xs font-bold rounded-xl shadow-md transition-all flex items-center justify-center gap-2"
+                  >
+                    <Zap className="w-4 h-4 text-amber-300" />
+                    ⚡ Probar / Ejecutar Depósito Ahora
+                  </button>
+                </div>
               </div>
             </div>
           </div>
