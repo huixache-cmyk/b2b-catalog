@@ -227,7 +227,7 @@ export function CryptoExchangeTab() {
   const [isCloning, setIsCloning] = useState<boolean>(false);
 
   // URL base y API Key de la API del bot
-  const API_BASE = process.env.NEXT_PUBLIC_CRYPTO_BOT_API_URL || 'http://localhost:3005/api';
+  const API_BASE = process.env.NEXT_PUBLIC_CRYPTO_BOT_API_URL || 'https://exchange-trade-production.up.railway.app/api';
   const API_KEY = process.env.NEXT_PUBLIC_INTERNAL_API_KEY || 'geeky_exchange_secret_key_2026';
 
   const authHeaders = (extraHeaders?: Record<string, string>) => ({
