@@ -3204,8 +3204,38 @@ export function CryptoExchangeTab() {
 
               <div className="bg-slate-800/80 p-4 rounded-xl border border-purple-500/30">
                 <p className="text-xs font-semibold text-purple-300 uppercase tracking-wider">Total Acumulado en Bóveda</p>
-                <p className="text-2xl font-bold text-white mt-1">${(vaultStatus.vault_balance_usd || 0).toFixed(2)} USD</p>
-                <p className="text-xs text-slate-300 mt-0.5">≈ ${((vaultStatus.vault_balance_usd || 0) * usdToMxn).toFixed(2)} MXN</p>
+                <p className="text-2xl font-bold text-white mt-1">
+                  ${(() => {
+                    let totalSwept = 0;
+                    let totalDeposited = 0;
+                    (sweepsHistory || []).forEach((s: any) => {
+                      const isDep = s.type === 'DEPOSITO' || s.trade_type === 'ABONO' || (s.asset || '').includes('DEPOSITO');
+                      if (isDep) {
+                        totalDeposited += Number(s.sweep_amount_usd || 0);
+                      } else {
+                        totalSwept += Number(s.sweep_amount_usd || 0);
+                      }
+                    });
+                    return Math.max(0, totalSwept - totalDeposited).toFixed(2);
+                  })()} USD
+                </p>
+                <p className="text-xs text-slate-300 mt-0.5">
+                  ≈ ${(
+                    (() => {
+                      let totalSwept = 0;
+                      let totalDeposited = 0;
+                      (sweepsHistory || []).forEach((s: any) => {
+                        const isDep = s.type === 'DEPOSITO' || s.trade_type === 'ABONO' || (s.asset || '').includes('DEPOSITO');
+                        if (isDep) {
+                          totalDeposited += Number(s.sweep_amount_usd || 0);
+                        } else {
+                          totalSwept += Number(s.sweep_amount_usd || 0);
+                        }
+                      });
+                      return Math.max(0, totalSwept - totalDeposited);
+                    })() * usdToMxn
+                  ).toFixed(2)} MXN
+                </p>
               </div>
 
               <div className="bg-slate-800/80 p-4 rounded-xl border border-slate-700/60">
@@ -3290,7 +3320,19 @@ export function CryptoExchangeTab() {
                             className="w-4 h-4 text-purple-600 rounded focus:ring-purple-500 cursor-pointer"
                           />
                           <label htmlFor="useLastSweepCheck" className="text-xs font-bold text-gray-900 cursor-pointer">
-                            Depositar el total disponible acumulado en la bóveda (${(vaultStatus.vault_balance_usd || 0).toFixed(2)} USD)
+                            Depositar el total disponible acumulado en la bóveda (${(() => {
+                              let totalSwept = 0;
+                              let totalDeposited = 0;
+                              (sweepsHistory || []).forEach((s: any) => {
+                                const isDep = s.type === 'DEPOSITO' || s.trade_type === 'ABONO' || (s.asset || '').includes('DEPOSITO');
+                                if (isDep) {
+                                  totalDeposited += Number(s.sweep_amount_usd || 0);
+                                } else {
+                                  totalSwept += Number(s.sweep_amount_usd || 0);
+                                }
+                              });
+                              return Math.max(0, totalSwept - totalDeposited).toFixed(2);
+                            })()} USD)
                           </label>
                         </div>
                         <p className="text-3xs text-slate-500 pl-6">
