@@ -238,12 +238,34 @@ export function CryptoExchangeTab() {
   const [horizonBotActive, setHorizonBotActive] = useState<boolean>(true);
   const [botActionLoading, setBotActionLoading] = useState<string | null>(null);
 
+  // Estados para Modal de Vincular WhatsApp / QR
+  const [isWaModalOpen, setIsWaModalOpen] = useState<boolean>(false);
+  const [isWaConnecting, setIsWaConnecting] = useState<boolean>(false);
+
   const authHeaders = (extraHeaders?: Record<string, string>) => ({
     'x-api-key': API_KEY,
     'Cache-Control': 'no-cache, no-store, must-revalidate',
     'Pragma': 'no-cache',
     ...(extraHeaders || {})
   });
+
+  const handleConnectWa = async (forceFresh: boolean = true) => {
+    setIsWaConnecting(true);
+    try {
+      const res = await fetch(`${API_BASE}/whatsapp/connect`, {
+        method: 'POST',
+        headers: authHeaders({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify({ forceFresh })
+      });
+      if (res.ok) {
+        await fetchData();
+      }
+    } catch (err: any) {
+      console.error('Error al solicitar QR de WhatsApp:', err);
+    } finally {
+      setIsWaConnecting(false);
+    }
+  };
 
   const fetchBotStatuses = async () => {
     try {
@@ -319,6 +341,15 @@ export function CryptoExchangeTab() {
     const interval = setInterval(fetchComparison, 10000);
     return () => clearInterval(interval);
   }, []);
+
+  useEffect(() => {
+    if (!isWaModalOpen) return;
+    fetchData();
+    const waInterval = setInterval(() => {
+      fetchData();
+    }, 2000);
+    return () => clearInterval(waInterval);
+  }, [isWaModalOpen]);
 
   const fetchData = async () => {
     try {
@@ -1446,14 +1477,21 @@ export function CryptoExchangeTab() {
           <Coins className="w-5 h-5 text-amber-500" />
         </div>
 
-        <div className="bg-white p-3.5 rounded-xl border border-gray-150 shadow-sm flex items-center justify-between">
+        <div 
+          onClick={() => setIsWaModalOpen(true)}
+          className="bg-white p-3.5 rounded-xl border border-gray-150 shadow-sm flex items-center justify-between cursor-pointer hover:border-emerald-400 hover:shadow-md transition-all group"
+          title="Haz clic para ver el Código QR o vincular WhatsApp con tu celular"
+        >
           <div>
-            <p className="text-3xs font-bold text-gray-400 uppercase tracking-wider">WhatsApp</p>
-            <h3 className="text-xs font-bold text-gray-800 mt-1 uppercase">
-              {whatsappStatus}
+            <div className="flex items-center gap-1">
+              <p className="text-3xs font-bold text-gray-400 uppercase tracking-wider">WhatsApp</p>
+              <span className="text-[9px] text-emerald-600 font-bold group-hover:underline">📱 QR</span>
+            </div>
+            <h3 className="text-xs font-bold text-gray-800 mt-1 uppercase flex items-center gap-1">
+              <span>{whatsappStatus}</span>
             </h3>
           </div>
-          <MessageSquare className={`w-5 h-5 ${whatsappStatus === 'connected' ? 'text-emerald-500' : 'text-amber-500'}`} />
+          <MessageSquare className={`w-5 h-5 transition-transform group-hover:scale-110 ${whatsappStatus === 'connected' ? 'text-emerald-500' : 'text-amber-500'}`} />
         </div>
 
         <div className="bg-white p-3.5 rounded-xl border border-gray-150 shadow-sm flex items-center justify-between">
@@ -3567,6 +3605,84 @@ export function CryptoExchangeTab() {
                 </table>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Conexión de WhatsApp y Código QR */}
+      {isWaModalOpen && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-gray-100 relative animate-in fade-in zoom-in-95 duration-200">
+            <button
+              onClick={() => setIsWaModalOpen(false)}
+              className="absolute top-4 right-4 p-2 text-gray-400 hover:text-gray-600 rounded-full hover:bg-gray-100 transition-colors"
+            >
+              <XCircle className="w-5 h-5" />
+            </button>
+
+            <div className="flex items-center gap-3 mb-4">
+              <div className="p-3 bg-emerald-100 border border-emerald-200 rounded-xl text-emerald-600">
+                <MessageSquare className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-gray-900">Vincular WhatsApp de Notificaciones</h3>
+                <p className="text-xs text-gray-500">Escanea el código QR con tu celular para conectar el bot</p>
+              </div>
+            </div>
+
+            <div className="space-y-4 my-5">
+              {whatsappStatus === 'connected' ? (
+                <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 text-center">
+                  <CheckCircle className="w-10 h-10 text-emerald-500 mx-auto mb-2" />
+                  <h4 className="font-bold text-emerald-800 text-sm">¡WhatsApp Vinculado Exitosamente!</h4>
+                  <p className="text-xs text-emerald-700 mt-1">
+                    El microservicio está en línea. Recibirás alertas instantáneas de operaciones y podrás autorizar/rechazar órdenes respondiendo mensajes.
+                  </p>
+                </div>
+              ) : whatsappQr ? (
+                <div className="text-center bg-gray-50 p-4 rounded-xl border border-gray-200">
+                  <p className="text-xs font-semibold text-gray-700 mb-3">
+                    Abre WhatsApp en tu teléfono ➔ <strong>Dispositivos vinculados</strong> ➔ <strong>Vincular dispositivo</strong> y escanea:
+                  </p>
+                  <div className="p-2 bg-white rounded-xl inline-block shadow-md border border-gray-200">
+                    <img 
+                      src={whatsappQr} 
+                      alt="Código QR de WhatsApp" 
+                      className="w-56 h-56 mx-auto object-contain"
+                    />
+                  </div>
+                  <p className="text-3xs text-gray-400 mt-2">
+                    El código se actualiza en tiempo real.
+                  </p>
+                </div>
+              ) : (
+                <div className="text-center py-6 bg-slate-50 rounded-xl border border-dashed border-slate-300 p-4">
+                  <RefreshCw className={`w-8 h-8 text-slate-400 mx-auto mb-2 ${isWaConnecting ? 'animate-spin' : ''}`} />
+                  <p className="text-xs text-gray-600 font-medium">
+                    {isWaConnecting || whatsappStatus === 'connecting' 
+                      ? 'Iniciando cliente de WhatsApp y generando código QR...'
+                      : 'WhatsApp se encuentra desconectado. Haz clic abajo para generar el código QR.'}
+                  </p>
+                </div>
+              )}
+            </div>
+
+            <div className="flex flex-col gap-2 pt-2 border-t border-gray-100">
+              <button
+                onClick={() => handleConnectWa(true)}
+                disabled={isWaConnecting}
+                className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-md transition-all flex items-center justify-center gap-2"
+              >
+                <RefreshCw className={`w-4 h-4 ${isWaConnecting ? 'animate-spin' : ''}`} />
+                <span>{whatsappQr ? 'Regenerar Código QR Fresco' : 'Generar Código QR para Enlazar Teléfono'}</span>
+              </button>
+              <button
+                onClick={() => setIsWaModalOpen(false)}
+                className="w-full py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold text-xs rounded-xl transition-all"
+              >
+                Cerrar
+              </button>
+            </div>
           </div>
         </div>
       )}
