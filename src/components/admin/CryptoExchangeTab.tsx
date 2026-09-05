@@ -22,7 +22,10 @@ import {
   Target,
   ShieldCheck,
   ArrowRightLeft,
-  History as HistoryIcon
+  History as HistoryIcon,
+  Play,
+  Pause,
+  RotateCcw
 } from 'lucide-react';
 
 interface CapitalHorizon {
@@ -230,12 +233,69 @@ export function CryptoExchangeTab() {
   const API_BASE = process.env.NEXT_PUBLIC_CRYPTO_BOT_API_URL || 'https://exchange-trade-production.up.railway.app/api';
   const API_KEY = process.env.NEXT_PUBLIC_INTERNAL_API_KEY || 'geeky_exchange_secret_key_2026';
 
+  // Estados para botonera de control individual de bots (Activo/Apagar/Reinicio)
+  const [intradayBotActive, setIntradayBotActive] = useState<boolean>(true);
+  const [horizonBotActive, setHorizonBotActive] = useState<boolean>(true);
+  const [botActionLoading, setBotActionLoading] = useState<string | null>(null);
+
   const authHeaders = (extraHeaders?: Record<string, string>) => ({
     'x-api-key': API_KEY,
     'Cache-Control': 'no-cache, no-store, must-revalidate',
     'Pragma': 'no-cache',
     ...(extraHeaders || {})
   });
+
+  const fetchBotStatuses = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/bot/control/status`, { headers: authHeaders() });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.intraday !== undefined) setIntradayBotActive(data.intraday.is_active);
+        if (data.horizon !== undefined) setHorizonBotActive(data.horizon.is_active);
+      }
+    } catch (e) {
+      console.warn('Error al consultar estado individual de bots:', e);
+    }
+  };
+
+  const handleBotControl = async (bot: 'intraday' | 'horizon', action: 'start' | 'stop' | 'reset') => {
+    const actionNames: Record<string, string> = {
+      start: 'activar',
+      stop: 'apagar',
+      reset: 'reiniciar capital base ($1,000 USD) y propuestas de'
+    };
+    if (action === 'reset') {
+      const confirmed = window.confirm(`¿Estás seguro de que deseas ${actionNames[action]} el ${bot === 'intraday' ? 'Bot Intradía' : 'Bot por Horizontes'}? Esto restaurará el saldo inicial y limpiará órdenes pendientes.`);
+      if (!confirmed) return;
+    }
+
+    setBotActionLoading(`${bot}_${action}`);
+    try {
+      const res = await fetch(`${API_BASE}/bot/control`, {
+        method: 'POST',
+        headers: authHeaders({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify({ bot, action })
+      });
+      const data = await res.json();
+      if (data.success) {
+        if (bot === 'intraday') {
+          if (action === 'start') setIntradayBotActive(true);
+          if (action === 'stop') setIntradayBotActive(false);
+        } else {
+          if (action === 'start') setHorizonBotActive(true);
+          if (action === 'stop') setHorizonBotActive(false);
+        }
+        await fetchData();
+        await fetchBotStatuses();
+      } else {
+        alert(data.error || `Error al ejecutar ${action} en bot ${bot}`);
+      }
+    } catch (err: any) {
+      alert(`Error de red al ejecutar ${action}: ${err.message}`);
+    } finally {
+      setBotActionLoading(null);
+    }
+  };
 
   useEffect(() => {
     const fetchComparison = async () => {
@@ -256,6 +316,9 @@ export function CryptoExchangeTab() {
 
   const fetchData = async () => {
     try {
+      // 0. Consultar estado individual de los bots
+      await fetchBotStatuses();
+
       // 1. Obtener estado general
       const statusRes = await fetch(`${API_BASE}/status`, { headers: authHeaders() });
       if (statusRes.ok) {
@@ -1427,6 +1490,59 @@ export function CryptoExchangeTab() {
       {/* INTRADAY VIEW */}
       {activeSubTab === 'intraday' && (
         <div className="space-y-6">
+          {/* Bot Control Panel (Botonera de Activo / Apagar / Reinicio) */}
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div className="relative flex h-3 w-3">
+                <span className={`animate-ping absolute inline-flex h-full w-full rounded-full ${intradayBotActive ? 'bg-emerald-400 opacity-75' : 'bg-amber-400 opacity-75'}`}></span>
+                <span className={`relative inline-flex rounded-full h-3 w-3 ${intradayBotActive ? 'bg-emerald-500' : 'bg-amber-500'}`}></span>
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h3 className="text-xs font-bold text-white uppercase tracking-wider">Control Operativo - Bot Intradía</h3>
+                  <span className={`px-2 py-0.5 rounded-full text-3xs font-extrabold border ${intradayBotActive ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30' : 'bg-amber-500/10 text-amber-400 border-amber-500/30'}`}>
+                    {intradayBotActive ? 'EN OPERACIÓN (ACTIVO)' : 'PAUSADO (APAGADO)'}
+                  </span>
+                </div>
+                <p className="text-3xs text-slate-400 mt-0.5">Controla la ejecución automática de órdenes y escaneo de señales de 15 minutos.</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 w-full sm:w-auto">
+              <button
+                onClick={() => handleBotControl('intraday', 'start')}
+                disabled={intradayBotActive || botActionLoading === 'intraday_start'}
+                className={`flex-1 sm:flex-none px-3.5 py-2 rounded-xl text-2xs font-bold transition-all flex items-center justify-center gap-1.5 border ${
+                  intradayBotActive
+                    ? 'bg-emerald-950/40 text-emerald-600 border-emerald-900/40 cursor-not-allowed opacity-60'
+                    : 'bg-emerald-600 hover:bg-emerald-500 text-white border-emerald-500 shadow-md shadow-emerald-600/20'
+                }`}
+              >
+                <Play className="w-3.5 h-3.5 fill-current" />
+                <span>Activar</span>
+              </button>
+              <button
+                onClick={() => handleBotControl('intraday', 'stop')}
+                disabled={!intradayBotActive || botActionLoading === 'intraday_stop'}
+                className={`flex-1 sm:flex-none px-3.5 py-2 rounded-xl text-2xs font-bold transition-all flex items-center justify-center gap-1.5 border ${
+                  !intradayBotActive
+                    ? 'bg-amber-950/40 text-amber-600 border-amber-900/40 cursor-not-allowed opacity-60'
+                    : 'bg-amber-600 hover:bg-amber-500 text-white border-amber-500 shadow-md shadow-amber-600/20'
+                }`}
+              >
+                <Pause className="w-3.5 h-3.5 fill-current" />
+                <span>Apagar</span>
+              </button>
+              <button
+                onClick={() => handleBotControl('intraday', 'reset')}
+                disabled={botActionLoading === 'intraday_reset'}
+                className="flex-1 sm:flex-none px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-2xs font-bold border border-slate-700 transition-all flex items-center justify-center gap-1.5 shadow-sm"
+                title="Reinicia el capital base ($1,000 USD) y limpia las órdenes de este bot"
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
+                <span>Reiniciar</span>
+              </button>
+            </div>
+          </div>
           {/* Target 15% Daily Yield Banner */}
           <div className="bg-gradient-to-r from-slate-900 via-emerald-950 to-slate-900 p-5 rounded-2xl border border-emerald-500/30 text-white shadow-md flex flex-col md:flex-row items-center justify-between gap-4">
             <div className="flex items-center gap-3">
@@ -2520,6 +2636,59 @@ export function CryptoExchangeTab() {
       {/* HORIZON VIEW */}
       {activeSubTab === 'horizon' && (
         <div className="space-y-6">
+          {/* Bot Control Panel (Botonera de Activo / Apagar / Reinicio) */}
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div className="relative flex h-3 w-3">
+                <span className={`animate-ping absolute inline-flex h-full w-full rounded-full ${horizonBotActive ? 'bg-sky-400 opacity-75' : 'bg-amber-400 opacity-75'}`}></span>
+                <span className={`relative inline-flex rounded-full h-3 w-3 ${horizonBotActive ? 'bg-sky-500' : 'bg-amber-500'}`}></span>
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h3 className="text-xs font-bold text-white uppercase tracking-wider">Control Operativo - Bot Multi-Horizontes</h3>
+                  <span className={`px-2 py-0.5 rounded-full text-3xs font-extrabold border ${horizonBotActive ? 'bg-sky-500/10 text-sky-400 border-sky-500/30' : 'bg-amber-500/10 text-amber-400 border-amber-500/30'}`}>
+                    {horizonBotActive ? 'EN OPERACIÓN (ACTIVO)' : 'PAUSADO (APAGADO)'}
+                  </span>
+                </div>
+                <p className="text-3xs text-slate-400 mt-0.5">Controla las compras escalonadas y rebalanceo de horizontes (Diario a Anual).</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 w-full sm:w-auto">
+              <button
+                onClick={() => handleBotControl('horizon', 'start')}
+                disabled={horizonBotActive || botActionLoading === 'horizon_start'}
+                className={`flex-1 sm:flex-none px-3.5 py-2 rounded-xl text-2xs font-bold transition-all flex items-center justify-center gap-1.5 border ${
+                  horizonBotActive
+                    ? 'bg-sky-950/40 text-sky-600 border-sky-900/40 cursor-not-allowed opacity-60'
+                    : 'bg-emerald-600 hover:bg-emerald-500 text-white border-emerald-500 shadow-md shadow-emerald-600/20'
+                }`}
+              >
+                <Play className="w-3.5 h-3.5 fill-current" />
+                <span>Activar</span>
+              </button>
+              <button
+                onClick={() => handleBotControl('horizon', 'stop')}
+                disabled={!horizonBotActive || botActionLoading === 'horizon_stop'}
+                className={`flex-1 sm:flex-none px-3.5 py-2 rounded-xl text-2xs font-bold transition-all flex items-center justify-center gap-1.5 border ${
+                  !horizonBotActive
+                    ? 'bg-amber-950/40 text-amber-600 border-amber-900/40 cursor-not-allowed opacity-60'
+                    : 'bg-amber-600 hover:bg-amber-500 text-white border-amber-500 shadow-md shadow-amber-600/20'
+                }`}
+              >
+                <Pause className="w-3.5 h-3.5 fill-current" />
+                <span>Apagar</span>
+              </button>
+              <button
+                onClick={() => handleBotControl('horizon', 'reset')}
+                disabled={botActionLoading === 'horizon_reset'}
+                className="flex-1 sm:flex-none px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-2xs font-bold border border-slate-700 transition-all flex items-center justify-center gap-1.5 shadow-sm"
+                title="Reinicia el capital base ($1,000 USD) y limpia las órdenes de este bot"
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
+                <span>Reiniciar</span>
+              </button>
+            </div>
+          </div>
           <div className="bg-white p-6 rounded-2xl border border-gray-150 shadow-sm flex items-center justify-between">
             <div>
               <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
