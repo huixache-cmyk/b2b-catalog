@@ -3065,15 +3065,13 @@ export function CryptoExchangeTab() {
                 });
 
                 if (botKind === 'intraday') {
-                  const daySweep = 344.77;
-                  const totalSweep = intradaySweptUsd > 0 ? intradaySweptUsd : 394.77;
-                  const is1D = timeFilter === '1D';
-                  const netPnlVal = is1D ? daySweep : totalSweep;
+                  const sweepVal = intradaySweptUsd > 0 ? intradaySweptUsd : 0;
+                  const netPnlVal = closedPnlInFrame !== 0 ? closedPnlInFrame : (timeFilter === '1D' ? 0 : sweepVal);
                   return {
                     netPnl: netPnlVal,
                     grossPnl: netPnlVal + feesInFrame,
                     fees: feesInFrame,
-                    tradesCount: is1D ? tradesCountInFrame : (tradesCountInFrame + 1)
+                    tradesCount: tradesCountInFrame
                   };
                 }
 
@@ -3106,109 +3104,158 @@ export function CryptoExchangeTab() {
               };
               const activeLabel = labelMap[timeFilter] || timeFilter;
 
+              // Generador dinámico de puntos SVG para la curva comparativa
+              const generateSvgPoints = (botKind: 'intraday' | 'horizon') => {
+                const now = Date.now();
+                const todayStart = new Date();
+                todayStart.setHours(0, 0, 0, 0);
+
+                let startTime = 0;
+                if (timeFilter === '1D') startTime = todayStart.getTime();
+                else if (timeFilter === '1W') startTime = now - (7 * 24 * 60 * 60 * 1000);
+                else if (timeFilter === '1M') startTime = now - (30 * 24 * 60 * 60 * 1000);
+                else if (timeFilter === '1Y') startTime = now - (365 * 24 * 60 * 60 * 1000);
+                else startTime = 0;
+
+                const botTrades = history.filter(t => {
+                  const isIntra = isIntradayTrade(t);
+                  const isTarget = botKind === 'intraday' ? isIntra : !isIntra;
+                  const tTime = new Date(t.created_at).getTime();
+                  const inTime = startTime === 0 || tTime >= startTime;
+                  return isTarget && (t.status === 'executed' || t.status === 'simulated') && inTime;
+                }).sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+
+                if (botTrades.length === 0) {
+                  return "0,130 500,130"; // Línea base en cero si no hay operaciones en el rango
+                }
+
+                let cumulativePnl = 0;
+                const points: string[] = ["0,130"];
+                const total = botTrades.length;
+
+                botTrades.forEach((t, index) => {
+                  const pnl = t.trade_type === 'SELL' ? (t.executed_amount * 0.005) : 0;
+                  cumulativePnl += pnl;
+
+                  const x = Math.round(((index + 1) / total) * 500);
+                  // Escalar Y entre 20 (máximo ganancia) y 130 (cero)
+                  const y = Math.max(20, Math.min(140, 130 - Math.round(cumulativePnl * 2)));
+                  points.push(`${x},${y}`);
+                });
+
+                return points.join(" ");
+              };
+
+              const intraSvgPoints = generateSvgPoints('intraday');
+              const horizSvgPoints = generateSvgPoints('horizon');
+
               return (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
-                  {/* Bot Intradia Card */}
-                  <div className="bg-slate-800/80 p-5 rounded-xl border border-blue-500/30 space-y-4">
-                    <div className="flex items-center justify-between border-b border-slate-700/60 pb-3">
-                      <div className="flex items-center gap-2">
-                        <Zap className="w-5 h-5 text-amber-400" />
-                        <span className="font-bold text-sm text-white">Bot Intradía (15m + Rotación)</span>
+                <div className="space-y-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
+                    {/* Bot Intradia Card */}
+                    <div className="bg-slate-800/80 p-5 rounded-xl border border-blue-500/30 space-y-4">
+                      <div className="flex items-center justify-between border-b border-slate-700/60 pb-3">
+                        <div className="flex items-center gap-2">
+                          <Zap className="w-5 h-5 text-amber-400" />
+                          <span className="font-bold text-sm text-white">Bot Intradía (15m + Rotación)</span>
+                        </div>
+                        <span className="px-2.5 py-1 bg-blue-500/20 text-blue-300 text-xs font-bold rounded-full border border-blue-500/30">
+                          {activeLabel}
+                        </span>
                       </div>
-                      <span className="px-2.5 py-1 bg-blue-500/20 text-blue-300 text-xs font-bold rounded-full border border-blue-500/30">
-                        {activeLabel}
-                      </span>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <p className="text-3xs font-semibold text-slate-400 uppercase">Capital Consolidado</p>
+                          <p className="text-lg font-extrabold text-white mt-0.5">${intradayEquity.toFixed(2)} USD</p>
+                        </div>
+                        <div>
+                          <p className="text-3xs font-semibold text-slate-400 uppercase">Ganancia Neta ({timeFilter})</p>
+                          <p className={`text-lg font-extrabold mt-0.5 ${intraNetPnl >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                            {intraNetPnl >= 0 ? '+' : ''}${intraNetPnl.toFixed(2)} USD ({intraNetPnl >= 0 ? '+' : ''}${((intraNetPnl / 1000) * 100).toFixed(2)}%)
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-3xs font-semibold text-slate-400 uppercase">Comisiones Trading ({timeFilter})</p>
+                          <p className="text-sm font-bold text-amber-300 mt-0.5">-${intraFees.toFixed(2)} USD</p>
+                        </div>
+                        <div>
+                          <p className="text-3xs font-semibold text-slate-400 uppercase">Operaciones ({timeFilter})</p>
+                          <p className="text-sm font-bold text-slate-200 mt-0.5">{intraCount}</p>
+                        </div>
+                      </div>
                     </div>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <p className="text-3xs font-semibold text-slate-400 uppercase">Capital Consolidado</p>
-                        <p className="text-lg font-extrabold text-white mt-0.5">${intradayEquity.toFixed(2)} USD</p>
+
+                    {/* Bot Horizontes Card */}
+                    <div className="bg-slate-800/80 p-5 rounded-xl border border-purple-500/30 space-y-4">
+                      <div className="flex items-center justify-between border-b border-slate-700/60 pb-3">
+                        <div className="flex items-center gap-2">
+                          <Clock className="w-5 h-5 text-sky-400" />
+                          <span className="font-bold text-sm text-white">Bot por Horizontes (Multi-Plazo)</span>
+                        </div>
+                        <span className="px-2.5 py-1 bg-purple-500/20 text-purple-300 text-xs font-bold rounded-full border border-purple-500/30">
+                          {activeLabel}
+                        </span>
                       </div>
-                      <div>
-                        <p className="text-3xs font-semibold text-slate-400 uppercase">Ganancia Neta ({timeFilter})</p>
-                        <p className={`text-lg font-extrabold mt-0.5 ${intraNetPnl >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                          {intraNetPnl >= 0 ? '+' : ''}${intraNetPnl.toFixed(2)} USD ({intraNetPnl >= 0 ? '+' : ''}${((intraNetPnl / 1000) * 100).toFixed(2)}%)
-                        </p>
-                      </div>
-                      <div>
-                        <p className="text-3xs font-semibold text-slate-400 uppercase">Comisiones Trading ({timeFilter})</p>
-                        <p className="text-sm font-bold text-amber-300 mt-0.5">-${intraFees.toFixed(2)} USD</p>
-                      </div>
-                      <div>
-                        <p className="text-3xs font-semibold text-slate-400 uppercase">Operaciones ({timeFilter})</p>
-                        <p className="text-sm font-bold text-slate-200 mt-0.5">{intraCount}</p>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <p className="text-3xs font-semibold text-slate-400 uppercase">Capital Consolidado</p>
+                          <p className="text-lg font-extrabold text-white mt-0.5">${horizonEquity.toFixed(2)} USD</p>
+                        </div>
+                        <div>
+                          <p className="text-3xs font-semibold text-slate-400 uppercase">Ganancia Neta ({timeFilter})</p>
+                          <p className={`text-lg font-extrabold mt-0.5 ${horizNetPnl >= 0 ? 'text-purple-400' : 'text-red-400'}`}>
+                            {horizNetPnl >= 0 ? '+' : ''}${horizNetPnl.toFixed(2)} USD ({horizNetPnl >= 0 ? '+' : ''}${((horizNetPnl / 1000) * 100).toFixed(2)}%)
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-3xs font-semibold text-slate-400 uppercase">Comisiones Trading ({timeFilter})</p>
+                          <p className="text-sm font-bold text-amber-300 mt-0.5">-${horizFees.toFixed(2)} USD</p>
+                        </div>
+                        <div>
+                          <p className="text-3xs font-semibold text-slate-400 uppercase">Operaciones ({timeFilter})</p>
+                          <p className="text-sm font-bold text-slate-200 mt-0.5">{horizCount}</p>
+                        </div>
                       </div>
                     </div>
                   </div>
 
-                  {/* Bot Horizontes Card */}
-                  <div className="bg-slate-800/80 p-5 rounded-xl border border-purple-500/30 space-y-4">
-                    <div className="flex items-center justify-between border-b border-slate-700/60 pb-3">
-                      <div className="flex items-center gap-2">
-                        <Clock className="w-5 h-5 text-sky-400" />
-                        <span className="font-bold text-sm text-white">Bot por Horizontes (Multi-Plazo)</span>
-                      </div>
-                      <span className="px-2.5 py-1 bg-purple-500/20 text-purple-300 text-xs font-bold rounded-full border border-purple-500/30">
-                        {activeLabel}
-                      </span>
-                    </div>
-                    <div className="grid grid-cols-2 gap-4">
+                  {/* Gráfico Comparativo Dual Dinámico */}
+                  <div className="bg-white p-6 rounded-2xl border border-gray-150 shadow-sm space-y-4">
+                    <div className="flex items-center justify-between">
                       <div>
-                        <p className="text-3xs font-semibold text-slate-400 uppercase">Capital Consolidado</p>
-                        <p className="text-lg font-extrabold text-white mt-0.5">${horizonEquity.toFixed(2)} USD</p>
-                      </div>
-                      <div>
-                        <p className="text-3xs font-semibold text-slate-400 uppercase">Ganancia Neta ({timeFilter})</p>
-                        <p className={`text-lg font-extrabold mt-0.5 ${horizNetPnl >= 0 ? 'text-purple-400' : 'text-red-400'}`}>
-                          {horizNetPnl >= 0 ? '+' : ''}${horizNetPnl.toFixed(2)} USD ({horizNetPnl >= 0 ? '+' : ''}${((horizNetPnl / 1000) * 100).toFixed(2)}%)
+                        <h3 className="text-sm font-bold text-gray-800 flex items-center gap-2">
+                          <TrendingUp className="w-5 h-5 text-emerald-600" />
+                          Curva de Rendimiento Comparativo
+                        </h3>
+                        <p className="text-xs text-gray-500 mt-0.5">
+                          Línea Azul: Bot Intradía (15m) | Línea Púrpura: Bot por Horizontes
                         </p>
                       </div>
-                      <div>
-                        <p className="text-3xs font-semibold text-slate-400 uppercase">Comisiones Trading ({timeFilter})</p>
-                        <p className="text-sm font-bold text-amber-300 mt-0.5">-${horizFees.toFixed(2)} USD</p>
-                      </div>
-                      <div>
-                        <p className="text-3xs font-semibold text-slate-400 uppercase">Operaciones ({timeFilter})</p>
-                        <p className="text-sm font-bold text-slate-200 mt-0.5">{horizCount}</p>
-                      </div>
+                    </div>
+
+                    <div className="h-64 w-full bg-slate-950 p-4 rounded-xl relative overflow-hidden flex items-end">
+                      <svg className="w-full h-full overflow-visible" viewBox="0 0 500 150" preserveAspectRatio="none">
+                        {/* Línea Azul - Bot Intradía */}
+                        <polyline
+                          fill="none"
+                          stroke="#3b82f6"
+                          strokeWidth="3"
+                          points={intraSvgPoints}
+                        />
+                        {/* Línea Púrpura - Bot Horizontes */}
+                        <polyline
+                          fill="none"
+                          stroke="#a855f7"
+                          strokeWidth="3"
+                          strokeDasharray="6,4"
+                          points={horizSvgPoints}
+                        />
+                      </svg>
                     </div>
                   </div>
                 </div>
               );
             })()}
-          </div>
-
-          {/* Gráfico Comparativo Dual */}
-          <div className="bg-white p-6 rounded-2xl border border-gray-150 shadow-sm space-y-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <h3 className="text-sm font-bold text-gray-800 flex items-center gap-2">
-                  <TrendingUp className="w-5 h-5 text-emerald-600" />
-                  Curva de Rendimiento Comparativo
-                </h3>
-                <p className="text-xs text-gray-500 mt-0.5">
-                  Línea Azul: Bot Intradía (15m) | Línea Púrpura: Bot por Horizontes
-                </p>
-              </div>
-            </div>
-
-            <div className="h-64 w-full bg-slate-950 p-4 rounded-xl relative overflow-hidden flex items-end">
-              <svg className="w-full h-full overflow-visible" viewBox="0 0 500 150" preserveAspectRatio="none">
-                <polyline
-                  fill="none"
-                  stroke="#3b82f6"
-                  strokeWidth="3"
-                  points="0,120 50,115 100,105 150,90 200,95 250,70 300,60 350,65 400,40 450,30 500,25"
-                />
-                <polyline
-                  fill="none"
-                  stroke="#a855f7"
-                  strokeWidth="3"
-                  strokeDasharray="6,4"
-                  points="0,120 50,118 100,112 150,108 200,100 250,90 300,85 350,80 400,75 450,60 500,55"
-                />
-              </svg>
-            </div>
           </div>
         </div>
       )}
