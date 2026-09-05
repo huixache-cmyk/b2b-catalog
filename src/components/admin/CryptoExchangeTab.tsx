@@ -277,7 +277,7 @@ export function CryptoExchangeTab() {
         body: JSON.stringify({ bot, action })
       });
       const data = await res.json();
-      if (data.success) {
+      if (data.success || data.status === 'ok') {
         if (bot === 'intraday') {
           if (action === 'start') setIntradayBotActive(true);
           if (action === 'stop') setIntradayBotActive(false);
