@@ -264,6 +264,7 @@ export function CryptoExchangeTab() {
         setExchangeMode(statusData.exchangeMode);
         setWhatsappStatus(statusData.whatsapp.status);
         setWhatsappQr(statusData.whatsapp.qr);
+        setErrorMsg(null);
       }
 
       // 2. Obtener horizontes de capital
@@ -1449,12 +1450,12 @@ export function CryptoExchangeTab() {
               <div className="flex justify-between text-3xs font-bold">
                 <span className="text-slate-300">
                   Rendimiento Hoy:{' '}
-                  <strong className="text-emerald-400">
-                    +$344.77 USD
+                  <strong className={intradayNetProfit >= 0 ? "text-emerald-400" : "text-red-400"}>
+                    {intradayNetProfit >= 0 ? '+' : ''}${intradayNetProfit.toFixed(2)} USD
                   </strong>
                 </span>
-                <span className="text-emerald-400 font-extrabold">
-                  {((344.77 / 25) * 100).toFixed(1)}% Logrado
+                <span className={intradayNetProfit >= 0 ? "text-emerald-400 font-extrabold" : "text-red-400 font-extrabold"}>
+                  {((intradayNetProfit / 25.00) * 100).toFixed(1)}% Logrado
                 </span>
               </div>
               <div className="w-full bg-slate-800 rounded-full h-2 overflow-hidden border border-slate-700/50">
@@ -1478,8 +1479,8 @@ export function CryptoExchangeTab() {
 
           {/* Performance Dashboard */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Metric SVG Chart */}
-        <div className="bg-white p-6 rounded-xl border border-gray-150 shadow-sm col-span-2 space-y-4">
+        {/* Metric SVG Chart (Full Width) */}
+        <div className="bg-white p-6 rounded-xl border border-gray-150 shadow-sm col-span-3 space-y-4">
           <div className="flex justify-between items-center pb-2 border-b border-gray-100 flex-wrap gap-3">
             <div className="flex items-center gap-4 flex-wrap">
               <div>
@@ -1682,68 +1683,6 @@ export function CryptoExchangeTab() {
               </div>
             );
           })()}
-        </div>
-
-        {/* Transaction Panel (Deposit/Withdrawal) */}
-        <div className="bg-white p-6 rounded-xl border border-gray-150 shadow-sm space-y-4">
-          <div>
-            <h2 className="text-lg font-bold text-gray-900">Modificar Capital</h2>
-            <p className="text-xs text-gray-500 mt-0.5">Ingresa o retira fondos del capital de simulación.</p>
-          </div>
-
-          <form onSubmit={handleCapitalTx} className="space-y-3.5">
-
-            <div>
-              <label className="block text-2xs font-bold text-gray-500 uppercase mb-1">Monto (USD)</label>
-              <div className="relative rounded-lg shadow-sm">
-                <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
-                  <span className="text-gray-500 text-sm">$</span>
-                </div>
-                <input
-                  type="number"
-                  step="0.01"
-                  min="0.01"
-                  placeholder="0.00"
-                  value={txAmount}
-                  onChange={(e) => setTxAmount(e.target.value)}
-                  className="block w-full rounded-lg border border-gray-300 pl-7 pr-3 py-2 text-sm text-gray-900 focus:border-primary-500"
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-2">
-              <button
-                type="button"
-                onClick={() => setTxType('deposit')}
-                className={`py-2 px-3 rounded-lg border text-xs font-bold flex items-center justify-center gap-1 transition-all ${
-                  txType === 'deposit' 
-                    ? 'bg-emerald-50 border-emerald-300 text-emerald-800' 
-                    : 'bg-white border-gray-250 text-gray-600 hover:bg-gray-50'
-                }`}
-              >
-                <Plus className="w-3.5 h-3.5" /> Depositar
-              </button>
-              <button
-                type="button"
-                onClick={() => setTxType('withdrawal')}
-                className={`py-2 px-3 rounded-lg border text-xs font-bold flex items-center justify-center gap-1 transition-all ${
-                  txType === 'withdrawal' 
-                    ? 'bg-red-50 border-red-300 text-red-800' 
-                    : 'bg-white border-gray-250 text-gray-600 hover:bg-gray-50'
-                }`}
-              >
-                <Minus className="w-3.5 h-3.5" /> Retirar
-              </button>
-            </div>
-
-            <button
-              type="submit"
-              disabled={isTxSaving}
-              className="w-full bg-primary-700 hover:bg-primary-850 text-white font-bold py-2.5 px-4 rounded-lg transition-colors text-sm shadow-sm disabled:opacity-50"
-            >
-              {isTxSaving ? 'Procesando...' : `Confirmar ${txType === 'deposit' ? 'Depósito' : 'Retiro'}`}
-            </button>
-          </form>
         </div>
       </div>
 
@@ -2403,82 +2342,7 @@ export function CryptoExchangeTab() {
         </div>
       </div>
 
-      {/* Table Proposals */}
-      <div className="bg-white p-6 rounded-xl border border-gray-150 shadow-sm space-y-4">
-        <div>
-          <h2 className="text-xl font-bold text-gray-900">Operaciones en Cuenta Regresiva de Aprobación Pasiva</h2>
-          <p className="text-sm text-gray-500 mt-1">
-            Estas operaciones se realizarán en el Exchange automáticamente al expirar el tiempo, a menos que las rechaces.
-          </p>
-        </div>
 
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm text-left border-collapse">
-            <thead>
-              <tr className="border-b border-gray-200 text-gray-500 font-semibold text-xs">
-                <th className="py-3 px-2">Código</th>
-                <th className="py-3 px-2">Activo</th>
-                <th className="py-3 px-2">Tipo</th>
-                <th className="py-3 px-2">Monto</th>
-                <th className="py-3 px-2">Precio sugerido</th>
-                <th className="py-3 px-2">Horizonte</th>
-                <th className="py-3 px-2">Expira a las</th>
-                <th className="py-3 px-2">Estatus</th>
-                <th className="py-3 px-2 text-right">Acción</th>
-              </tr>
-            </thead>
-            <tbody>
-              {pendingProposals.length === 0 ? (
-                <tr>
-                  <td colSpan={9} className="py-8 text-center text-gray-400 font-medium">
-                    No hay propuestas pendientes de ejecución en este momento.
-                  </td>
-                </tr>
-              ) : (
-                pendingProposals.map((p) => {
-                  const msLeft = new Date(p.expires_at).getTime() - Date.now();
-                  const minLeft = Math.max(0, Math.round(msLeft / 60000));
-                  return (
-                    <tr key={p.id} className="border-b border-gray-100 hover:bg-gray-50/50 text-xs">
-                      <td className="py-3.5 px-2 font-bold text-gray-800">{p.operation_code}</td>
-                      <td className="py-3.5 px-2 font-medium">{p.asset}</td>
-                      <td className="py-3.5 px-2">
-                        <span className={`font-bold ${p.trade_type === 'BUY' ? 'text-emerald-600' : 'text-red-600'}`}>
-                          {p.trade_type === 'BUY' ? 'COMPRAR' : 'VENDER'}
-                        </span>
-                      </td>
-                      <td className="py-3.5 px-2 font-medium">${p.suggested_amount.toFixed(2)} USD</td>
-                      <td className="py-3.5 px-2 text-gray-600">${p.current_price.toFixed(2)}</td>
-                      <td className="py-3.5 px-2 uppercase font-semibold text-xs text-gray-500">{p.horizon}</td>
-                      <td className="py-3.5 px-2 text-gray-500">
-                        {new Date(p.expires_at).toLocaleTimeString()} ({minLeft} min restantes)
-                      </td>
-                      <td className="py-3.5 px-2">
-                        <span className={`px-2 py-0.5 rounded-full text-3xs font-bold uppercase ${
-                          p.status === 'pending_auto_exec' ? 'bg-amber-100 text-amber-800' :
-                          p.status === 'executed' ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800'
-                        }`}>
-                          {p.status}
-                        </span>
-                      </td>
-                      <td className="py-3.5 px-2 text-right">
-                        {p.status === 'pending_auto_exec' && (
-                          <button
-                            onClick={() => handleCancelProposal(p.id)}
-                            className="bg-red-50 hover:bg-red-100 text-red-600 border border-red-200/50 text-xs font-bold py-1 px-3 rounded-lg transition-colors shadow-sm"
-                          >
-                            Rechazar
-                          </button>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
 
       {/* Historial de Operaciones Realizadas (Foto 2 format) */}
       <div className="bg-white p-6 rounded-xl border border-gray-150 shadow-sm space-y-4">
@@ -3258,9 +3122,9 @@ export function CryptoExchangeTab() {
           </div>
 
           {/* Action & Configuration Box */}
-          <div className="grid grid-cols-1 gap-6">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* Sweep & Deposit Auto Configuration */}
-            <div className="bg-white p-6 rounded-2xl border border-gray-150 shadow-sm space-y-4">
+            <div className="bg-white p-6 rounded-2xl border border-gray-150 shadow-sm space-y-4 lg:col-span-2">
               <h3 className="text-base font-bold text-gray-900 flex items-center gap-2">
                 <Settings className="w-5 h-5 text-purple-600" />
                 Configurar Parámetros y Depósito Programado de Bóveda
@@ -3339,43 +3203,117 @@ export function CryptoExchangeTab() {
                             })()} USD)
                           </label>
                         </div>
-                        <p className="text-3xs text-slate-500 pl-6">
-                          Traspasa íntegramente los fondos acumulados en la bóveda hacia tu cuenta bancaria SPEI en el horario configurado. Si el saldo es $0, la ejecución se salta automáticamente.
-                        </p>
                       </div>
 
-                      <div>
-                        <label className="block text-xs font-semibold text-gray-700 mb-1">Horario Diario del Depósito (HH:MM):</label>
-                        <input
-                          type="time"
-                          value={depositTimeInput}
-                          onChange={(e) => setDepositTimeInput(e.target.value)}
-                          className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs font-semibold focus:ring-2 focus:ring-purple-500 outline-none text-gray-800"
-                        />
+                      <div className="grid grid-cols-2 gap-3 pt-1">
+                        <div>
+                          <label className="block text-3xs font-bold text-gray-500 uppercase mb-1">Hora de Depósito (24h)</label>
+                          <input
+                            type="time"
+                            value={depositTimeInput}
+                            onChange={(e) => setDepositTimeInput(e.target.value)}
+                            className="w-full px-3 py-1.5 bg-gray-50 border border-gray-200 rounded-xl text-xs font-bold text-gray-800 focus:ring-2 focus:ring-purple-500 outline-none"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-3xs font-bold text-gray-500 uppercase mb-1">Monto Programado (USD)</label>
+                          <input
+                            type="number"
+                            step="0.01"
+                            value={depositAmountInput}
+                            disabled={useLastSweepForDeposit}
+                            onChange={(e) => setDepositAmountInput(e.target.value)}
+                            className="w-full px-3 py-1.5 bg-gray-50 border border-gray-200 rounded-xl text-xs font-bold text-gray-800 focus:ring-2 focus:ring-purple-500 outline-none disabled:opacity-50"
+                          />
+                        </div>
                       </div>
                     </div>
                   )}
-                </div>
 
-                <div className="flex flex-col md:flex-row gap-3 mt-2">
-                  <button
-                    onClick={() => handleSaveVaultConfig()}
-                    className="flex-1 px-4 py-2.5 bg-purple-700 hover:bg-purple-800 text-white text-xs font-bold rounded-xl shadow-md transition-all flex items-center justify-center gap-2"
-                  >
-                    <Save className="w-4 h-4 text-purple-200" />
-                    Guardar Ajustes y Sincronizar con Supabase DB
-                  </button>
+                  <div className="flex flex-col md:flex-row gap-3 mt-4">
+                    <button
+                      onClick={() => handleSaveVaultConfig()}
+                      className="flex-1 px-4 py-2.5 bg-purple-700 hover:bg-purple-800 text-white text-xs font-bold rounded-xl shadow-md transition-all flex items-center justify-center gap-2"
+                    >
+                      <Save className="w-4 h-4 text-purple-200" />
+                      Guardar Ajustes y Sincronizar con Supabase DB
+                    </button>
 
-                  <button
-                    onClick={handleTriggerDeposit}
-                    disabled={isSweeping || (vaultStatus.vault_balance_usd || 0) <= 0}
-                    className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-xs font-bold rounded-xl shadow-md transition-all flex items-center justify-center gap-2"
-                  >
-                    <Zap className="w-4 h-4 text-amber-300" />
-                    ⚡ Probar / Ejecutar Depósito Ahora
-                  </button>
+                    <button
+                      onClick={handleTriggerDeposit}
+                      disabled={isSweeping || (vaultStatus.vault_balance_usd || 0) <= 0}
+                      className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-xs font-bold rounded-xl shadow-md transition-all flex items-center justify-center gap-2"
+                    >
+                      <Zap className="w-4 h-4 text-amber-300" />
+                      ⚡ Probar / Ejecutar Depósito Ahora
+                    </button>
+                  </div>
                 </div>
               </div>
+            </div>
+
+            {/* Transaction Panel (Deposit/Withdrawal Simulation Capital) */}
+            <div className="bg-white p-6 rounded-2xl border border-gray-150 shadow-sm space-y-4 lg:col-span-1">
+              <div>
+                <h3 className="text-base font-bold text-gray-900 flex items-center gap-2">
+                  <Coins className="w-5 h-5 text-emerald-600" />
+                  Modificar Capital
+                </h3>
+                <p className="text-xs text-gray-500 mt-0.5">Ingresa o retira fondos del capital de simulación.</p>
+              </div>
+
+              <form onSubmit={handleCapitalTx} className="space-y-3.5 pt-1">
+                <div>
+                  <label className="block text-2xs font-bold text-gray-500 uppercase mb-1">Monto (USD)</label>
+                  <div className="relative rounded-lg shadow-sm">
+                    <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
+                      <span className="text-gray-500 text-sm">$</span>
+                    </div>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0.01"
+                      placeholder="0.00"
+                      value={txAmount}
+                      onChange={(e) => setTxAmount(e.target.value)}
+                      className="block w-full rounded-lg border border-gray-300 pl-7 pr-3 py-2 text-sm text-gray-900 focus:border-primary-500"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setTxType('deposit')}
+                    className={`py-2 px-3 rounded-lg border text-xs font-bold flex items-center justify-center gap-1 transition-all ${
+                      txType === 'deposit' 
+                        ? 'bg-emerald-50 border-emerald-300 text-emerald-800' 
+                        : 'bg-white border-gray-250 text-gray-600 hover:bg-gray-50'
+                    }`}
+                  >
+                    <Plus className="w-3.5 h-3.5" /> Depositar
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setTxType('withdrawal')}
+                    className={`py-2 px-3 rounded-lg border text-xs font-bold flex items-center justify-center gap-1 transition-all ${
+                      txType === 'withdrawal' 
+                        ? 'bg-red-50 border-red-300 text-red-800' 
+                        : 'bg-white border-gray-250 text-gray-600 hover:bg-gray-50'
+                    }`}
+                  >
+                    <Minus className="w-3.5 h-3.5" /> Retirar
+                  </button>
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={isTxSaving}
+                  className="w-full bg-primary-700 hover:bg-primary-850 text-white font-bold py-2.5 px-4 rounded-lg transition-colors text-sm shadow-sm disabled:opacity-50"
+                >
+                  {isTxSaving ? 'Procesando...' : `Confirmar ${txType === 'deposit' ? 'Depósito' : 'Retiro'}`}
+                </button>
+              </form>
             </div>
           </div>
 
