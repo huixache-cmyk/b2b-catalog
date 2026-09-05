@@ -1302,13 +1302,16 @@ export function CryptoExchangeTab() {
       intradayBuyCosts[asset] += amountUsd;
     } else if (t.trade_type === 'SELL') {
       const prevCoins = intradayBuyCoins[asset];
-      const ratio = prevCoins > 0 ? Math.min(1, qty / prevCoins) : 1;
-      const costBasis = intradayBuyCosts[asset] * ratio;
-      const pnl = (t as any).profit_usd !== null && (t as any).profit_usd !== undefined ? Number((t as any).profit_usd) : (amountUsd - costBasis);
+      const hasBuyCost = prevCoins > 0 && intradayBuyCosts[asset] > 0;
+      const ratio = hasBuyCost ? Math.min(1, qty / prevCoins) : 0;
+      const costBasis = hasBuyCost ? (intradayBuyCosts[asset] * ratio) : amountUsd;
+      const pnl = (t as any).profit_usd !== null && (t as any).profit_usd !== undefined
+        ? Number((t as any).profit_usd)
+        : (amountUsd - costBasis);
       intradayClosedPnl += pnl;
 
       intradayBuyCoins[asset] = Math.max(0, intradayBuyCoins[asset] - qty);
-      intradayBuyCosts[asset] = Math.max(0, intradayBuyCosts[asset] - costBasis);
+      intradayBuyCosts[asset] = Math.max(0, intradayBuyCosts[asset] - (hasBuyCost ? intradayBuyCosts[asset] * ratio : 0));
     }
   });
 
@@ -3051,16 +3054,19 @@ export function CryptoExchangeTab() {
                     buyCosts[asset] += amountUsd;
                   } else if (t.trade_type === 'SELL') {
                     const prevCoins = buyCoins[asset];
-                    const ratio = prevCoins > 0 ? Math.min(1, qty / prevCoins) : 1;
-                    const costBasis = buyCosts[asset] * ratio;
-                    const pnl = amountUsd - costBasis;
+                    const hasBuyCost = prevCoins > 0 && buyCosts[asset] > 0;
+                    const ratio = hasBuyCost ? Math.min(1, qty / prevCoins) : 0;
+                    const costBasis = hasBuyCost ? (buyCosts[asset] * ratio) : amountUsd;
+                    const pnl = (t as any).profit_usd !== null && (t as any).profit_usd !== undefined
+                      ? Number((t as any).profit_usd)
+                      : (amountUsd - costBasis);
 
                     if (isInFrame) {
                       closedPnlInFrame += pnl;
                     }
 
                     buyCoins[asset] = Math.max(0, buyCoins[asset] - qty);
-                    buyCosts[asset] = Math.max(0, buyCosts[asset] - costBasis);
+                    buyCosts[asset] = Math.max(0, buyCosts[asset] - (hasBuyCost ? buyCosts[asset] * ratio : 0));
                   }
                 });
 
