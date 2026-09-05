@@ -250,8 +250,14 @@ export function CryptoExchangeTab() {
       const res = await fetch(`${API_BASE}/bot/control/status`, { headers: authHeaders() });
       if (res.ok) {
         const data = await res.json();
-        if (data.intraday !== undefined) setIntradayBotActive(data.intraday.is_active);
-        if (data.horizon !== undefined) setHorizonBotActive(data.horizon.is_active);
+        if (data.intraday) {
+          const isAct = data.intraday.active ?? data.intraday.is_active ?? (data.intraday.status === 'active');
+          setIntradayBotActive(Boolean(isAct));
+        }
+        if (data.horizon) {
+          const isAct = data.horizon.active ?? data.horizon.is_active ?? (data.horizon.status === 'active');
+          setHorizonBotActive(Boolean(isAct));
+        }
       }
     } catch (e) {
       console.warn('Error al consultar estado individual de bots:', e);
