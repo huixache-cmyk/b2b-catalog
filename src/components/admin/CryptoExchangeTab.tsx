@@ -3638,6 +3638,17 @@ export function CryptoExchangeTab() {
                   <p className="text-xs text-emerald-700 mt-1">
                     El microservicio está en línea. Recibirás alertas instantáneas de operaciones y podrás autorizar/rechazar órdenes respondiendo mensajes.
                   </p>
+                  <button
+                    onClick={() => {
+                      if (window.confirm('¿Deseas cerrar la sesión de WhatsApp actual para generar un nuevo código QR y vincular otro número?')) {
+                        handleConnectWa(true);
+                      }
+                    }}
+                    className="mt-3 px-3 py-1.5 bg-emerald-100 hover:bg-emerald-200 text-emerald-800 font-bold text-2xs rounded-lg border border-emerald-300 transition-all inline-flex items-center gap-1.5"
+                  >
+                    <RefreshCw className="w-3.5 h-3.5" />
+                    <span>Cambiar / Vincular Otro Número</span>
+                  </button>
                 </div>
               ) : whatsappQr ? (
                 <div className="text-center bg-gray-50 p-4 rounded-xl border border-gray-200">
