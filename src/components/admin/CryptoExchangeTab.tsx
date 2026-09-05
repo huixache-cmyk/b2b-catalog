@@ -1940,7 +1940,7 @@ export function CryptoExchangeTab() {
                         }
                         return (
                           <p className="text-3xs font-semibold text-gray-400 mt-1">
-                            Sin posición abierta ($0.00 USD)
+                            Sin posición abierta
                           </p>
                         );
                       })()}
