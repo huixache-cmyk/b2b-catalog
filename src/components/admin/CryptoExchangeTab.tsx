@@ -1950,58 +1950,6 @@ export function CryptoExchangeTab() {
               })}
             </div>
           </div>
-
-          {/* Enlace de WhatsApp */}
-          <div className="bg-white p-6 rounded-xl border border-gray-150 shadow-sm space-y-4">
-            <div>
-              <h2 className="text-lg font-bold text-gray-900 flex items-center gap-1.5">
-                💬 Enlace de WhatsApp
-              </h2>
-              <p className="text-2xs text-gray-455 mt-0.5 font-medium">Vincule su número de WhatsApp de administrador para recibir alertas.</p>
-            </div>
-            
-            <div className="bg-gray-50 p-3.5 rounded-lg border border-gray-100 space-y-3">
-              <div className="flex justify-between items-center text-xs">
-                <span className="text-gray-500 font-medium">Estado:</span>
-                <span className={`px-2 py-0.5 rounded font-bold uppercase text-3xs ${
-                  whatsappStatus === 'connected' ? 'bg-emerald-100 text-emerald-800' :
-                  whatsappStatus === 'qr_ready' ? 'bg-amber-100 text-amber-800' : 'bg-red-100 text-red-800'
-                }`}>
-                  {whatsappStatus}
-                </span>
-              </div>
-
-              {whatsappStatus === 'disconnected' && (
-                <button
-                  onClick={handleConnectWhatsApp}
-                  className="w-full bg-primary-700 hover:bg-primary-850 text-white font-bold py-2 px-3 rounded-lg transition-colors text-xs shadow-sm"
-                >
-                  Generar Código QR
-                </button>
-              )}
-
-              {whatsappStatus === 'qr_ready' && whatsappQr && (
-                <div className="space-y-2 text-center">
-                  <p className="text-3xs text-gray-500">Escanea desde tu app de WhatsApp:</p>
-                  <div className="bg-white p-2 rounded border border-gray-250 inline-block">
-                    {whatsappQr.startsWith('data:image') ? (
-                      <img src={whatsappQr} alt="QR Code" className="w-36 h-36 mx-auto" />
-                    ) : (
-                      <div className="w-36 h-36 flex items-center justify-center text-xs text-gray-500 font-mono">
-                        [QR en Servidor]
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {whatsappStatus === 'connected' && (
-                <div className="text-emerald-855 text-3xs leading-relaxed bg-emerald-50 p-2.5 rounded border border-emerald-150">
-                  ✔ <strong>Línea Vinculada.</strong> Recibirás alertas con expiración configurable para cancelar o auto-ejecutar.
-                </div>
-              )}
-            </div>
-          </div>
         </div>
 
         {/* Right col (span 2): Advanced Control Deck Tabs */}
