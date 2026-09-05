@@ -1760,18 +1760,30 @@ export function CryptoExchangeTab() {
                       <p className="text-3xs text-gray-455 mt-0.5">
                         ≈ ${(b.valueUsd * usdToMxn).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} MXN
                       </p>
-                      {b.coins > 0 ? (
-                        <p className={`text-3xs font-black mt-0.5 px-1.5 py-0.5 rounded flex items-center justify-end gap-1 ${
-                          b.profitUsd >= 0 ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-red-50 text-red-700 border border-red-200'
-                        }`}>
-                          <span>Ganancia / Pérdida:</span>
-                          <span>{b.profitUsd >= 0 ? '▲ +' : '▼ '}${Math.abs(b.profitUsd).toFixed(2)} USD ({b.profitUsd >= 0 ? '+' : ''}${((b.profitUsd / (b.cost || 1)) * 100).toFixed(2)}%)</span>
-                        </p>
-                      ) : (
-                        <p className="text-3xs font-semibold text-gray-400 mt-0.5">
-                          Sin posición abierta ($0.00 USD)
-                        </p>
-                      )}
+                      {(() => {
+                        const hasOpenPosition = b.coins > 0.000001 && b.valueUsd >= 0.01;
+                        if (hasOpenPosition) {
+                          const pct = b.cost > 0 ? ((b.profitUsd / b.cost) * 100) : 0;
+                          return (
+                            <div className={`mt-1.5 p-1.5 rounded-lg border text-3xs font-bold text-right leading-tight max-w-[200px] ml-auto ${
+                              b.profitUsd >= 0 ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-red-50 text-red-700 border-red-200'
+                            }`}>
+                              <div className="text-[9px] text-gray-500 font-semibold">Ganancia / Pérdida:</div>
+                              <div className="font-extrabold font-mono mt-0.5">
+                                {b.profitUsd >= 0 ? '▲ +' : '▼ '}${Math.abs(b.profitUsd).toFixed(2)} USD
+                                <span className="ml-1 font-bold">
+                                  ({pct >= 0 ? '+' : ''}{pct.toFixed(2)}%)
+                                </span>
+                              </div>
+                            </div>
+                          );
+                        }
+                        return (
+                          <p className="text-3xs font-semibold text-gray-400 mt-1">
+                            Sin posición abierta ($0.00 USD)
+                          </p>
+                        );
+                      })()}
                     </div>
                   </div>
                 );
@@ -2603,14 +2615,21 @@ export function CryptoExchangeTab() {
                     </div>
 
                     <div className="pt-2 border-t border-gray-150/70 flex items-center justify-between">
-                      {b.coins > 0 ? (
-                        <div className={`px-2 py-1 rounded-lg text-2xs font-extrabold flex items-center gap-1 border ${b.profitUsd >= 0 ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-red-50 text-red-700 border-red-200'}`}>
-                          <span>Ganancia / Pérdida:</span>
-                          <span>{b.profitUsd >= 0 ? '▲' : '▼'} ${Math.abs(b.profitUsd).toFixed(2)} USD ({b.cost > 0 ? ((b.profitUsd / b.cost) * 100).toFixed(2) : '0.00'}%)</span>
-                        </div>
-                      ) : (
-                        <span className="text-[10px] text-gray-400 italic font-medium">Sin posición abierta ($0.00 USD)</span>
-                      )}
+                      {(() => {
+                        const hasOpenPos = b.coins > 0.000001 && b.valueUsd >= 0.01;
+                        if (hasOpenPos) {
+                          const pct = b.cost > 0 ? ((b.profitUsd / b.cost) * 100) : 0;
+                          return (
+                            <div className={`px-2 py-1 rounded-lg text-2xs font-extrabold flex items-center gap-1 border ${b.profitUsd >= 0 ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-red-50 text-red-700 border-red-200'}`}>
+                              <span>Ganancia / Pérdida:</span>
+                              <span>{b.profitUsd >= 0 ? '▲ +' : '▼ '}${Math.abs(b.profitUsd).toFixed(2)} USD ({pct >= 0 ? '+' : ''}{pct.toFixed(2)}%)</span>
+                            </div>
+                          );
+                        }
+                        return (
+                          <span className="text-[10px] text-gray-400 italic font-medium">Sin posición abierta ($0.00 USD)</span>
+                        );
+                      })()}
                     </div>
                   </div>
                 );
