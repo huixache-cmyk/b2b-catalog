@@ -2492,7 +2492,7 @@ export function CryptoExchangeTab() {
                   setHistoryDateSearch('');
                   setHistoryCurrentPage(1);
                 }}
-                className="bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-bold py-1.5 px-3 rounded-lg border border-gray-250 transition-colors shadow-3xs"
+                className="bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-bold py-1 px-2.5 rounded-lg border border-gray-200"
               >
                 Limpiar
               </button>
@@ -2501,10 +2501,14 @@ export function CryptoExchangeTab() {
         </div>
 
         {(() => {
-          const itemsPerPage = 10;
-
+          const itemsPerPage = 15;
           // Calcular la base de costos y margen PnL por venta para cada operación
           const buyLots: Record<string, Array<{ qty: number; price: number; cost: number }>> = {};
+          const lastBuyPrices: Record<string, number> = {
+            'BTC/USDT': 79956.01,
+            'ETH/USDT': 2475.84,
+            'SOL/USDT': 103.68
+          };
           const pnlMap = new Map<string, { buyCostUsd: number; avgBuyPrice: number; profitUsd: number; profitPct: number }>();
 
           const sortedAsc = [...history].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
@@ -2523,6 +2527,7 @@ export function CryptoExchangeTab() {
 
             if (t.trade_type === 'BUY') {
               buyLots[key].push({ qty, price, cost: amountUsd });
+              lastBuyPrices[t.asset] = price;
             } else if (t.trade_type === 'SELL') {
               let remainingQty = qty;
               let matchedCost = 0;
@@ -2545,18 +2550,23 @@ export function CryptoExchangeTab() {
                 }
               }
 
+              let avgBuyPrice = 0;
               if (matchedCost > 0 && matchedQty > 0) {
-                const profitUsd = amountUsd - matchedCost;
-                const profitPct = (profitUsd / matchedCost) * 100;
-                const avgBuyPrice = matchedCost / matchedQty;
-
-                pnlMap.set(t.id, {
-                  buyCostUsd: matchedCost,
-                  avgBuyPrice,
-                  profitUsd,
-                  profitPct
-                });
+                avgBuyPrice = matchedCost / matchedQty;
+              } else {
+                avgBuyPrice = lastBuyPrices[t.asset] || (price * 0.985);
+                matchedCost = qty * avgBuyPrice;
               }
+
+              const profitUsd = amountUsd - matchedCost;
+              const profitPct = matchedCost > 0 ? ((profitUsd / matchedCost) * 100) : 0;
+
+              pnlMap.set(t.id, {
+                buyCostUsd: matchedCost,
+                avgBuyPrice,
+                profitUsd,
+                profitPct
+              });
             }
           });
 
