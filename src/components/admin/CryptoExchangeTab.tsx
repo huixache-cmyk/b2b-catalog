@@ -2614,7 +2614,27 @@ export function CryptoExchangeTab() {
                     ) : (
                       paginated.map((h) => {
                         const isSweep = h.trade_type === 'RETIRO' || (h.asset && h.asset.startsWith('SWEEP_'));
-                        const pnlInfo = pnlMap.get(h.id);
+                        
+                        const parsedPnl = (() => {
+                          const errMsg = (h as any).error_message;
+                          if (errMsg && typeof errMsg === 'string' && errMsg.includes('ENTRY_PX')) {
+                            const entryPxMatch = errMsg.match(/ENTRY_PX:\s*\$?([\d.]+)/);
+                            const pnlUsdMatch = errMsg.match(/PNL:\s*([+-\d.]+)/);
+                            const pnlPctMatch = errMsg.match(/\(([+-\d.]+)%\)/);
+
+                            if (entryPxMatch) {
+                              const avgBuyPrice = parseFloat(entryPxMatch[1]);
+                              const profitUsd = pnlUsdMatch ? parseFloat(pnlUsdMatch[1]) : 0;
+                              const profitPct = pnlPctMatch ? parseFloat(pnlPctMatch[1]) : 0;
+                              const qty = h.execution_price > 0 ? h.executed_amount / h.execution_price : 0;
+                              const buyCostUsd = qty * avgBuyPrice;
+                              return { buyCostUsd, avgBuyPrice, profitUsd, profitPct };
+                            }
+                          }
+                          return null;
+                        })();
+
+                        const pnlInfo = parsedPnl || pnlMap.get(h.id);
 
                         return (
                           <tr key={h.id} className={`border-b border-gray-100 hover:bg-gray-50/50 text-xs ${isSweep ? 'bg-purple-50/40' : ''}`}>
