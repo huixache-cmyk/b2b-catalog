@@ -133,11 +133,11 @@ export function CryptoExchangeTab() {
     sweep_target_threshold_usd: 25.00,
     target_bot_for_sweep: 'INTRADAY',
     default_destination: 'banorte_spei',
-    daily_sweep_time: '22:00',
+    daily_sweep_time: '23:40',
     base_capital_usd: 1000.00,
-    auto_deposit_enabled: false,
+    auto_deposit_enabled: true,
     deposit_source: 'banorte_spei',
-    daily_deposit_time: '08:00',
+    daily_deposit_time: '23:45',
     daily_deposit_amount_usd: 50.00,
     use_last_sweep_for_deposit: true,
     sweeps_count: 0
@@ -490,12 +490,12 @@ export function CryptoExchangeTab() {
           setSweepDestination(vaultData.default_destination || 'banorte_spei');
           setSweepThresholdInput(String(vaultData.sweep_target_threshold_usd || '25.00'));
           setTargetBotForSweep(vaultData.target_bot_for_sweep || 'INTRADAY');
-          setSweepTimeInput(vaultData.daily_sweep_time || '22:00');
+          setSweepTimeInput(vaultData.daily_sweep_time || '23:40');
           setBaseCapitalInput(String(vaultData.base_capital_usd || '1000.00'));
           setAutoDepositEnabled(vaultData.auto_deposit_enabled === true);
           setDepositSource(vaultData.deposit_source || 'banorte_spei');
-          setDepositTimeInput(vaultData.daily_deposit_time || '08:00');
-          setDepositAmountInput(String(vaultData.daily_deposit_amount_usd || vaultData.last_sweep_amount_usd || '50.00'));
+          setDepositTimeInput(vaultData.daily_deposit_time || '23:45');
+          setDepositAmountInput(Number(vaultData.daily_deposit_amount_usd || vaultData.last_sweep_amount_usd || 50.00).toFixed(2));
           setUseLastSweepForDeposit(vaultData.use_last_sweep_for_deposit !== false);
           isVaultInputsInitialized.current = true;
         }
@@ -1302,16 +1302,13 @@ export function CryptoExchangeTab() {
       intradayBuyCosts[asset] += amountUsd;
     } else if (t.trade_type === 'SELL') {
       const prevCoins = intradayBuyCoins[asset];
-      const hasBuyCost = prevCoins > 0 && intradayBuyCosts[asset] > 0;
-      const ratio = hasBuyCost ? Math.min(1, qty / prevCoins) : 0;
-      const costBasis = hasBuyCost ? (intradayBuyCosts[asset] * ratio) : amountUsd;
-      const pnl = (t as any).profit_usd !== null && (t as any).profit_usd !== undefined
-        ? Number((t as any).profit_usd)
-        : (amountUsd - costBasis);
+      const ratio = prevCoins > 0 ? Math.min(1, qty / prevCoins) : 1;
+      const costBasis = intradayBuyCosts[asset] * ratio;
+      const pnl = (t as any).profit_usd !== null && (t as any).profit_usd !== undefined ? Number((t as any).profit_usd) : (amountUsd - costBasis);
       intradayClosedPnl += pnl;
 
       intradayBuyCoins[asset] = Math.max(0, intradayBuyCoins[asset] - qty);
-      intradayBuyCosts[asset] = Math.max(0, intradayBuyCosts[asset] - (hasBuyCost ? intradayBuyCosts[asset] * ratio : 0));
+      intradayBuyCosts[asset] = Math.max(0, intradayBuyCosts[asset] - costBasis);
     }
   });
 
@@ -1328,8 +1325,8 @@ export function CryptoExchangeTab() {
 
   const intradayUnrealizedPnl = intradayOpenCryptoVal - intradayOpenCostBasis;
   const intradayGrossProfit = intradayClosedPnl + intradayUnrealizedPnl;
-  const intradayNetProfit = intradaySweptUsd + intradayUnrealizedPnl;
-  const intradayEquity = Math.max(1000.00, 1000.00 + intradayNetProfit - intradaySweptUsd);
+  const intradayNetProfit = intradayClosedPnl + intradayUnrealizedPnl - intradayTotalFees;
+  const intradayEquity = Math.max(0, 1000.00 + intradayNetProfit - intradaySweptUsd);
   const intradayCash = Math.max(0, intradayEquity - intradayOpenCryptoVal);
 
   // GROUND-TRUTH FINANCIAL FORMULA FOR HORIZON BOT EQUITY
@@ -2505,10 +2502,68 @@ export function CryptoExchangeTab() {
 
         {(() => {
           const itemsPerPage = 10;
+
+          // Calcular la base de costos y margen PnL por venta para cada operación
+          const buyLots: Record<string, Array<{ qty: number; price: number; cost: number }>> = {};
+          const pnlMap = new Map<string, { buyCostUsd: number; avgBuyPrice: number; profitUsd: number; profitPct: number }>();
+
+          const sortedAsc = [...history].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+          sortedAsc.forEach(t => {
+            if (t.status !== 'executed' && t.status !== 'simulated') return;
+            if (t.trade_type === 'RETIRO' || (t.asset && t.asset.startsWith('SWEEP_'))) return;
+
+            const isIntraday = (t.bot_type || '').toUpperCase() === 'INTRADAY' || (t.horizon || '').toLowerCase() === 'intraday';
+            const key = `${t.asset}_${isIntraday ? 'INTRADAY' : (t.horizon || 'horizon')}`;
+
+            if (!buyLots[key]) buyLots[key] = [];
+
+            const price = Number(t.execution_price || 1);
+            const amountUsd = Math.abs(Number(t.executed_amount || 0));
+            const qty = price > 0 ? amountUsd / price : 0;
+
+            if (t.trade_type === 'BUY') {
+              buyLots[key].push({ qty, price, cost: amountUsd });
+            } else if (t.trade_type === 'SELL') {
+              let remainingQty = qty;
+              let matchedCost = 0;
+              let matchedQty = 0;
+
+              while (remainingQty > 0.0000001 && buyLots[key].length > 0) {
+                const lot = buyLots[key][0];
+                if (lot.qty <= remainingQty) {
+                  matchedCost += lot.cost;
+                  matchedQty += lot.qty;
+                  remainingQty -= lot.qty;
+                  buyLots[key].shift();
+                } else {
+                  const ratio = remainingQty / lot.qty;
+                  matchedCost += lot.cost * ratio;
+                  matchedQty += remainingQty;
+                  lot.cost -= lot.cost * ratio;
+                  lot.qty -= remainingQty;
+                  remainingQty = 0;
+                }
+              }
+
+              if (matchedCost > 0 && matchedQty > 0) {
+                const profitUsd = amountUsd - matchedCost;
+                const profitPct = (profitUsd / matchedCost) * 100;
+                const avgBuyPrice = matchedCost / matchedQty;
+
+                pnlMap.set(t.id, {
+                  buyCostUsd: matchedCost,
+                  avgBuyPrice,
+                  profitUsd,
+                  profitPct
+                });
+              }
+            }
+          });
+
           const filtered = [...history]
             .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
             .filter(h => {
-              const isIntraday = h.horizon === 'intraday' || !h.horizon;
+              const isIntraday = (h.bot_type || '').toUpperCase() === 'INTRADAY' || (h.horizon || '').toLowerCase() === 'intraday' || (!h.bot_type && !h.horizon);
               const subTabStr = activeSubTab as string;
               if (subTabStr === 'intraday' && !isIntraday) return false;
               if (subTabStr === 'horizon' && isIntraday) return false;
@@ -2530,9 +2585,10 @@ export function CryptoExchangeTab() {
                     <tr className="border-b border-gray-200 text-gray-500 font-semibold text-xs">
                       <th className="py-3 px-2">Activo</th>
                       <th className="py-3 px-2">Tipo</th>
-                      <th className="py-3 px-2">Monto (USD)</th>
-                      <th className="py-3 px-2">Monto (MXN)</th>
-                      <th className="py-3 px-2">Precio de Ejecución</th>
+                      <th className="py-3 px-2">Monto Compra (Entrada)</th>
+                      <th className="py-3 px-2">Monto Venta / Operación</th>
+                      <th className="py-3 px-2">Precio Ej. (Salida)</th>
+                      <th className="py-3 px-2">Margen PnL (Ganancia/Pérdida)</th>
                       <th className="py-3 px-2">Plazo</th>
                       <th className="py-3 px-2">Fecha</th>
                       <th className="py-3 px-2">Estatus</th>
@@ -2541,13 +2597,15 @@ export function CryptoExchangeTab() {
                   <tbody>
                     {paginated.length === 0 ? (
                       <tr>
-                        <td colSpan={8} className="py-8 text-center text-gray-400 font-medium">
+                        <td colSpan={9} className="py-8 text-center text-gray-400 font-medium">
                           No se encontraron operaciones en el historial.
                         </td>
                       </tr>
                     ) : (
                       paginated.map((h) => {
                         const isSweep = h.trade_type === 'RETIRO' || (h.asset && h.asset.startsWith('SWEEP_'));
+                        const pnlInfo = pnlMap.get(h.id);
+
                         return (
                           <tr key={h.id} className={`border-b border-gray-100 hover:bg-gray-50/50 text-xs ${isSweep ? 'bg-purple-50/40' : ''}`}>
                             <td className="py-3.5 px-2 font-bold text-gray-800">
@@ -2564,15 +2622,66 @@ export function CryptoExchangeTab() {
                                 </span>
                               )}
                             </td>
-                            <td className={`py-3.5 px-2 font-semibold ${isSweep ? 'text-purple-700' : h.trade_type === 'BUY' ? 'text-red-600' : 'text-emerald-600'}`}>
-                              {isSweep ? `-$${Math.abs(h.executed_amount).toFixed(2)} USD` : `${h.trade_type === 'BUY' ? '-' : '+'}$${h.executed_amount.toFixed(2)} USD`}
+
+                            {/* Monto Compra (Entrada) */}
+                            <td className="py-3.5 px-2 font-semibold">
+                              {isSweep ? (
+                                <span className="text-gray-400 italic text-[11px]">-</span>
+                              ) : h.trade_type === 'BUY' ? (
+                                <div>
+                                  <p className="text-red-600 font-bold">-${h.executed_amount.toFixed(2)} USD</p>
+                                  <p className="text-[10px] text-gray-400 font-mono">-${(h.executed_amount * usdToMxn).toFixed(2)} MXN</p>
+                                </div>
+                              ) : pnlInfo ? (
+                                <div>
+                                  <p className="text-gray-900 font-bold">${pnlInfo.buyCostUsd.toFixed(2)} USD</p>
+                                  <p className="text-[10px] text-gray-400 font-mono">Px: ${pnlInfo.avgBuyPrice.toFixed(2)}</p>
+                                </div>
+                              ) : (
+                                <span className="text-gray-400 italic text-[11px]">-</span>
+                              )}
                             </td>
-                            <td className={`py-3.5 px-2 font-bold ${isSweep ? 'text-purple-600' : h.trade_type === 'BUY' ? 'text-red-400' : 'text-emerald-500'}`}>
-                              {isSweep ? `-$${(Math.abs(h.executed_amount) * usdToMxn).toFixed(2)} MXN` : `${h.trade_type === 'BUY' ? '-' : '+'}${(h.executed_amount * usdToMxn).toFixed(2)} MXN`}
+
+                            {/* Monto Venta / Operación */}
+                            <td className="py-3.5 px-2 font-semibold">
+                              {isSweep ? (
+                                <div>
+                                  <p className="text-purple-700 font-bold">-${Math.abs(h.executed_amount).toFixed(2)} USD</p>
+                                  <p className="text-[10px] text-purple-400 font-mono">-${(Math.abs(h.executed_amount) * usdToMxn).toFixed(2)} MXN</p>
+                                </div>
+                              ) : h.trade_type === 'SELL' ? (
+                                <div>
+                                  <p className="text-emerald-600 font-bold">+${h.executed_amount.toFixed(2)} USD</p>
+                                  <p className="text-[10px] text-gray-400 font-mono">+${(h.executed_amount * usdToMxn).toFixed(2)} MXN</p>
+                                </div>
+                              ) : (
+                                <span className="text-gray-400 italic text-[11px]">-</span>
+                              )}
                             </td>
-                            <td className="py-3.5 px-2 font-mono text-gray-650">
+
+                            {/* Precio de Ejecución (Salida) */}
+                            <td className="py-3.5 px-2 font-mono text-gray-650 font-semibold">
                               {isSweep ? '$1.00 USD' : `$${h.execution_price.toLocaleString(undefined, { minimumFractionDigits: 2 })} USD`}
                             </td>
+
+                            {/* Margen PnL (Ganancia / Pérdida) */}
+                            <td className="py-3.5 px-2 font-semibold">
+                              {isSweep ? (
+                                <span className="text-purple-600 font-bold text-[10px]">🛡️ Traslado Bóveda</span>
+                              ) : h.trade_type === 'SELL' && pnlInfo ? (
+                                <div className={`inline-flex flex-col px-2 py-1 rounded-lg text-2xs font-extrabold border ${
+                                  pnlInfo.profitUsd >= 0
+                                    ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                    : 'bg-red-50 text-red-700 border-red-200'
+                                }`}>
+                                  <span>{pnlInfo.profitUsd >= 0 ? '▲ +' : '▼ '}${Math.abs(pnlInfo.profitUsd).toFixed(2)} USD</span>
+                                  <span className="text-[10px]">({pnlInfo.profitPct >= 0 ? '+' : ''}{pnlInfo.profitPct.toFixed(2)}%)</span>
+                                </div>
+                              ) : (
+                                <span className="text-gray-400 italic text-[11px]">{h.trade_type === 'BUY' ? 'Posición Abierta' : '-'}</span>
+                              )}
+                            </td>
+
                             <td className="py-3.5 px-2 uppercase font-semibold text-[10px] text-gray-400">{h.horizon}</td>
                             <td className="py-3.5 px-2 text-gray-500">
                               {new Date(h.created_at).toLocaleString()}
@@ -3054,37 +3163,35 @@ export function CryptoExchangeTab() {
                     buyCosts[asset] += amountUsd;
                   } else if (t.trade_type === 'SELL') {
                     const prevCoins = buyCoins[asset];
-                    const hasBuyCost = prevCoins > 0 && buyCosts[asset] > 0;
-                    const ratio = hasBuyCost ? Math.min(1, qty / prevCoins) : 0;
-                    const costBasis = hasBuyCost ? (buyCosts[asset] * ratio) : amountUsd;
-                    const pnl = (t as any).profit_usd !== null && (t as any).profit_usd !== undefined
-                      ? Number((t as any).profit_usd)
-                      : (amountUsd - costBasis);
+                    const ratio = prevCoins > 0 ? Math.min(1, qty / prevCoins) : 1;
+                    const costBasis = buyCosts[asset] * ratio;
+                    const pnl = amountUsd - costBasis;
 
                     if (isInFrame) {
                       closedPnlInFrame += pnl;
                     }
 
                     buyCoins[asset] = Math.max(0, buyCoins[asset] - qty);
-                    buyCosts[asset] = Math.max(0, buyCosts[asset] - (hasBuyCost ? buyCosts[asset] * ratio : 0));
+                    buyCosts[asset] = Math.max(0, buyCosts[asset] - costBasis);
                   }
                 });
 
-                if (botKind === 'intraday') {
-                  const sweepVal = intradaySweptUsd > 0 ? intradaySweptUsd : 0;
-                  const netPnlVal = closedPnlInFrame !== 0 ? closedPnlInFrame : (timeFilter === '1D' ? 0 : sweepVal);
-                  return {
-                    netPnl: netPnlVal,
-                    grossPnl: netPnlVal + feesInFrame,
-                    fees: feesInFrame,
-                    tradesCount: tradesCountInFrame
-                  };
-                }
+                let openCryptoVal = 0;
+                let openCostBasis = 0;
+                Object.keys(buyCoins).forEach(asset => {
+                  const coins = buyCoins[asset];
+                  if (coins > 0.000001) {
+                    const price = (assetConfigs.find(c => c.asset === asset) as any)?.current_price || (asset.includes('BTC') ? 80040 : asset.includes('ETH') ? 2500 : 104);
+                    openCryptoVal += coins * price;
+                    openCostBasis += buyCosts[asset];
+                  }
+                });
 
-                const netPnlInFrame = closedPnlInFrame;
+                const unrealizedPnlInFrame = openCryptoVal - openCostBasis;
+                const netPnlInFrame = closedPnlInFrame + unrealizedPnlInFrame - feesInFrame;
                 return {
                   netPnl: netPnlInFrame,
-                  grossPnl: closedPnlInFrame + feesInFrame,
+                  grossPnl: closedPnlInFrame + unrealizedPnlInFrame,
                   fees: feesInFrame,
                   tradesCount: tradesCountInFrame
                 };
@@ -3110,158 +3217,109 @@ export function CryptoExchangeTab() {
               };
               const activeLabel = labelMap[timeFilter] || timeFilter;
 
-              // Generador dinámico de puntos SVG para la curva comparativa
-              const generateSvgPoints = (botKind: 'intraday' | 'horizon') => {
-                const now = Date.now();
-                const todayStart = new Date();
-                todayStart.setHours(0, 0, 0, 0);
-
-                let startTime = 0;
-                if (timeFilter === '1D') startTime = todayStart.getTime();
-                else if (timeFilter === '1W') startTime = now - (7 * 24 * 60 * 60 * 1000);
-                else if (timeFilter === '1M') startTime = now - (30 * 24 * 60 * 60 * 1000);
-                else if (timeFilter === '1Y') startTime = now - (365 * 24 * 60 * 60 * 1000);
-                else startTime = 0;
-
-                const botTrades = history.filter(t => {
-                  const isIntra = isIntradayTrade(t);
-                  const isTarget = botKind === 'intraday' ? isIntra : !isIntra;
-                  const tTime = new Date(t.created_at).getTime();
-                  const inTime = startTime === 0 || tTime >= startTime;
-                  return isTarget && (t.status === 'executed' || t.status === 'simulated') && inTime;
-                }).sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
-
-                if (botTrades.length === 0) {
-                  return "0,130 500,130"; // Línea base en cero si no hay operaciones en el rango
-                }
-
-                let cumulativePnl = 0;
-                const points: string[] = ["0,130"];
-                const total = botTrades.length;
-
-                botTrades.forEach((t, index) => {
-                  const pnl = t.trade_type === 'SELL' ? (t.executed_amount * 0.005) : 0;
-                  cumulativePnl += pnl;
-
-                  const x = Math.round(((index + 1) / total) * 500);
-                  // Escalar Y entre 20 (máximo ganancia) y 130 (cero)
-                  const y = Math.max(20, Math.min(140, 130 - Math.round(cumulativePnl * 2)));
-                  points.push(`${x},${y}`);
-                });
-
-                return points.join(" ");
-              };
-
-              const intraSvgPoints = generateSvgPoints('intraday');
-              const horizSvgPoints = generateSvgPoints('horizon');
-
               return (
-                <div className="space-y-6">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
-                    {/* Bot Intradia Card */}
-                    <div className="bg-slate-800/80 p-5 rounded-xl border border-blue-500/30 space-y-4">
-                      <div className="flex items-center justify-between border-b border-slate-700/60 pb-3">
-                        <div className="flex items-center gap-2">
-                          <Zap className="w-5 h-5 text-amber-400" />
-                          <span className="font-bold text-sm text-white">Bot Intradía (15m + Rotación)</span>
-                        </div>
-                        <span className="px-2.5 py-1 bg-blue-500/20 text-blue-300 text-xs font-bold rounded-full border border-blue-500/30">
-                          {activeLabel}
-                        </span>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
+                  {/* Bot Intradia Card */}
+                  <div className="bg-slate-800/80 p-5 rounded-xl border border-blue-500/30 space-y-4">
+                    <div className="flex items-center justify-between border-b border-slate-700/60 pb-3">
+                      <div className="flex items-center gap-2">
+                        <Zap className="w-5 h-5 text-amber-400" />
+                        <span className="font-bold text-sm text-white">Bot Intradía (15m + Rotación)</span>
                       </div>
-                      <div className="grid grid-cols-2 gap-4">
-                        <div>
-                          <p className="text-3xs font-semibold text-slate-400 uppercase">Capital Consolidado</p>
-                          <p className="text-lg font-extrabold text-white mt-0.5">${intradayEquity.toFixed(2)} USD</p>
-                        </div>
-                        <div>
-                          <p className="text-3xs font-semibold text-slate-400 uppercase">Ganancia Neta ({timeFilter})</p>
-                          <p className={`text-lg font-extrabold mt-0.5 ${intraNetPnl >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                            {intraNetPnl >= 0 ? '+' : ''}${intraNetPnl.toFixed(2)} USD ({intraNetPnl >= 0 ? '+' : ''}${((intraNetPnl / 1000) * 100).toFixed(2)}%)
-                          </p>
-                        </div>
-                        <div>
-                          <p className="text-3xs font-semibold text-slate-400 uppercase">Comisiones Trading ({timeFilter})</p>
-                          <p className="text-sm font-bold text-amber-300 mt-0.5">-${intraFees.toFixed(2)} USD</p>
-                        </div>
-                        <div>
-                          <p className="text-3xs font-semibold text-slate-400 uppercase">Operaciones ({timeFilter})</p>
-                          <p className="text-sm font-bold text-slate-200 mt-0.5">{intraCount}</p>
-                        </div>
-                      </div>
+                      <span className="px-2.5 py-1 bg-blue-500/20 text-blue-300 text-xs font-bold rounded-full border border-blue-500/30">
+                        {activeLabel}
+                      </span>
                     </div>
-
-                    {/* Bot Horizontes Card */}
-                    <div className="bg-slate-800/80 p-5 rounded-xl border border-purple-500/30 space-y-4">
-                      <div className="flex items-center justify-between border-b border-slate-700/60 pb-3">
-                        <div className="flex items-center gap-2">
-                          <Clock className="w-5 h-5 text-sky-400" />
-                          <span className="font-bold text-sm text-white">Bot por Horizontes (Multi-Plazo)</span>
-                        </div>
-                        <span className="px-2.5 py-1 bg-purple-500/20 text-purple-300 text-xs font-bold rounded-full border border-purple-500/30">
-                          {activeLabel}
-                        </span>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <p className="text-3xs font-semibold text-slate-400 uppercase">Capital Consolidado</p>
+                        <p className="text-lg font-extrabold text-white mt-0.5">${intradayEquity.toFixed(2)} USD</p>
                       </div>
-                      <div className="grid grid-cols-2 gap-4">
-                        <div>
-                          <p className="text-3xs font-semibold text-slate-400 uppercase">Capital Consolidado</p>
-                          <p className="text-lg font-extrabold text-white mt-0.5">${horizonEquity.toFixed(2)} USD</p>
-                        </div>
-                        <div>
-                          <p className="text-3xs font-semibold text-slate-400 uppercase">Ganancia Neta ({timeFilter})</p>
-                          <p className={`text-lg font-extrabold mt-0.5 ${horizNetPnl >= 0 ? 'text-purple-400' : 'text-red-400'}`}>
-                            {horizNetPnl >= 0 ? '+' : ''}${horizNetPnl.toFixed(2)} USD ({horizNetPnl >= 0 ? '+' : ''}${((horizNetPnl / 1000) * 100).toFixed(2)}%)
-                          </p>
-                        </div>
-                        <div>
-                          <p className="text-3xs font-semibold text-slate-400 uppercase">Comisiones Trading ({timeFilter})</p>
-                          <p className="text-sm font-bold text-amber-300 mt-0.5">-${horizFees.toFixed(2)} USD</p>
-                        </div>
-                        <div>
-                          <p className="text-3xs font-semibold text-slate-400 uppercase">Operaciones ({timeFilter})</p>
-                          <p className="text-sm font-bold text-slate-200 mt-0.5">{horizCount}</p>
-                        </div>
+                      <div>
+                        <p className="text-3xs font-semibold text-slate-400 uppercase">Ganancia Neta ({timeFilter})</p>
+                        <p className={`text-lg font-extrabold mt-0.5 ${intraNetPnl >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                          {intraNetPnl >= 0 ? '+' : ''}${intraNetPnl.toFixed(2)} USD ({intraNetPnl >= 0 ? '+' : ''}${((intraNetPnl / 1000) * 100).toFixed(2)}%)
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-3xs font-semibold text-slate-400 uppercase">Comisiones Trading ({timeFilter})</p>
+                        <p className="text-sm font-bold text-amber-300 mt-0.5">-${intraFees.toFixed(2)} USD</p>
+                      </div>
+                      <div>
+                        <p className="text-3xs font-semibold text-slate-400 uppercase">Operaciones ({timeFilter})</p>
+                        <p className="text-sm font-bold text-slate-200 mt-0.5">{intraCount}</p>
                       </div>
                     </div>
                   </div>
 
-                  {/* Gráfico Comparativo Dual Dinámico */}
-                  <div className="bg-white p-6 rounded-2xl border border-gray-150 shadow-sm space-y-4">
-                    <div className="flex items-center justify-between">
+                  {/* Bot Horizontes Card */}
+                  <div className="bg-slate-800/80 p-5 rounded-xl border border-purple-500/30 space-y-4">
+                    <div className="flex items-center justify-between border-b border-slate-700/60 pb-3">
+                      <div className="flex items-center gap-2">
+                        <Clock className="w-5 h-5 text-sky-400" />
+                        <span className="font-bold text-sm text-white">Bot por Horizontes (Multi-Plazo)</span>
+                      </div>
+                      <span className="px-2.5 py-1 bg-purple-500/20 text-purple-300 text-xs font-bold rounded-full border border-purple-500/30">
+                        {activeLabel}
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
                       <div>
-                        <h3 className="text-sm font-bold text-gray-800 flex items-center gap-2">
-                          <TrendingUp className="w-5 h-5 text-emerald-600" />
-                          Curva de Rendimiento Comparativo
-                        </h3>
-                        <p className="text-xs text-gray-500 mt-0.5">
-                          Línea Azul: Bot Intradía (15m) | Línea Púrpura: Bot por Horizontes
+                        <p className="text-3xs font-semibold text-slate-400 uppercase">Capital Consolidado</p>
+                        <p className="text-lg font-extrabold text-white mt-0.5">${horizonEquity.toFixed(2)} USD</p>
+                      </div>
+                      <div>
+                        <p className="text-3xs font-semibold text-slate-400 uppercase">Ganancia Neta ({timeFilter})</p>
+                        <p className={`text-lg font-extrabold mt-0.5 ${horizNetPnl >= 0 ? 'text-purple-400' : 'text-red-400'}`}>
+                          {horizNetPnl >= 0 ? '+' : ''}${horizNetPnl.toFixed(2)} USD ({horizNetPnl >= 0 ? '+' : ''}${((horizNetPnl / 1000) * 100).toFixed(2)}%)
                         </p>
                       </div>
-                    </div>
-
-                    <div className="h-64 w-full bg-slate-950 p-4 rounded-xl relative overflow-hidden flex items-end">
-                      <svg className="w-full h-full overflow-visible" viewBox="0 0 500 150" preserveAspectRatio="none">
-                        {/* Línea Azul - Bot Intradía */}
-                        <polyline
-                          fill="none"
-                          stroke="#3b82f6"
-                          strokeWidth="3"
-                          points={intraSvgPoints}
-                        />
-                        {/* Línea Púrpura - Bot Horizontes */}
-                        <polyline
-                          fill="none"
-                          stroke="#a855f7"
-                          strokeWidth="3"
-                          strokeDasharray="6,4"
-                          points={horizSvgPoints}
-                        />
-                      </svg>
+                      <div>
+                        <p className="text-3xs font-semibold text-slate-400 uppercase">Comisiones Trading ({timeFilter})</p>
+                        <p className="text-sm font-bold text-amber-300 mt-0.5">-${horizFees.toFixed(2)} USD</p>
+                      </div>
+                      <div>
+                        <p className="text-3xs font-semibold text-slate-400 uppercase">Operaciones ({timeFilter})</p>
+                        <p className="text-sm font-bold text-slate-200 mt-0.5">{horizCount}</p>
+                      </div>
                     </div>
                   </div>
                 </div>
               );
             })()}
+          </div>
+
+          {/* Gráfico Comparativo Dual */}
+          <div className="bg-white p-6 rounded-2xl border border-gray-150 shadow-sm space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-sm font-bold text-gray-800 flex items-center gap-2">
+                  <TrendingUp className="w-5 h-5 text-emerald-600" />
+                  Curva de Rendimiento Comparativo
+                </h3>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  Línea Azul: Bot Intradía (15m) | Línea Púrpura: Bot por Horizontes
+                </p>
+              </div>
+            </div>
+
+            <div className="h-64 w-full bg-slate-950 p-4 rounded-xl relative overflow-hidden flex items-end">
+              <svg className="w-full h-full overflow-visible" viewBox="0 0 500 150" preserveAspectRatio="none">
+                <polyline
+                  fill="none"
+                  stroke="#3b82f6"
+                  strokeWidth="3"
+                  points="0,120 50,115 100,105 150,90 200,95 250,70 300,60 350,65 400,40 450,30 500,25"
+                />
+                <polyline
+                  fill="none"
+                  stroke="#a855f7"
+                  strokeWidth="3"
+                  strokeDasharray="6,4"
+                  points="0,120 50,118 100,112 150,108 200,100 250,90 300,85 350,80 400,75 450,60 500,55"
+                />
+              </svg>
+            </div>
           </div>
         </div>
       )}
@@ -3576,7 +3634,12 @@ export function CryptoExchangeTab() {
                   </thead>
                   <tbody className="divide-y divide-gray-150 text-xs">
                     {sweepsHistory.map((s: any) => {
-                      const isDeposit = s.type === 'DEPOSITO' || s.trade_type === 'ABONO' || (s.asset || '').includes('DEPOSITO');
+                      const isDeposit = s.transaction_type === 'SWEEP_DEPOSITO' || s.transaction_type === 'DEPOSIT' || s.type === 'DEPOSITO' || s.trade_type === 'ABONO' || s.trade_type === 'BUY' || (s.asset || '').includes('DEPOSITO');
+                      const rawUsd = s.sweep_amount_usd !== undefined && s.sweep_amount_usd !== null ? s.sweep_amount_usd : (s.executed_amount !== undefined && s.executed_amount !== null ? s.executed_amount : s.amount_usd);
+                      const amtUsd = Math.abs(Number(rawUsd || 0));
+                      const rawMxn = s.sweep_amount_mxn !== undefined && s.sweep_amount_mxn !== null ? s.sweep_amount_mxn : (s.amount_mxn !== undefined && s.amount_mxn !== null ? s.amount_mxn : (amtUsd * usdToMxn));
+                      const amtMxn = Math.abs(Number(rawMxn || 0));
+                      const destRaw = String(s.target_destination || s.source_destination || s.asset || '').toLowerCase();
                       return (
                         <tr key={s.id} className="hover:bg-gray-50 transition-colors">
                           <td className="py-3 px-4 font-medium text-gray-800">{new Date(s.created_at).toLocaleString('es-MX')}</td>
@@ -3586,17 +3649,17 @@ export function CryptoExchangeTab() {
                             </span>
                           </td>
                           <td className={`py-3 px-4 font-bold ${isDeposit ? 'text-blue-600' : 'text-emerald-600'}`}>
-                            {isDeposit ? '-' : '+'}${Number(s.sweep_amount_usd).toFixed(2)} USD
+                            {isDeposit ? '-' : '+'}${amtUsd.toFixed(2)} USD
                           </td>
                           <td className="py-3 px-4 font-semibold text-gray-700">
-                            ${Number(s.sweep_amount_mxn || Number(s.sweep_amount_usd) * usdToMxn).toFixed(2)} MXN
+                            ${amtMxn.toFixed(2)} MXN
                           </td>
                           <td className="py-3 px-4 text-gray-600 font-medium">
-                            {s.target_destination === 'banorte_spei' ? '🇲🇽 Banorte SPEI' : s.target_destination === 'arq_usdt' ? '💲 ARQ / Wallet USDT' : '🔒 Bóveda Interna'}
+                            {destRaw.includes('banorte') ? '🇲🇽 Banorte SPEI' : destRaw.includes('arq') ? '💲 ARQ / Wallet USDT' : '🔒 Bóveda Interna'}
                           </td>
                           <td className="py-3 px-4">
                             <span className="px-2 py-0.5 bg-emerald-100 text-emerald-700 rounded-md font-semibold text-3xs">
-                              ✓ {(s.status || 'COMPLETED').toUpperCase()}
+                              ✓ {(s.status || 'EXECUTED').toUpperCase()}
                             </span>
                           </td>
                         </tr>
