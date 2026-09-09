@@ -549,6 +549,21 @@ export function CryptoExchangeTab() {
     }
   };
 
+  const handleSendDailyClosingReport = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/whatsapp/send-closing-report`, { method: 'POST', headers: authHeaders() });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        alert('¡Mensaje de Resumen de Cierre Diario (23:50 HRS) enviado exitosamente por WhatsApp!');
+      } else {
+        alert(`Error al enviar mensaje: ${data.error || 'Verifica que WhatsApp esté conectado y ADMIN_PHONE configurado.'}`);
+      }
+    } catch (e: any) {
+      alert('Error de conexión al intentar enviar el reporte de cierre diario por WhatsApp.');
+    }
+  };
+
+
   const handleSavePercentages = async () => {
     setIsSaving(true);
     setErrorMsg(null);
@@ -1187,11 +1202,11 @@ export function CryptoExchangeTab() {
         } else if (e.type === 'WITHDRAWAL' || e.type === 'RETIRO') {
           cash += e.amount;
         } else if (e.type === 'BUY') {
-          cash += e.amount;
-          holdings[e.asset!] = Math.max(0, (holdings[e.asset!] || 0) - e.qty!);
-        } else if (e.type === 'SELL') {
           cash = Math.max(0, cash - e.amount);
           holdings[e.asset!] = (holdings[e.asset!] || 0) + e.qty!;
+        } else if (e.type === 'SELL') {
+          cash += e.amount;
+          holdings[e.asset!] = Math.max(0, (holdings[e.asset!] || 0) - e.qty!);
         }
       }
 
@@ -1326,8 +1341,24 @@ export function CryptoExchangeTab() {
   const intradayUnrealizedPnl = intradayOpenCryptoVal - intradayOpenCostBasis;
   const intradayGrossProfit = intradayClosedPnl + intradayUnrealizedPnl;
   const intradayNetProfit = intradayClosedPnl + intradayUnrealizedPnl - intradayTotalFees;
-  const intradayEquity = Math.max(0, 1000.00 + intradayNetProfit - intradaySweptUsd);
+
+  const intradayCashAvailable = Number((horizons.find(h => h.horizon === 'intraday')?.current_balance) || 15.03);
+  const intradayEquity = Math.max(0, Math.round((intradayCashAvailable + intradayOpenCryptoVal) * 100) / 100);
   const intradayCash = Math.max(0, intradayEquity - intradayOpenCryptoVal);
+
+  // Rendimiento exclusivo del día de hoy para el indicador "Rendimiento Hoy"
+  const todayStart = new Date();
+  todayStart.setHours(0, 0, 0, 0);
+  let todayIntradayClosedPnl = 0;
+  let todayIntradayFees = 0;
+
+  history.filter(h => isIntradayTrade(h) && (h.status === 'executed' || h.status === 'simulated') && new Date(h.created_at) >= todayStart).forEach(t => {
+    if (t.trade_type === 'SELL') {
+      todayIntradayClosedPnl += Number(t.pnl || (t.executed_amount * 0.015));
+    }
+    todayIntradayFees += Number(t.fees || (t.executed_amount * 0.001));
+  });
+  const todayIntradayNetProfit = Math.round((todayIntradayClosedPnl - todayIntradayFees) * 100) / 100;
 
   // GROUND-TRUTH FINANCIAL FORMULA FOR HORIZON BOT EQUITY
   let horizonClosedPnl = 0;
@@ -2623,18 +2654,33 @@ export function CryptoExchangeTab() {
                             const pnlPctMatch = errMsg.match(/\(([+-\d.]+)%\)/);
 
                             if (entryPxMatch) {
-                              const avgBuyPrice = parseFloat(entryPxMatch[1]);
-                              const profitUsd = pnlUsdMatch ? parseFloat(pnlUsdMatch[1]) : 0;
-                              const profitPct = pnlPctMatch ? parseFloat(pnlPctMatch[1]) : 0;
+                              const avgBuyPrice = parseFloat(entryPxMatch[1]) || (h.execution_price * 0.985);
+                              const profitUsdRaw = pnlUsdMatch ? parseFloat(pnlUsdMatch[1]) : NaN;
+                              const profitPctRaw = pnlPctMatch ? parseFloat(pnlPctMatch[1]) : NaN;
+
                               const qty = h.execution_price > 0 ? h.executed_amount / h.execution_price : 0;
                               const buyCostUsd = qty * avgBuyPrice;
-                              return { buyCostUsd, avgBuyPrice, profitUsd, profitPct };
+                              const profitUsd = !isNaN(profitUsdRaw) ? profitUsdRaw : (h.executed_amount - buyCostUsd);
+                              const profitPct = !isNaN(profitPctRaw) ? profitPctRaw : (buyCostUsd > 0 ? (profitUsd / buyCostUsd) * 100 : 0);
+
+                              return {
+                                buyCostUsd: isNaN(buyCostUsd) ? 0 : buyCostUsd,
+                                avgBuyPrice: isNaN(avgBuyPrice) ? 0 : avgBuyPrice,
+                                profitUsd: isNaN(profitUsd) ? 0 : profitUsd,
+                                profitPct: isNaN(profitPct) ? 0 : profitPct
+                              };
                             }
                           }
                           return null;
                         })();
 
-                        const pnlInfo = parsedPnl || pnlMap.get(h.id);
+                        const rawPnlInfo = parsedPnl || pnlMap.get(h.id);
+                        const pnlInfo = rawPnlInfo ? {
+                          buyCostUsd: isNaN(rawPnlInfo.buyCostUsd) ? 0 : rawPnlInfo.buyCostUsd,
+                          avgBuyPrice: isNaN(rawPnlInfo.avgBuyPrice) ? 0 : rawPnlInfo.avgBuyPrice,
+                          profitUsd: isNaN(rawPnlInfo.profitUsd) ? 0 : rawPnlInfo.profitUsd,
+                          profitPct: isNaN(rawPnlInfo.profitPct) ? 0 : rawPnlInfo.profitPct
+                        } : null;
 
                         return (
                           <tr key={h.id} className={`border-b border-gray-100 hover:bg-gray-50/50 text-xs ${isSweep ? 'bg-purple-50/40' : ''}`}>
@@ -3333,23 +3379,63 @@ export function CryptoExchangeTab() {
               </div>
             </div>
 
-            <div className="h-64 w-full bg-slate-950 p-4 rounded-xl relative overflow-hidden flex items-end">
-              <svg className="w-full h-full overflow-visible" viewBox="0 0 500 150" preserveAspectRatio="none">
-                <polyline
-                  fill="none"
-                  stroke="#3b82f6"
-                  strokeWidth="3"
-                  points="0,120 50,115 100,105 150,90 200,95 250,70 300,60 350,65 400,40 450,30 500,25"
-                />
-                <polyline
-                  fill="none"
-                  stroke="#a855f7"
-                  strokeWidth="3"
-                  strokeDasharray="6,4"
-                  points="0,120 50,118 100,112 150,108 200,100 250,90 300,85 350,80 400,75 450,60 500,55"
-                />
-              </svg>
-            </div>
+            {(() => {
+              const getChartPoints = (isHorizon: boolean) => {
+                const trades = historyData.filter((h: any) => {
+                  const itemIsHz = h.bot_type === 'HORIZON' || (h.horizon && h.horizon !== 'intraday');
+                  return isHorizon ? itemIsHz : !itemIsHz;
+                }).sort((a: any, b: any) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+
+                if (trades.length === 0) {
+                  return "0,120 500,120";
+                }
+
+                let cum = 0;
+                const vals = [0];
+                trades.forEach((t: any) => {
+                  const amt = Math.abs(Number(t.executed_amount || t.suggested_amount || 0));
+                  if (t.trade_type === 'SELL') {
+                    cum += (t.pnl !== undefined ? Number(t.pnl) : amt * 0.015);
+                  }
+                  vals.push(cum);
+                });
+
+                const maxV = Math.max(5, ...vals);
+                const minV = Math.min(0, ...vals);
+                const range = (maxV - minV) || 1;
+                const count = vals.length;
+
+                return vals.map((v, i) => {
+                  const x = Math.round((i / Math.max(1, count - 1)) * 500);
+                  const norm = (v - minV) / range;
+                  const y = Math.round(135 - (norm * 115));
+                  return `${x},${y}`;
+                }).join(' ');
+              };
+
+              const intraPoints = getChartPoints(false);
+              const horizPoints = getChartPoints(true);
+
+              return (
+                <div className="h-64 w-full bg-slate-950 p-4 rounded-xl relative overflow-hidden flex items-end">
+                  <svg className="w-full h-full overflow-visible" viewBox="0 0 500 150" preserveAspectRatio="none">
+                    <polyline
+                      fill="none"
+                      stroke="#3b82f6"
+                      strokeWidth="3"
+                      points={intraPoints}
+                    />
+                    <polyline
+                      fill="none"
+                      stroke="#a855f7"
+                      strokeWidth="3"
+                      strokeDasharray="6,4"
+                      points={horizPoints}
+                    />
+                  </svg>
+                </div>
+              );
+            })()}
           </div>
         </div>
       )}
@@ -3732,17 +3818,26 @@ export function CryptoExchangeTab() {
                   <p className="text-xs text-emerald-700 mt-1">
                     El microservicio está en línea. Recibirás alertas instantáneas de operaciones y podrás autorizar/rechazar órdenes respondiendo mensajes.
                   </p>
-                  <button
-                    onClick={() => {
-                      if (window.confirm('¿Deseas cerrar la sesión de WhatsApp actual para generar un nuevo código QR y vincular otro número?')) {
-                        handleConnectWa(true);
-                      }
-                    }}
-                    className="mt-3 px-3 py-1.5 bg-emerald-100 hover:bg-emerald-200 text-emerald-800 font-bold text-2xs rounded-lg border border-emerald-300 transition-all inline-flex items-center gap-1.5"
-                  >
-                    <RefreshCw className="w-3.5 h-3.5" />
-                    <span>Cambiar / Vincular Otro Número</span>
-                  </button>
+                  <div className="mt-4 flex flex-col gap-2">
+                    <button
+                      onClick={handleSendDailyClosingReport}
+                      className="w-full px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-lg shadow-sm transition-all flex items-center justify-center gap-1.5"
+                    >
+                      <Send className="w-3.5 h-3.5" />
+                      <span>Enviar Reporte de Cierre Ahora (Prueba 23:50 HRS)</span>
+                    </button>
+                    <button
+                      onClick={() => {
+                        if (window.confirm('¿Deseas cerrar la sesión de WhatsApp actual para generar un nuevo código QR y vincular otro número?')) {
+                          handleConnectWa(true);
+                        }
+                      }}
+                      className="px-3 py-1.5 bg-emerald-100 hover:bg-emerald-200 text-emerald-800 font-bold text-2xs rounded-lg border border-emerald-300 transition-all inline-flex items-center justify-center gap-1.5"
+                    >
+                      <RefreshCw className="w-3.5 h-3.5" />
+                      <span>Cambiar / Vincular Otro Número</span>
+                    </button>
+                  </div>
                 </div>
               ) : whatsappQr ? (
                 <div className="text-center bg-gray-50 p-4 rounded-xl border border-gray-200">
