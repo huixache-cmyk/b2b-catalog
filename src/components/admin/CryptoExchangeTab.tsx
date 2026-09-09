@@ -25,7 +25,8 @@ import {
   History as HistoryIcon,
   Play,
   Pause,
-  RotateCcw
+  RotateCcw,
+  Send
 } from 'lucide-react';
 
 interface CapitalHorizon {
@@ -1354,9 +1355,9 @@ export function CryptoExchangeTab() {
 
   history.filter(h => isIntradayTrade(h) && (h.status === 'executed' || h.status === 'simulated') && new Date(h.created_at) >= todayStart).forEach(t => {
     if (t.trade_type === 'SELL') {
-      todayIntradayClosedPnl += Number(t.pnl || (t.executed_amount * 0.015));
+      todayIntradayClosedPnl += Number((t as any).profit_usd || (t as any).pnl || (t.executed_amount * 0.015));
     }
-    todayIntradayFees += Number(t.fees || (t.executed_amount * 0.001));
+    todayIntradayFees += Number((t as any).fees || (t.executed_amount * 0.001));
   });
   const todayIntradayNetProfit = Math.round((todayIntradayClosedPnl - todayIntradayFees) * 100) / 100;
 
@@ -1641,27 +1642,23 @@ export function CryptoExchangeTab() {
               <div className="flex justify-between text-3xs font-bold">
                 <span className="text-slate-300">
                   Rendimiento Hoy:{' '}
-                  <strong className={intradayNetProfit >= 0 ? "text-emerald-400" : "text-red-400"}>
-                    {intradayNetProfit >= 0 ? '+' : ''}${intradayNetProfit.toFixed(2)} USD
+                  <strong className={todayIntradayNetProfit >= 0 ? "text-emerald-400" : "text-red-400"}>
+                    {todayIntradayNetProfit >= 0 ? '+' : ''}${todayIntradayNetProfit.toFixed(2)} USD
                   </strong>
                 </span>
-                <span className={intradayNetProfit >= 0 ? "text-emerald-400 font-extrabold" : "text-red-400 font-extrabold"}>
-                  {((intradayNetProfit / 25.00) * 100).toFixed(1)}% Logrado
+                <span className={todayIntradayNetProfit >= 0 ? "text-emerald-400 font-extrabold" : "text-red-400 font-extrabold"}>
+                  {((todayIntradayNetProfit / 25.00) * 100).toFixed(1)}% Logrado
                 </span>
               </div>
               <div className="w-full bg-slate-800 rounded-full h-2 overflow-hidden border border-slate-700/50">
                 <div
                   className={`h-2 rounded-full transition-all duration-500 ${
-                    intradayNetProfit >= 0
+                    todayIntradayNetProfit >= 0
                       ? 'bg-gradient-to-r from-emerald-500 to-teal-400'
                       : 'bg-gradient-to-r from-red-500 to-rose-400'
                   }`}
                   style={{
-                    width: `${
-                      intradayNetProfit >= 0
-                        ? Math.min(100, Math.max(0, (intradayNetProfit / 25) * 100))
-                        : Math.min(100, Math.max(5, (Math.abs(intradayNetProfit) / 50) * 100))
-                    }%`
+                    width: `${Math.min(100, Math.max(0, (todayIntradayNetProfit / 25.00) * 100))}%`
                   }}
                 />
               </div>
@@ -3381,7 +3378,7 @@ export function CryptoExchangeTab() {
 
             {(() => {
               const getChartPoints = (isHorizon: boolean) => {
-                const trades = historyData.filter((h: any) => {
+                const trades = history.filter((h: any) => {
                   const itemIsHz = h.bot_type === 'HORIZON' || (h.horizon && h.horizon !== 'intraday');
                   return isHorizon ? itemIsHz : !itemIsHz;
                 }).sort((a: any, b: any) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
