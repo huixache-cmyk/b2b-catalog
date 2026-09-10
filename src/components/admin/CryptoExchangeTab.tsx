@@ -291,9 +291,12 @@ export function CryptoExchangeTab() {
           </div>
           <div className="mt-2 text-xs text-slate-400 flex items-center justify-between border-t border-slate-800/80 pt-2">
             <span>≈ {capital.todayPnlUsd >= 0 ? '+' : ''}${(capital.todayPnlUsd * usdToMxn).toLocaleString('es-MX', { maximumFractionDigits: 2 })} MXN</span>
-            <span className={capital.todayPnlUsd >= 0 ? 'text-emerald-400 font-medium' : 'text-rose-400 font-medium'}>
-              {capital.base > 0 ? ((capital.todayPnlUsd / capital.base) * 100).toFixed(2) : '0.00'}% ROI Hoy
-            </span>
+            <div className="flex flex-col items-end">
+              <span className={capital.todayPnlUsd >= 0 ? 'text-emerald-400 font-medium' : 'text-rose-400 font-medium'}>
+                {capital.base > 0 ? ((capital.todayPnlUsd / capital.base) * 100).toFixed(2) : '0.00'}% ROI Hoy
+              </span>
+              <span className="text-[10px] text-slate-400 font-medium mt-0.5">Cierre 6:00 pm</span>
+            </div>
           </div>
         </div>
 
