@@ -1,43 +1,25 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Coins, 
   Activity, 
   AlertTriangle, 
   CheckCircle, 
-  XCircle, 
   RefreshCw, 
-  MessageSquare,
   ArrowUpRight,
   ArrowDownRight,
   Save,
-  Plus,
-  Minus,
-  Settings,
   TrendingUp,
   Zap,
   Clock,
-  BarChart2,
-  Target,
   ShieldCheck,
-  ArrowRightLeft,
   History as HistoryIcon,
   Play,
   Pause,
   RotateCcw,
-  Send
+  Sliders
 } from 'lucide-react';
-
-interface CapitalHorizon {
-  id: string;
-  horizon: 'intraday' | 'daily' | 'weekly' | 'monthly' | 'quarterly' | 'semiannual' | 'annual';
-  allocated_percentage: number;
-  suggested_percentage_ai: number | null;
-  target_roi: number;
-  current_balance: number;
-  bot_type?: string;
-}
 
 interface TradeProposal {
   id: string;
@@ -46,8 +28,6 @@ interface TradeProposal {
   trade_type: 'BUY' | 'SELL';
   suggested_amount: number;
   current_price: number;
-  horizon: string;
-  bot_type?: string;
   justification: string;
   status: 'pending_auto_exec' | 'executed' | 'rejected' | 'failed';
   expires_at: string;
@@ -57,17 +37,14 @@ interface TradeProposal {
 interface TradeHistory {
   id: string;
   asset: string;
-  trade_type: 'BUY' | 'SELL' | 'RETIRO' | string;
-  horizon: string;
-  bot_type?: string;
+  trade_type: 'BUY' | 'SELL' | string;
   executed_amount: number;
   execution_price: number;
   fees: number;
   status: 'executed' | 'rejected' | 'failed' | 'simulated' | string;
   created_at: string;
   display_label?: string;
-  is_sweep?: boolean;
-  net_profit?: number;
+  error_message?: string;
 }
 
 interface AssetConfig {
@@ -78,170 +55,41 @@ interface AssetConfig {
   rejection_timeout_minutes: number;
   is_active: boolean;
   active_mode?: string;
+  current_price?: number;
 }
 
-interface ProfitSweep {
-  id: string;
-  bot_type: string;
-  sweep_amount_usd: number;
-  sweep_amount_mxn: number;
-  target_destination: string;
-  status: string;
-  notes?: string;
-  created_at: string;
-}
-
-interface VaultStatus {
-  vault_balance_usd: number;
-  total_swept_usd: number;
-  total_swept_mxn: number;
-  last_sweep_amount_usd?: number;
-  total_available_excess_cash_usd?: number;
-  intraday_excess_cash_usd?: number;
-  horizon_excess_cash_usd?: number;
-  auto_sweep_enabled: boolean;
-  sweep_target_threshold_usd: number;
-  target_bot_for_sweep?: string;
-  default_destination: string;
-  daily_sweep_time: string;
-  base_capital_usd: number;
-  auto_deposit_enabled: boolean;
-  deposit_source: string;
-  daily_deposit_time: string;
-  daily_deposit_amount_usd: number;
-  use_last_sweep_for_deposit?: boolean;
-  sweeps_count: number;
+interface PortfolioCapital {
+  base: number;
+  openCryptoUsd: number;
+  availableCashUsd: number;
+  totalEquityUsd: number;
+  todayPnlUsd: number;
 }
 
 export function CryptoExchangeTab() {
-  const [horizons, setHorizons] = useState<CapitalHorizon[]>([]);
   const [proposals, setProposals] = useState<TradeProposal[]>([]);
   const [history, setHistory] = useState<TradeHistory[]>([]);
   const [assetConfigs, setAssetConfigs] = useState<AssetConfig[]>([]);
-  const [whatsappStatus, setWhatsappStatus] = useState<string>('disconnected');
-  const [whatsappQr, setWhatsappQr] = useState<string | null>(null);
   const [botActive, setBotActive] = useState<boolean>(true);
   const [exchangeMode, setExchangeMode] = useState<string>('simulation');
-  
-  // Vault & Sweeps States
-  const [vaultStatus, setVaultStatus] = useState<VaultStatus>({
-    vault_balance_usd: 0,
-    total_swept_usd: 0,
-    total_swept_mxn: 0,
-    last_sweep_amount_usd: 50.00,
-    total_available_excess_cash_usd: 0,
-    auto_sweep_enabled: true,
-    sweep_target_threshold_usd: 25.00,
-    target_bot_for_sweep: 'INTRADAY',
-    default_destination: 'banorte_spei',
-    daily_sweep_time: '23:40',
-    base_capital_usd: 1000.00,
-    auto_deposit_enabled: true,
-    deposit_source: 'banorte_spei',
-    daily_deposit_time: '23:45',
-    daily_deposit_amount_usd: 50.00,
-    use_last_sweep_for_deposit: true,
-    sweeps_count: 0
+  const [capital, setCapital] = useState<PortfolioCapital>({
+    base: 1000.00,
+    openCryptoUsd: 0,
+    availableCashUsd: 1000.00,
+    totalEquityUsd: 1000.00,
+    todayPnlUsd: 0
   });
-  const [sweepsHistory, setSweepsHistory] = useState<ProfitSweep[]>([]);
-  const [isSweeping, setIsSweeping] = useState<boolean>(false);
-  const [sweepDestination, setSweepDestination] = useState<string>('banorte_spei');
-  const [sweepThresholdInput, setSweepThresholdInput] = useState<string>('25.00');
-  const [targetBotForSweep, setTargetBotForSweep] = useState<string>('INTRADAY');
-  const [sweepTimeInput, setSweepTimeInput] = useState<string>('22:00');
-  const [baseCapitalInput, setBaseCapitalInput] = useState<string>('1000.00');
-  const [autoDepositEnabled, setAutoDepositEnabled] = useState<boolean>(false);
-  const [depositSource, setDepositSource] = useState<string>('banorte_spei');
-  const [depositTimeInput, setDepositTimeInput] = useState<string>('08:00');
-  const [depositAmountInput, setDepositAmountInput] = useState<string>('50.00');
-  const [useLastSweepForDeposit, setUseLastSweepForDeposit] = useState<boolean>(true);
-  const isVaultInputsInitialized = useRef<boolean>(false);
-  
-  // States for changes
-  const [isSaving, setIsSaving] = useState<boolean>(false);
-  const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  
-  // Inversión Inicial
-  const [initialCapInput, setInitialCapInput] = useState<string>('1000');
+
+  const [usdToMxn, setUsdToMxn] = useState<number>(17.50);
   const [isMockTriggering, setIsMockTriggering] = useState<boolean>(false);
-  const [usdToMxn, setUsdToMxn] = useState<number>(17.00);
-  const [usdChangePercent, setUsdChangePercent] = useState<number>(0.40);
-  const [timeFilter, setTimeFilter] = useState<'1D' | '1W' | '1M' | '6M' | '1Y' | 'ALL'>('1D');
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [historyDateSearch, setHistoryDateSearch] = useState<string>('');
-  const [historyCurrentPage, setHistoryCurrentPage] = useState<number>(1);
-  
-  // Capital Transaction inputs
-  const [selectedTxHorizon, setSelectedTxHorizon] = useState<string>('daily');
-  const [txAmount, setTxAmount] = useState<string>('');
-  const [txType, setTxType] = useState<'deposit' | 'withdrawal'>('deposit');
-  const [isTxSaving, setIsTxSaving] = useState<boolean>(false);
-
-  // Asset configurations inputs
   const [editingConfigs, setEditingConfigs] = useState<Record<string, Partial<AssetConfig>>>({});
-
-  // States for Capital Transactions and Price History
-  const [capitalTransactions, setCapitalTransactions] = useState<any[]>([]);
-  const [priceHistory, setPriceHistory] = useState<Record<string, number[]>>({});
-  const [activeSubTab, setActiveSubTab] = useState<'intraday' | 'horizon' | 'comparison'>('intraday');
-  const [comparisonData, setComparisonData] = useState<any>(null);
-
-  useEffect(() => {
-    const fetchComparison = async () => {
-      try {
-        const res = await fetch(`${API_BASE}/bot/comparison`);
-        if (res.ok) {
-          const data = await res.json();
-          setComparisonData(data);
-        }
-      } catch (err) {
-        console.warn('Comparison endpoint error:', err);
-      }
-    };
-    fetchComparison();
-    const interval = setInterval(fetchComparison, 10000);
-    return () => clearInterval(interval);
-  }, []);
-  const [hoveredPoint, setHoveredPoint] = useState<{ x: number; y: number; value: number; dateStr: string } | null>(null);
-
-  // Nuevos estados para Modos de Operación, Backtesting y Ajustes
-  const [activeControlTab, setActiveControlTab] = useState<'modes' | 'backtest' | 'optimization' | 'capital'>('modes');
-  const [operationModes, setOperationModes] = useState<any[]>([]);
-  const [globalSettings, setGlobalSettings] = useState<any>({ tactical_capital_pct: 60, total_simulation_capital: 10000 });
-  const [allocationHistory, setAllocationHistory] = useState<any[]>([]);
-  const [backtestHistory, setBacktestHistory] = useState<any[]>([]);
-  const [pendingAdjustments, setPendingAdjustments] = useState<any[]>([]);
-  const [adjustmentHistory, setAdjustmentHistory] = useState<any[]>([]);
-
-  // Campos para nuevo Backtest manual
-  const [btAsset, setBtAsset] = useState<string>('BTC/USDT');
-  const [btTimeframe, setBtTimeframe] = useState<string>('1h');
-  const [btRsiPeriod, setBtRsiPeriod] = useState<string>('14');
-  const [btRsiBuy, setBtRsiBuy] = useState<string>('30');
-  const [btRsiSell, setBtRsiSell] = useState<string>('70');
-  const [btTrendFilter, setBtTrendFilter] = useState<string>('SMA_200');
-  const [btRequireMacd, setBtRequireMacd] = useState<boolean>(true);
-  const [btRequireVolume, setBtRequireVolume] = useState<boolean>(true);
-  const [btTradeSize, setBtTradeSize] = useState<string>('3');
-  const [btResult, setBtResult] = useState<any | null>(null);
-  const [isBtRunning, setIsBtRunning] = useState<boolean>(false);
-
-  // Edición de parámetros de Modos de Operación
-  const [selectedModeForEdit, setSelectedModeForEdit] = useState<string>('moderado');
-  const [cloneModeName, setCloneModeName] = useState<string>('');
-  const [isCloning, setIsCloning] = useState<boolean>(false);
+  const [botActionLoading, setBotActionLoading] = useState<string | null>(null);
 
   // URL base y API Key de la API del bot
   const API_BASE = process.env.NEXT_PUBLIC_CRYPTO_BOT_API_URL || 'https://exchange-trade-production.up.railway.app/api';
   const API_KEY = process.env.NEXT_PUBLIC_INTERNAL_API_KEY || 'geeky_exchange_secret_key_2026';
-
-  // Estados para botonera de control individual de bots (Activo/Apagar/Reinicio)
-  const [intradayBotActive, setIntradayBotActive] = useState<boolean>(true);
-  const [horizonBotActive, setHorizonBotActive] = useState<boolean>(true);
-  const [botActionLoading, setBotActionLoading] = useState<string | null>(null);
-
-  // Estados para Modal de Vincular WhatsApp / QR
-  const [isWaModalOpen, setIsWaModalOpen] = useState<boolean>(false);
-  const [isWaConnecting, setIsWaConnecting] = useState<boolean>(false);
 
   const authHeaders = (extraHeaders?: Record<string, string>) => ({
     'x-api-key': API_KEY,
@@ -250,176 +98,41 @@ export function CryptoExchangeTab() {
     ...(extraHeaders || {})
   });
 
-  const handleConnectWa = async (forceFresh: boolean = true) => {
-    setIsWaConnecting(true);
-    try {
-      const res = await fetch(`${API_BASE}/whatsapp/connect`, {
-        method: 'POST',
-        headers: authHeaders({ 'Content-Type': 'application/json' }),
-        body: JSON.stringify({ forceFresh })
-      });
-      if (res.ok) {
-        await fetchData();
-      }
-    } catch (err: any) {
-      console.error('Error al solicitar QR de WhatsApp:', err);
-    } finally {
-      setIsWaConnecting(false);
-    }
-  };
-
-  const fetchBotStatuses = async () => {
-    try {
-      const res = await fetch(`${API_BASE}/bot/control/status`, { headers: authHeaders() });
-      if (res.ok) {
-        const data = await res.json();
-        if (data.intraday) {
-          const isAct = data.intraday.active ?? data.intraday.is_active ?? (data.intraday.status === 'active');
-          setIntradayBotActive(Boolean(isAct));
-        }
-        if (data.horizon) {
-          const isAct = data.horizon.active ?? data.horizon.is_active ?? (data.horizon.status === 'active');
-          setHorizonBotActive(Boolean(isAct));
-        }
-      }
-    } catch (e) {
-      console.warn('Error al consultar estado individual de bots:', e);
-    }
-  };
-
-  const handleBotControl = async (bot: 'intraday' | 'horizon', action: 'start' | 'stop' | 'reset') => {
-    const actionNames: Record<string, string> = {
-      start: 'activar',
-      stop: 'apagar',
-      reset: 'reiniciar capital base ($1,000 USD) y propuestas de'
-    };
-    if (action === 'reset') {
-      const confirmed = window.confirm(`¿Estás seguro de que deseas ${actionNames[action]} el ${bot === 'intraday' ? 'Bot Intradía' : 'Bot por Horizontes'}? Esto restaurará el saldo inicial y limpiará órdenes pendientes.`);
-      if (!confirmed) return;
-    }
-
-    setBotActionLoading(`${bot}_${action}`);
-    try {
-      const res = await fetch(`${API_BASE}/bot/control`, {
-        method: 'POST',
-        headers: authHeaders({ 'Content-Type': 'application/json' }),
-        body: JSON.stringify({ bot, action })
-      });
-      const data = await res.json();
-      if (data.success || data.status === 'ok') {
-        if (bot === 'intraday') {
-          if (action === 'start') setIntradayBotActive(true);
-          if (action === 'stop') setIntradayBotActive(false);
-        } else {
-          if (action === 'start') setHorizonBotActive(true);
-          if (action === 'stop') setHorizonBotActive(false);
-        }
-        await fetchData();
-        await fetchBotStatuses();
-      } else {
-        alert(data.error || `Error al ejecutar ${action} en bot ${bot}`);
-      }
-    } catch (err: any) {
-      alert(`Error de red al ejecutar ${action}: ${err.message}`);
-    } finally {
-      setBotActionLoading(null);
-    }
-  };
-
-  useEffect(() => {
-    const fetchComparison = async () => {
-      try {
-        const res = await fetch(`${API_BASE}/bot/comparison`, { headers: authHeaders() });
-        if (res.ok) {
-          const data = await res.json();
-          setComparisonData(data);
-        }
-      } catch (err) {
-        console.warn('Comparison endpoint error:', err);
-      }
-    };
-    fetchComparison();
-    const interval = setInterval(fetchComparison, 10000);
-    return () => clearInterval(interval);
-  }, []);
-
-  useEffect(() => {
-    if (!isWaModalOpen) return;
-    fetchData();
-    const waInterval = setInterval(() => {
-      fetchData();
-    }, 2000);
-    return () => clearInterval(waInterval);
-  }, [isWaModalOpen]);
-
   const fetchData = async () => {
     try {
-      // 0. Consultar estado individual de los bots
-      await fetchBotStatuses();
-
-      // 1. Obtener estado general
+      // 1. Estado general y capital
       const statusRes = await fetch(`${API_BASE}/status`, { headers: authHeaders() });
       if (statusRes.ok) {
         const statusData = await statusRes.json();
-        setBotActive(statusData.botActive);
-        setExchangeMode(statusData.exchangeMode);
-        setWhatsappStatus(statusData.whatsapp.status);
-        setWhatsappQr(statusData.whatsapp.qr);
-        setErrorMsg(null);
+        setBotActive(statusData.botActive ?? true);
+        setExchangeMode(statusData.exchangeMode || 'simulation');
+        if (statusData.capital) {
+          setCapital(statusData.capital);
+        }
       }
 
-      // 2. Obtener horizontes de capital
-      const horizonsRes = await fetch(`${API_BASE}/config/horizons`, { headers: authHeaders() });
-      if (horizonsRes.ok) {
-        const horizonsData = await horizonsRes.json();
-        setHorizons(horizonsData);
-      }
-
-      // 3. Obtener propuestas activas
+      // 2. Propuestas activas
       const proposalsRes = await fetch(`${API_BASE}/proposals`, { headers: authHeaders() });
       if (proposalsRes.ok) {
         const proposalsData = await proposalsRes.json();
-        setProposals(proposalsData);
+        setProposals(proposalsData || []);
       }
 
-      // 4. Obtener historial completo (incluyendo retiros de bóveda y comisiones)
+      // 3. Historial de operaciones
       const historyRes = await fetch(`${API_BASE}/history`, { headers: authHeaders() });
       if (historyRes.ok) {
         const historyData = await historyRes.json();
-        setHistory(historyData);
+        setHistory(historyData || []);
       }
 
-      // 5. Obtener configuraciones de activos
+      // 4. Configuraciones de activos
       const configsRes = await fetch(`${API_BASE}/config/assets`, { headers: authHeaders() });
       if (configsRes.ok) {
         const configsData = await configsRes.json();
-        setAssetConfigs(configsData);
-
-        // Actualizar el historial de precios para sparklines
-        setPriceHistory(prev => {
-          const updated = { ...prev };
-          configsData.forEach((c: any) => {
-            const asset = c.asset;
-            const price = c.current_price || (asset.includes('BTC') ? 80000 : asset.includes('ETH') ? 2600 : 180);
-            const currentList = updated[asset] || [];
-            if (currentList.length === 0) {
-              const mockList = [];
-              for (let i = 0; i < 20; i++) {
-                const rand = Math.sin(i * 0.5) * (price * 0.002) + (Math.random() - 0.5) * (price * 0.0015);
-                mockList.push(price + rand);
-              }
-              updated[asset] = mockList;
-            } else {
-              updated[asset] = [...currentList, price].slice(-20);
-            }
-          });
-          return updated;
-        });
-        
-        // Initialize editing state if not set
+        setAssetConfigs(configsData || []);
         setEditingConfigs(prev => {
           const init: Record<string, Partial<AssetConfig>> = { ...prev };
-          configsData.forEach((c: AssetConfig) => {
+          (configsData || []).forEach((c: AssetConfig) => {
             if (!init[c.asset]) {
               init[c.asset] = {
                 rejection_timeout_minutes: c.rejection_timeout_minutes,
@@ -433,85 +146,10 @@ export function CryptoExchangeTab() {
         });
       }
 
-      // 6. Obtener Modos de Operación
-      const modesRes = await fetch(`${API_BASE}/bot/modes`, { headers: authHeaders() });
-      if (modesRes.ok) {
-        const modesData = await modesRes.json();
-        setOperationModes(modesData);
-      }
-
-      // 7. Obtener configuración global
-      const settingsRes = await fetch(`${API_BASE}/bot/global-settings`, { headers: authHeaders() });
-      if (settingsRes.ok) {
-        const settingsData = await settingsRes.json();
-        setGlobalSettings(settingsData);
-      }
-
-      // 8. Obtener historial de backtests
-      const btHistoryRes = await fetch(`${API_BASE}/bot/backtests`, { headers: authHeaders() });
-      if (btHistoryRes.ok) {
-        const btHistoryData = await btHistoryRes.json();
-        setBacktestHistory(btHistoryData);
-      }
-
-      // 9. Obtener propuestas de ajuste pendientes
-      const adjPendingRes = await fetch(`${API_BASE}/bot/adjustments/pending`, { headers: authHeaders() });
-      if (adjPendingRes.ok) {
-        const adjPendingData = await adjPendingRes.json();
-        setPendingAdjustments(adjPendingData);
-      }
-
-      // 10. Obtener historial de ajustes aplicados
-      const adjHistoryRes = await fetch(`${API_BASE}/bot/adjustments/history`, { headers: authHeaders() });
-      if (adjHistoryRes.ok) {
-        const adjHistoryData = await adjHistoryRes.json();
-        setAdjustmentHistory(adjHistoryData);
-      }
-
-      // 11. Obtener historial de asignación de capital
-      const allocHistoryRes = await fetch(`${API_BASE}/bot/global-settings/history`, { headers: authHeaders() });
-      if (allocHistoryRes.ok) {
-        const allocHistoryData = await allocHistoryRes.json();
-        setAllocationHistory(allocHistoryData);
-      }
-
-      // 12. Obtener transacciones de capital
-      const capTxRes = await fetch(`${API_BASE}/capital/transactions`, { headers: authHeaders() });
-      if (capTxRes.ok) {
-        const capTxData = await capTxRes.json();
-        setCapitalTransactions(capTxData);
-      }
-
-      // 13. Obtener estado e historial de la Bóveda de Ganancias
-      const vaultRes = await fetch(`${API_BASE}/vault/status`, { headers: authHeaders() });
-      if (vaultRes.ok) {
-        const vaultData = await vaultRes.json();
-        setVaultStatus(vaultData);
-        if (!isVaultInputsInitialized.current) {
-          setSweepDestination(vaultData.default_destination || 'banorte_spei');
-          setSweepThresholdInput(String(vaultData.sweep_target_threshold_usd || '25.00'));
-          setTargetBotForSweep(vaultData.target_bot_for_sweep || 'INTRADAY');
-          setSweepTimeInput(vaultData.daily_sweep_time || '23:40');
-          setBaseCapitalInput(String(vaultData.base_capital_usd || '1000.00'));
-          setAutoDepositEnabled(vaultData.auto_deposit_enabled === true);
-          setDepositSource(vaultData.deposit_source || 'banorte_spei');
-          setDepositTimeInput(vaultData.daily_deposit_time || '23:45');
-          setDepositAmountInput(Number(vaultData.daily_deposit_amount_usd || vaultData.last_sweep_amount_usd || 50.00).toFixed(2));
-          setUseLastSweepForDeposit(vaultData.use_last_sweep_for_deposit !== false);
-          isVaultInputsInitialized.current = true;
-        }
-      }
-
-      const sweepsRes = await fetch(`${API_BASE}/vault/history`, { headers: authHeaders() });
-      if (sweepsRes.ok) {
-        const sweepsData = await sweepsRes.json();
-        setSweepsHistory(sweepsData);
-      }
-
       setErrorMsg(null);
     } catch (e: any) {
       console.warn('Error al conectar con la API del bot de trading:', e.message);
-      setErrorMsg('No se pudo establecer conexión con el backend de Exchange Trade en ' + API_BASE + '. Asegúrate de que el bot esté en ejecución.');
+      setErrorMsg(`Sin conexión con la API de Exchange Trade en ${API_BASE}. Verificando reintento automático...`);
     }
   };
 
@@ -522,12 +160,9 @@ export function CryptoExchangeTab() {
         .then(data => {
           if (data && data.lastPrice) {
             setUsdToMxn(Number(data.lastPrice));
-            if (data.priceChangePercent) {
-              setUsdChangePercent(Number(data.priceChangePercent));
-            }
           }
         })
-        .catch(e => console.warn('Error al obtener tasa USDc/MXN en tiempo real:', e.message));
+        .catch(e => console.warn('Error al obtener tasa USD/MXN:', e.message));
     };
 
     fetchData();
@@ -536,88 +171,44 @@ export function CryptoExchangeTab() {
     const interval = setInterval(() => {
       fetchData();
       fetchRate();
-    }, 8000); // Refrescar cada 8 segundos
+    }, 6000);
 
     return () => clearInterval(interval);
   }, []);
 
-  const handleConnectWhatsApp = async () => {
-    try {
-      await fetch(`${API_BASE}/whatsapp/connect`, { method: 'POST', headers: authHeaders() });
-      fetchData();
-    } catch (e: any) {
-      alert('Error al enviar la petición de conexión de WhatsApp.');
+  const handleBotControl = async (action: 'start' | 'stop' | 'reset') => {
+    if (action === 'reset') {
+      const confirmed = window.confirm('¿Estás seguro de reiniciar el Bot Intradía a $1,000.00 USD Base? Esto despejará posiciones y propuestas pendientes.');
+      if (!confirmed) return;
     }
-  };
 
-  const handleSendDailyClosingReport = async () => {
+    setBotActionLoading(action);
     try {
-      const res = await fetch(`${API_BASE}/whatsapp/send-closing-report`, { method: 'POST', headers: authHeaders() });
-      const data = await res.json();
-      if (res.ok && data.success) {
-        alert('¡Mensaje de Resumen de Cierre Diario (23:50 HRS) enviado exitosamente por WhatsApp!');
-      } else {
-        alert(`Error al enviar mensaje: ${data.error || 'Verifica que WhatsApp esté conectado y ADMIN_PHONE configurado.'}`);
-      }
-    } catch (e: any) {
-      alert('Error de conexión al intentar enviar el reporte de cierre diario por WhatsApp.');
-    }
-  };
-
-
-  const handleSavePercentages = async () => {
-    setIsSaving(true);
-    setErrorMsg(null);
-    try {
-      const sum = horizons.reduce((acc, curr) => acc + Number(curr.allocated_percentage), 0);
-      if (Math.abs(sum - 100) > 0.01) {
-        throw new Error(`La suma de los porcentajes de asignación debe ser exactamente 100% (Suma actual: ${sum}%).`);
-      }
-
-      const res = await fetch(`${API_BASE}/config/horizons`, {
+      const res = await fetch(`${API_BASE}/bot/control`, {
         method: 'POST',
         headers: authHeaders({ 'Content-Type': 'application/json' }),
-        body: JSON.stringify(horizons)
+        body: JSON.stringify({ bot: 'intraday', action })
       });
-
-      if (!res.ok) throw new Error('Fallo en la base de datos al guardar porcentajes.');
-      alert('Configuración de capital guardada exitosamente.');
+      const data = await res.json();
+      if (data.success || data.status === 'ok') {
+        if (action === 'start') setBotActive(true);
+        if (action === 'stop') setBotActive(false);
+        await fetchData();
+      } else {
+        alert(data.error || `Error al ejecutar acción ${action}`);
+      }
     } catch (err: any) {
-      setErrorMsg(err.message);
+      alert(`Error de conexión: ${err.message}`);
     } finally {
-      setIsSaving(false);
+      setBotActionLoading(null);
     }
-  };
-
-  const handlePercentageChange = (index: number, val: number) => {
-    const updated = [...horizons];
-    updated[index].allocated_percentage = val;
-    setHorizons(updated);
-  };
-
-  const handleApplyAISuggestion = (index: number) => {
-    const updated = [...horizons];
-    const suggestion = updated[index].suggested_percentage_ai;
-    if (suggestion !== null) {
-      updated[index].allocated_percentage = suggestion;
-      setHorizons(updated);
-    }
-  };
-
-  const handleApplyAllAISuggestions = () => {
-    const updated = horizons.map(h => ({
-      ...h,
-      allocated_percentage: h.suggested_percentage_ai !== null ? h.suggested_percentage_ai : h.allocated_percentage
-    }));
-    setHorizons(updated);
   };
 
   const handleCancelProposal = async (id: string) => {
-    if (!confirm('¿Rechazar esta operación programada e impedir su auto-ejecución?')) return;
+    if (!confirm('¿Rechazar esta propuesta de operación?')) return;
     try {
       const res = await fetch(`${API_BASE}/proposals/${id}/cancel`, { method: 'POST', headers: authHeaders() });
       if (res.ok) {
-        alert('Operación rechazada con éxito.');
         fetchData();
       }
     } catch (e) {
@@ -625,53 +216,22 @@ export function CryptoExchangeTab() {
     }
   };
 
-  // Deposit/Withdrawal capital transaction
-  const handleCapitalTx = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const amountNum = parseFloat(txAmount);
-    if (isNaN(amountNum) || amountNum <= 0) {
-      alert('Por favor ingresa un monto mayor a 0.');
-      return;
-    }
-
-    const targetHorizon = 'daily';
-
-    setIsTxSaving(true);
+  const handleTriggerMockSignal = async () => {
+    setIsMockTriggering(true);
     try {
-      const res = await fetch(`${API_BASE}/capital/transaction`, {
-        method: 'POST',
-        headers: authHeaders({ 'Content-Type': 'application/json' }),
-        body: JSON.stringify({
-          horizon: targetHorizon,
-          amount: amountNum,
-          transactionType: txType
-        })
-      });
-
-      if (!res.ok) {
-        const errData = await res.json();
-        throw new Error(errData.error || 'Error al procesar transacción.');
+      const res = await fetch(`${API_BASE}/bot/mock-signal`, { method: 'POST', headers: authHeaders() });
+      const data = await res.json();
+      if (res.ok) {
+        alert('Señales de prueba enviadas exitosamente para BTC, ETH y SOL.');
+        fetchData();
+      } else {
+        alert(data.error || 'Error al gatillar señales de prueba.');
       }
-
-      alert('Transacción procesada con éxito.');
-      setTxAmount('');
-      fetchData();
-    } catch (err: any) {
-      alert(err.message);
+    } catch (e: any) {
+      alert('Error de conexión.');
     } finally {
-      setIsTxSaving(false);
+      setIsMockTriggering(false);
     }
-  };
-
-  // Asset config changes
-  const handleConfigFieldChange = (asset: string, field: keyof AssetConfig, val: any) => {
-    setEditingConfigs(prev => ({
-      ...prev,
-      [asset]: {
-        ...prev[asset],
-        [field]: val
-      }
-    }));
   };
 
   const handleSaveAssetConfig = async (asset: string) => {
@@ -691,3198 +251,416 @@ export function CryptoExchangeTab() {
         })
       });
 
-      if (!res.ok) throw new Error('Error al actualizar configuración en la base de datos.');
-      alert(`Configuración de ${asset} guardada.`);
+      if (!res.ok) throw new Error('Error al actualizar configuración.');
+      alert(`Configuración de ${asset} guardada con éxito.`);
       fetchData();
     } catch (err: any) {
       alert(err.message);
     }
   };
 
-  // --- CONTROL DE NUEVOS MÓDULOS DE BACKTESTING Y MODOS ---
-
-  // Guardar configuración de un modo de operación (PUT /api/bot/modes/:name)
-  const handleSaveModeParams = async (modeName: string) => {
-    const mode = operationModes.find(m => m.name === modeName);
-    if (!mode) return;
-    setIsSaving(true);
-    try {
-      const res = await fetch(`${API_BASE}/bot/modes/${modeName}`, {
-        method: 'PUT',
-        headers: authHeaders({ 'Content-Type': 'application/json' }),
-        body: JSON.stringify(mode)
-      });
-      if (!res.ok) throw new Error('Error al guardar los parámetros del modo.');
-      alert(`Parámetros del modo ${modeName} actualizados con éxito.`);
-      fetchData();
-    } catch (e: any) {
-      alert(e.message);
-    } finally {
-      setIsSaving(false);
-    }
-  };
-
-  // Modificar campo de un modo localmente en el estado antes de guardar
-  const handleModeFieldChange = (modeName: string, field: string, value: any) => {
-    setOperationModes(prev => prev.map(m => {
-      if (m.name === modeName) {
-        return { ...m, [field]: value };
-      }
-      return m;
-    }));
-  };
-
-  // Clonar modo de operación (POST /api/bot/modes/clone)
-  const handleCloneMode = async () => {
-    if (!cloneModeName.trim()) {
-      alert('Por favor ingresa un nombre para el nuevo modo.');
-      return;
-    }
-    setIsCloning(true);
-    try {
-      const res = await fetch(`${API_BASE}/bot/modes/clone`, {
-        method: 'POST',
-        headers: authHeaders({ 'Content-Type': 'application/json' }),
-        body: JSON.stringify({
-          name: cloneModeName.trim().toLowerCase(),
-          sourceName: selectedModeForEdit
-        })
-      });
-      if (!res.ok) throw new Error('Error al clonar el modo.');
-      alert(`Modo clonado como "${cloneModeName}" con éxito.`);
-      setCloneModeName('');
-      fetchData();
-    } catch (e: any) {
-      alert(e.message);
-    } finally {
-      setIsCloning(false);
-    }
-  };
-
-  // Guardar modo activo para un activo (POST /api/config/update)
-  const handleSaveAssetActiveMode = async (asset: string, modeName: string) => {
-    try {
-      const res = await fetch(`${API_BASE}/config/update`, {
-        method: 'POST',
-        headers: authHeaders({ 'Content-Type': 'application/json' }),
-        body: JSON.stringify({
-          asset,
-          activeMode: modeName
-        })
-      });
-      if (!res.ok) throw new Error('Error al cambiar el modo activo para el activo.');
-      alert(`El activo ${asset} ahora operará en modo ${modeName}.`);
-      fetchData();
-    } catch (e: any) {
-      alert(e.message);
-    }
-  };
-
-  // Ejecutar simulación de Backtesting manual (POST /api/bot/backtests/run)
-  const handleRunBacktest = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsBtRunning(true);
-    setBtResult(null);
-    try {
-      const res = await fetch(`${API_BASE}/bot/backtests/run`, {
-        method: 'POST',
-        headers: authHeaders({ 'Content-Type': 'application/json' }),
-        body: JSON.stringify({
-          asset: btAsset,
-          timeframe: btTimeframe,
-          rsiPeriod: parseInt(btRsiPeriod),
-          rsiBuy: parseFloat(btRsiBuy),
-          rsiSell: parseFloat(btRsiSell),
-          trendFilterType: btTrendFilter,
-          requireMacd: btRequireMacd,
-          requireVolume: btRequireVolume,
-          tradeSizePct: parseFloat(btTradeSize)
-        })
-      });
-      if (!res.ok) throw new Error('Error de red al ejecutar simulación.');
-      const data = await res.json();
-      setBtResult(data);
-      fetchData();
-    } catch (e: any) {
-      alert(e.message);
-    } finally {
-      setIsBtRunning(false);
-    }
-  };
-
-  // Ejecutar Walk-Forward IA (POST /api/bot/backtests/walk-forward)
-  const handleTriggerWalkForward = async (asset: string, mode: string) => {
-    alert(`Analizando optimización walk-forward para ${asset}... Esto tomará unos segundos.`);
-    try {
-      const res = await fetch(`${API_BASE}/bot/backtests/walk-forward`, {
-        method: 'POST',
-        headers: authHeaders({ 'Content-Type': 'application/json' }),
-        body: JSON.stringify({ asset, modeName: mode, timeframe: '1h' })
-      });
-      if (res.ok) {
-        const data = await res.json();
-        if (data.success) {
-          if (data.isImprovement) {
-            alert('¡Optimización terminada! Se ha enviado una propuesta de mejora con rendimiento superior a WhatsApp y al panel web.');
-          } else {
-            alert('¡Optimización terminada! El rendimiento actual sigue siendo óptimo, no se requiere ningún ajuste en este periodo.');
-          }
-          fetchData();
-        } else {
-          alert(`La optimización no arrojó resultados: ${data.reason}`);
-        }
-      }
-    } catch (e) {
-      alert('Error al gatillar optimización walk-forward.');
-    }
-  };
-
-  // Guardar slider de Capital Táctico global (POST /api/bot/global-settings)
-  const handleSaveGlobalSettings = async (pct: number) => {
-    try {
-      const res = await fetch(`${API_BASE}/bot/global-settings`, {
-        method: 'POST',
-        headers: authHeaders({ 'Content-Type': 'application/json' }),
-        body: JSON.stringify({
-          tactical_capital_pct: pct,
-          total_simulation_capital: realTimeTotalCapital
-        })
-      });
-      if (!res.ok) throw new Error('Error al actualizar asignación global.');
-      fetchData();
-    } catch (e: any) {
-      console.warn(e.message);
-    }
-  };
-
-  // Aprobar ajuste de parámetro de IA (POST /api/bot/adjustments/:id/approve)
-  const handleApproveAdjustment = async (id: string) => {
-    try {
-      const res = await fetch(`${API_BASE}/bot/adjustments/${id}/approve`, { method: 'POST', headers: authHeaders() });
-      if (res.ok) {
-        alert('Ajuste de parámetros aprobado y aplicado con éxito.');
-        fetchData();
-      }
-    } catch (e) {
-      alert('Error al aprobar ajuste.');
-    }
-  };
-
-  // Rechazar ajuste de parámetro de IA (POST /api/bot/adjustments/:id/reject)
-  const handleRejectAdjustment = async (id: string) => {
-    try {
-      const res = await fetch(`${API_BASE}/bot/adjustments/${id}/reject`, { method: 'POST', headers: authHeaders() });
-      if (res.ok) {
-        alert('Ajuste de parámetros rechazado.');
-        fetchData();
-      }
-    } catch (e) {
-      alert('Error al rechazar ajuste.');
-    }
-  };
-
-  const handleTriggerSweep = async (botType: 'INTRADAY' | 'HORIZON') => {
-    setIsSweeping(true);
-    try {
-      const res = await fetch(`${API_BASE}/vault/sweep`, {
-        method: 'POST',
-        headers: authHeaders({ 'Content-Type': 'application/json' }),
-        body: JSON.stringify({
-          botType,
-          baseCapitalUsd: parseFloat(baseCapitalInput) || 1000.00,
-          targetDestination: sweepDestination,
-          notes: `Quita manual gatillada desde el panel para Bot ${botType}`
-        })
-      });
-
-      if (!res.ok) {
-        const errData = await res.json();
-        throw new Error(errData.error || 'Error al ejecutar quita.');
-      }
-
-      const data = await res.json();
-      alert(`¡Quita ejecutada con éxito! Se retiraron +$${data.swept_usd.toFixed(2)} USD (≈ $${data.swept_mxn.toFixed(2)} MXN). Efectivo activo ajustado a $${data.new_cash_balance.toFixed(2)} USD.`);
-      fetchData();
-    } catch (e: any) {
-      alert(e.message);
-    } finally {
-      setIsSweeping(false);
-    }
-  };
-
-  const handleTriggerDeposit = async () => {
-    setIsSweeping(true);
-    try {
-      const res = await fetch(`${API_BASE}/vault/deposit`, {
-        method: 'POST',
-        headers: authHeaders({ 'Content-Type': 'application/json' }),
-        body: JSON.stringify({ depositSource })
-      });
-
-      if (!res.ok) {
-        const errData = await res.json();
-        throw new Error(errData.error || 'Error al ejecutar depósito.');
-      }
-
-      const data = await res.json();
-      alert(`¡Depósito ejecutado con éxito! Se transfirieron $${data.deposited_usd.toFixed(2)} USD (≈ $${data.deposited_mxn.toFixed(2)} MXN). Saldo restante en bóveda: $0.00 USD.`);
-      fetchData();
-    } catch (e: any) {
-      alert(e.message);
-    } finally {
-      setIsSweeping(false);
-    }
-  };
-
-  const handleSaveVaultConfig = async (autoEnabled?: boolean, autoDepEnabled?: boolean) => {
-    try {
-      const payload = {
-        autoSweepEnabled: autoEnabled !== undefined ? autoEnabled : vaultStatus.auto_sweep_enabled,
-        sweepTargetThresholdUsd: parseFloat(sweepThresholdInput) || 25.00,
-        targetBotForSweep: targetBotForSweep,
-        defaultDestination: sweepDestination,
-        dailySweepTime: sweepTimeInput || '22:00',
-        baseCapitalUsd: parseFloat(baseCapitalInput) || 1000.00,
-        autoDepositEnabled: autoDepEnabled !== undefined ? autoDepEnabled : autoDepositEnabled,
-        depositSource: depositSource,
-        dailyDepositTime: depositTimeInput || '08:00',
-        dailyDepositAmountUsd: useLastSweepForDeposit ? (vaultStatus.last_sweep_amount_usd || 50.00) : (parseFloat(depositAmountInput) || 50.00),
-        useLastSweepForDeposit: useLastSweepForDeposit
-      };
-
-      const res = await fetch(`${API_BASE}/vault/config`, {
-        method: 'POST',
-        headers: authHeaders({ 'Content-Type': 'application/json' }),
-        body: JSON.stringify(payload)
-      });
-
-      if (!res.ok) throw new Error('Error al guardar configuración de Bóveda.');
-      const data = await res.json();
-      if (data.config) {
-        setVaultStatus(prev => ({
-          ...prev,
-          auto_sweep_enabled: data.config.auto_sweep_enabled,
-          sweep_target_threshold_usd: data.config.sweep_target_threshold_usd,
-          target_bot_for_sweep: data.config.target_bot_for_sweep,
-          default_destination: data.config.default_destination,
-          daily_sweep_time: data.config.daily_sweep_time,
-          base_capital_usd: data.config.base_capital_usd,
-          auto_deposit_enabled: data.config.auto_deposit_enabled,
-          deposit_source: data.config.deposit_source,
-          daily_deposit_time: data.config.daily_deposit_time,
-          daily_deposit_amount_usd: data.config.daily_deposit_amount_usd,
-          use_last_sweep_for_deposit: data.config.use_last_sweep_for_deposit
-        }));
-      }
-      alert('¡Ajustes guardados con éxito! Los parámetros, destino y horarios se han guardado inmutablemente.');
-      fetchData();
-    } catch (e: any) {
-      alert(e.message);
-    }
-  };
-
-  const handleDistributeCapital = async () => {
-    const total = parseFloat(initialCapInput);
-    if (isNaN(total) || total <= 0) {
-      alert('Por favor ingresa un monto total de inversión inicial válido.');
-      return;
-    }
-
-    const sum = horizons.reduce((acc, curr) => acc + Number(curr.allocated_percentage), 0);
-    if (Math.abs(sum - 100) > 0.01) {
-      alert(`No se puede distribuir. La suma de los porcentajes actuales es de ${sum.toFixed(0)}%. Debe ser exactamente 100% para distribuir de forma exacta. Puedes presionar "Aplicar Todo IA" primero si quieres.`);
-      return;
-    }
-
-    setIsSaving(true);
-    try {
-      // Calcular balances distribuidos
-      const distributedHorizons = horizons.map(hz => ({
-        ...hz,
-        current_balance: total * (hz.allocated_percentage / 100)
-      }));
-
-      const res = await fetch(`${API_BASE}/config/horizons`, {
-        method: 'POST',
-        headers: authHeaders({ 'Content-Type': 'application/json' }),
-        body: JSON.stringify(distributedHorizons)
-      });
-
-      if (!res.ok) throw new Error('Error al guardar horizontes en la base de datos.');
-      alert(`Capital total de $${total} USD distribuido e inicializado exitosamente en los horizontes.`);
-      fetchData();
-    } catch (err: any) {
-      alert(err.message);
-    } finally {
-      setIsSaving(false);
-    }
-  };
-
-  const handleTriggerMockSignal = async () => {
-    setIsMockTriggering(true);
-    try {
-      const res = await fetch(`${API_BASE}/bot/mock-signal`, { method: 'POST' });
-      if (!res.ok) {
-        const errData = await res.json();
-        throw new Error(errData.error || 'Error al gatillar simulación.');
-      }
-      const data = await res.json();
-      alert(`Simulación exitosa: Propuesta de prueba ${data.proposal.operation_code} creada y notificada por WhatsApp.`);
-      fetchData();
-    } catch (err: any) {
-      alert(err.message);
-    } finally {
-      setIsMockTriggering(false);
-    }
-  };
-
-  const calculateCryptoBalances = () => {
-    const balances: Record<string, { name: string; coins: number; cost: number; currentPrice: number; valueUsd: number; profitUsd: number }> = {
-      'BTC/USDT': { name: 'Bitcoin', coins: 0, cost: 0, currentPrice: 77248, valueUsd: 0, profitUsd: 0 },
-      'ETH/USDT': { name: 'Ethereum', coins: 0, cost: 0, currentPrice: 2420, valueUsd: 0, profitUsd: 0 },
-      'SOL/USDT': { name: 'Solana', coins: 0, cost: 0, currentPrice: 99.44, valueUsd: 0, profitUsd: 0 }
-    };
-
-    assetConfigs.forEach(c => {
-      if (balances[c.asset]) {
-        balances[c.asset].currentPrice = (c as any).current_price || balances[c.asset].currentPrice;
-      }
-    });
-
-    const activeTrades = [...history]
-      .filter(h => h.status === 'executed' || h.status === 'simulated')
-      .filter(h => {
-        const isIntraday = (h.bot_type || '').toUpperCase() === 'INTRADAY' || (h.horizon || '').toLowerCase() === 'intraday';
-        const currentTab = (activeSubTab as string).toLowerCase();
-        if (currentTab === 'intraday') return isIntraday;
-        if (currentTab === 'horizon') return !isIntraday;
-        return true;
-      })
-      .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
-
-    activeTrades.forEach(trade => {
-      const asset = trade.asset;
-      if (!asset || asset.startsWith('SWEEP_') || trade.trade_type === 'RETIRO') {
-        return; // Filtro estricto: los retiros de la bóveda no son activos cripto
-      }
-
-      if (!balances[asset]) {
-        balances[asset] = { name: asset.split('/')[0], coins: 0, cost: 0, currentPrice: 1.0, valueUsd: 0, profitUsd: 0 };
-      }
-
-      const qty = trade.executed_amount / trade.execution_price;
-      if (trade.trade_type === 'BUY') {
-        balances[asset].coins += qty;
-        balances[asset].cost += trade.executed_amount;
-      } else if (trade.trade_type === 'SELL') {
-        const ratio = Math.min(1, qty / (balances[asset].coins || 1));
-        balances[asset].coins = Math.max(0, balances[asset].coins - qty);
-        balances[asset].cost = Math.max(0, balances[asset].cost * (1 - ratio));
-      }
-    });
-
-    let totalInvestmentValue = 0;
-    let totalProfit = 0;
-
-    Object.keys(balances).forEach(key => {
-      const b = balances[key];
-      b.valueUsd = b.coins * b.currentPrice;
-      b.profitUsd = b.coins > 0 ? (b.valueUsd - b.cost) : 0;
-      totalInvestmentValue += b.valueUsd;
-      totalProfit += b.profitUsd;
-    });
-
-    return { balances, totalInvestmentValue, totalProfit };
-  };
-
-  const getHorizonDynamicBalance = (horizonName: string, cashBalance: number) => {
-    const hName = horizonName.toLowerCase();
-    let cryptoValue = 0;
-    
-    // Group active trades by asset for this horizon
-    const hTrades = history
-      .filter(h => (h.status === 'executed' || h.status === 'simulated') && h.horizon.toLowerCase() === hName)
-      .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
-
-    const pos: Record<string, { coins: number }> = {};
-    hTrades.forEach(t => {
-      const qty = t.executed_amount / t.execution_price;
-      if (!pos[t.asset]) pos[t.asset] = { coins: 0 };
-      if (t.trade_type === 'BUY') {
-        pos[t.asset].coins += qty;
-      } else if (t.trade_type === 'SELL') {
-        pos[t.asset].coins = Math.max(0, pos[t.asset].coins - qty);
-      }
-    });
-
-    Object.keys(pos).forEach(asset => {
-      const coins = pos[asset].coins;
-      const currentPrice = (assetConfigs.find(c => c.asset === asset) as any)?.current_price || (asset.includes('BTC') ? 80000 : asset.includes('ETH') ? 2600 : 180);
-      cryptoValue += coins * currentPrice;
-    });
-
-    return cashBalance + cryptoValue;
-  };
-
-  // Filtrar historial de transacciones según el rango de tiempo seleccionado
-  const filterHistoryByTime = () => {
-    if ((timeFilter as string) === 'ALL') return history;
-    const now = new Date().getTime();
-    let limitMs = 24 * 60 * 60 * 1000; // 1D por defecto
-    if (timeFilter === '1W') limitMs = 7 * 24 * 60 * 60 * 1000;
-    else if (timeFilter === '1M') limitMs = 30 * 24 * 60 * 60 * 1000;
-    else if (timeFilter === '6M') limitMs = 180 * 24 * 60 * 60 * 1000;
-    else if (timeFilter === '1Y') limitMs = 365 * 24 * 60 * 60 * 1000;
-
-    return history.filter(h => {
-      const tradeTime = new Date(h.created_at).getTime();
-      return (now - tradeTime) <= limitMs;
-    });
-  };
-
-  // Custom SVG Chart points calculation using backward state reconciliation
-  const getSampledPointsData = () => {
-    const events: { time: number; type: 'DEPOSIT' | 'WITHDRAWAL' | 'BUY' | 'SELL' | 'RETIRO' | string; amount: number; asset?: string; qty?: number }[] = [];
-
-    capitalTransactions.forEach(tx => {
-      events.push({
-        time: new Date(tx.created_at).getTime(),
-        type: tx.transaction_type.toUpperCase() as any,
-        amount: Math.abs(Number(tx.amount))
-      });
-    });
-
-    history.forEach(h => {
-      if (h.status === 'executed' || h.status === 'simulated') {
-        const qty = Number(h.executed_amount) / Number(h.execution_price);
-        events.push({
-          time: new Date(h.created_at).getTime(),
-          type: h.trade_type.toUpperCase() as any,
-          amount: Number(h.executed_amount),
-          asset: h.asset,
-          qty
-        });
-      }
-    });
-
-    // Ordenar de más recientes a más antiguos (descendente)
-    events.sort((a, b) => b.time - a.time);
-
-    const now = Date.now();
-    let limitMs = 24 * 60 * 60 * 1000; // 1D por defecto
-    let steps = 12;
-    if (timeFilter === '1W') { limitMs = 7 * 24 * 60 * 60 * 1000; steps = 7; }
-    else if (timeFilter === '1M') { limitMs = 30 * 24 * 60 * 60 * 1000; steps = 15; }
-    else if (timeFilter === '6M') { limitMs = 180 * 24 * 60 * 60 * 1000; steps = 6; }
-    else if (timeFilter === '1Y') { limitMs = 365 * 24 * 60 * 60 * 1000; steps = 12; }
-
-    const startTime = now - limitMs;
-    const intervalWidth = limitMs / (steps - 1);
-
-    const points: { time: number; value: number; label: string; dateStr: string }[] = [];
-
-    // Estado inicial en t = now (datos reales actuales exactos)
-    const currentCash = activeCashCapital;
-    const currentHoldings: Record<string, number> = {};
-    Object.keys(balances).forEach(key => {
-      currentHoldings[key] = balances[key].coins;
-    });
-
-    for (let i = steps - 1; i >= 0; i--) {
-      const t = startTime + i * intervalWidth;
-      
-      // Revertir eventos que ocurrieron después de t
-      let cash = currentCash;
-      const holdings = { ...currentHoldings };
-
-      for (const e of events) {
-        if (e.time <= t) continue;
-        
-        if (e.type === 'DEPOSIT') {
-          cash = Math.max(0, cash - e.amount);
-        } else if (e.type === 'WITHDRAWAL' || e.type === 'RETIRO') {
-          cash += e.amount;
-        } else if (e.type === 'BUY') {
-          cash = Math.max(0, cash - e.amount);
-          holdings[e.asset!] = (holdings[e.asset!] || 0) + e.qty!;
-        } else if (e.type === 'SELL') {
-          cash += e.amount;
-          holdings[e.asset!] = Math.max(0, (holdings[e.asset!] || 0) - e.qty!);
-        }
-      }
-
-      // Valuación total en t
-      let cryptoValue = 0;
-      Object.keys(holdings).forEach(asset => {
-        const livePrice = balances[asset]?.currentPrice || (asset.includes('BTC') ? 80000 : asset.includes('ETH') ? 2600 : 180);
-        cryptoValue += holdings[asset] * livePrice;
-      });
-
-      const totalVal = cash + cryptoValue;
-
-      const date = new Date(t);
-      let label = '';
-      let dateStr = '';
-
-      if (timeFilter === '1D') {
-        label = `${date.getHours().toString().padStart(2, '0')}:00`;
-        dateStr = `Hoy ${label}`;
-      } else if (timeFilter === '1W') {
-        const days = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
-        label = days[date.getDay()];
-        dateStr = `${label} ${date.getDate()}/${date.getMonth() + 1}`;
-      } else if (timeFilter === '1M') {
-        label = `${date.getDate()} ${['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'][date.getMonth()]}`;
-        dateStr = label;
-      } else {
-        label = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'][date.getMonth()];
-        dateStr = `${label} ${date.getFullYear()}`;
-      }
-
-      points.unshift({ time: t, value: totalVal, label, dateStr });
-    }
-
-    return points;
-  };
-
-  const getChartData = () => {
-    const points = getSampledPointsData();
-    const values = points.map(p => p.value);
-    const min = Math.min(...values);
-    const max = Math.max(...values);
-    const range = max - min || 1;
-
-    const width = 400;
-    const height = 100;
-    const step = width / (points.length - 1);
-
-    const pointsWithCoords = points.map((p, idx) => {
-      const x = idx * step;
-      const y = height - ((p.value - min) / range) * (height - 20) - 10;
-      return { ...p, x, y };
-    });
-
-    const polylinePoints = pointsWithCoords.map(p => `${p.x.toFixed(1)},dots`).join(' '); // Wait, let's keep exact interpolation
-    return {
-      points: pointsWithCoords,
-      polylinePoints: pointsWithCoords.map(p => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' '),
-      min,
-      max,
-      yMax: max,
-      yMin: min
-    };
-  };
-
-  // Calculate Net Profit and Sub-Tab Isolated Capital
-  const { balances, totalInvestmentValue, totalProfit } = calculateCryptoBalances();
-
-  const currentSubTabStr = (activeSubTab as string).toLowerCase();
-
-  const isIntradayTrade = (h: TradeHistory) => {
-    if (h.bot_type) return h.bot_type.toUpperCase() === 'INTRADAY';
-    return (h.horizon || '').toLowerCase() === 'intraday';
-  };
-
-  // GROUND-TRUTH FINANCIAL FORMULA FOR INTRADAY BOT EQUITY (WITH TRADING FEES)
-  let intradayClosedPnl = 0;
-  let intradaySweptUsd = 0;
-  let intradayTotalFees = 0;
-  const intradayBuyCosts: Record<string, number> = {};
-  const intradayBuyCoins: Record<string, number> = {};
-
-  const sortedIntradayTrades = [...history]
-    .filter(h => (h.status === 'executed' || h.status === 'simulated') && isIntradayTrade(h))
-    .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
-
-  const feeRate = 0.0010; // 0.10% Binance Spot Estándar
-
-  sortedIntradayTrades.forEach(t => {
-    const price = t.execution_price || 1;
-    const amountUsd = Math.abs(t.executed_amount);
-    const qty = amountUsd / price;
-    const asset = t.asset;
-
-    if (t.trade_type === 'RETIRO' || (asset && asset.startsWith('SWEEP_'))) {
-      intradaySweptUsd += amountUsd;
-      return;
-    }
-
-    const fee = t.fees !== null && t.fees !== undefined ? Number(t.fees) : (amountUsd * feeRate);
-    intradayTotalFees += fee;
-
-    if (!intradayBuyCoins[asset]) intradayBuyCoins[asset] = 0;
-    if (!intradayBuyCosts[asset]) intradayBuyCosts[asset] = 0;
-
-    if (t.trade_type === 'BUY') {
-      intradayBuyCoins[asset] += qty;
-      intradayBuyCosts[asset] += amountUsd;
-    } else if (t.trade_type === 'SELL') {
-      const prevCoins = intradayBuyCoins[asset];
-      const ratio = prevCoins > 0 ? Math.min(1, qty / prevCoins) : 1;
-      const costBasis = intradayBuyCosts[asset] * ratio;
-      const pnl = (t as any).profit_usd !== null && (t as any).profit_usd !== undefined ? Number((t as any).profit_usd) : (amountUsd - costBasis);
-      intradayClosedPnl += pnl;
-
-      intradayBuyCoins[asset] = Math.max(0, intradayBuyCoins[asset] - qty);
-      intradayBuyCosts[asset] = Math.max(0, intradayBuyCosts[asset] - costBasis);
-    }
+  const filteredHistory = history.filter(item => {
+    if (!historyDateSearch) return true;
+    return item.created_at.includes(historyDateSearch) || item.asset.toLowerCase().includes(historyDateSearch.toLowerCase());
   });
-
-  let intradayOpenCryptoVal = 0;
-  let intradayOpenCostBasis = 0;
-  Object.keys(intradayBuyCoins).forEach(asset => {
-    const coins = intradayBuyCoins[asset];
-    if (coins > 0.000001) {
-      const price = (assetConfigs.find(c => c.asset === asset) as any)?.current_price || (asset.includes('BTC') ? 77248 : asset.includes('ETH') ? 2420 : 99.44);
-      intradayOpenCryptoVal += coins * price;
-      intradayOpenCostBasis += intradayBuyCosts[asset];
-    }
-  });
-
-  const intradayUnrealizedPnl = intradayOpenCryptoVal - intradayOpenCostBasis;
-  const intradayGrossProfit = intradayClosedPnl + intradayUnrealizedPnl;
-  const intradayNetProfit = intradayClosedPnl + intradayUnrealizedPnl - intradayTotalFees;
-
-  const intradayCashAvailable = Number((horizons.find(h => h.horizon === 'intraday')?.current_balance) || 15.03);
-  const intradayEquity = Math.max(0, Math.round((intradayCashAvailable + intradayOpenCryptoVal) * 100) / 100);
-  const intradayCash = Math.max(0, intradayEquity - intradayOpenCryptoVal);
-
-  // Rendimiento exclusivo del día de hoy para el indicador "Rendimiento Hoy"
-  const todayStart = new Date();
-  todayStart.setHours(0, 0, 0, 0);
-  let todayIntradayClosedPnl = 0;
-  let todayIntradayFees = 0;
-
-  history.filter(h => isIntradayTrade(h) && (h.status === 'executed' || h.status === 'simulated') && new Date(h.created_at) >= todayStart).forEach(t => {
-    if (t.trade_type === 'SELL') {
-      todayIntradayClosedPnl += Number((t as any).profit_usd || (t as any).pnl || (t.executed_amount * 0.015));
-    }
-    todayIntradayFees += Number((t as any).fees || (t.executed_amount * 0.001));
-  });
-  const todayIntradayNetProfit = Math.round((todayIntradayClosedPnl - todayIntradayFees) * 100) / 100;
-
-  // GROUND-TRUTH FINANCIAL FORMULA FOR HORIZON BOT EQUITY
-  let horizonClosedPnl = 0;
-  const horizonBuyCosts: Record<string, number> = {};
-  const horizonBuyCoins: Record<string, number> = {};
-
-  const sortedHorizonTrades = [...history]
-    .filter(h => (h.status === 'executed' || h.status === 'simulated') && !isIntradayTrade(h))
-    .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
-
-  sortedHorizonTrades.forEach(t => {
-    const price = t.execution_price || 1;
-    const amountUsd = t.executed_amount;
-    const qty = amountUsd / price;
-    const asset = t.asset;
-
-    if (!horizonBuyCoins[asset]) horizonBuyCoins[asset] = 0;
-    if (!horizonBuyCosts[asset]) horizonBuyCosts[asset] = 0;
-
-    if (t.trade_type === 'BUY') {
-      horizonBuyCoins[asset] += qty;
-      horizonBuyCosts[asset] += amountUsd;
-    } else if (t.trade_type === 'SELL') {
-      const prevCoins = horizonBuyCoins[asset];
-      const ratio = prevCoins > 0 ? Math.min(1, qty / prevCoins) : 1;
-      const costBasis = horizonBuyCosts[asset] * ratio;
-      const pnl = (t as any).profit_usd !== null && (t as any).profit_usd !== undefined ? Number((t as any).profit_usd) : (amountUsd - costBasis);
-      horizonClosedPnl += pnl;
-
-      horizonBuyCoins[asset] = Math.max(0, horizonBuyCoins[asset] - qty);
-      horizonBuyCosts[asset] = Math.max(0, horizonBuyCosts[asset] - costBasis);
-    }
-  });
-
-  let horizonOpenCryptoVal = 0;
-  let horizonOpenCostBasis = 0;
-  Object.keys(horizonBuyCoins).forEach(asset => {
-    const coins = horizonBuyCoins[asset];
-    if (coins > 0.000001) {
-      const price = (assetConfigs.find(c => c.asset === asset) as any)?.current_price || (asset.includes('BTC') ? 77248 : asset.includes('ETH') ? 2420 : 99.44);
-      horizonOpenCryptoVal += coins * price;
-      horizonOpenCostBasis += horizonBuyCosts[asset];
-    }
-  });
-
-  const horizonUnrealizedPnl = horizonOpenCryptoVal - horizonOpenCostBasis;
-  const horizonNetProfit = horizonClosedPnl + horizonUnrealizedPnl;
-  const horizonEquity = 1000.00 + horizonNetProfit;
-  const multiHorizonCash = Math.max(0, horizonEquity - horizonOpenCryptoVal);
-
-  let realTimeTotalCapital = 0;
-  if (currentSubTabStr === 'comparison') {
-    realTimeTotalCapital = intradayEquity + horizonEquity;
-  } else if (currentSubTabStr === 'horizon') {
-    realTimeTotalCapital = horizonEquity;
-  } else {
-    realTimeTotalCapital = intradayEquity;
-  }
-
-  const activeCashCapital = currentSubTabStr === 'horizon' ? multiHorizonCash : intradayCash;
-
-  const netProfit = totalProfit;
-  const pendingProposals = proposals.filter(p => p.status === 'pending_auto_exec');
 
   return (
-    <div className="space-y-6">
-      {/* Alert Error */}
+    <div className="space-y-6 text-slate-100 p-2 md:p-6 bg-slate-950 min-h-screen font-sans">
+      {/* Header Bar */}
+      <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 bg-slate-900/90 border border-slate-800 p-5 rounded-2xl shadow-xl backdrop-blur-md">
+        <div className="flex items-center space-x-4">
+          <div className="w-12 h-12 rounded-xl bg-gradient-to-tr from-cyan-500 to-blue-600 flex items-center justify-center shadow-lg shadow-cyan-500/20">
+            <TrendingUp className="w-7 h-7 text-white" />
+          </div>
+          <div>
+            <h1 className="text-xl md:text-2xl font-bold tracking-tight text-white flex items-center gap-2">
+              Bot Intradía <span className="text-xs px-2.5 py-0.5 rounded-full bg-cyan-500/10 text-cyan-400 border border-cyan-500/30 font-semibold">$1,000.00 Base</span>
+            </h1>
+            <p className="text-xs text-slate-400 mt-0.5">
+              Sistema de alta frecuencia y rotación dinámica • 1 USD = ${usdToMxn.toFixed(2)} MXN
+            </p>
+          </div>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-3 w-full md:w-auto justify-end">
+          <span className={`text-xs font-semibold px-3 py-1.5 rounded-full flex items-center gap-1.5 ${
+            exchangeMode === 'real' 
+              ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30' 
+              : 'bg-amber-500/10 text-amber-400 border border-amber-500/30'
+          }`}>
+            <span className={`w-2 h-2 rounded-full ${exchangeMode === 'real' ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'}`}></span>
+            {exchangeMode === 'real' ? 'Modo Real Binance' : 'Modo Simulación High-Accuracy'}
+          </span>
+
+          <button
+            onClick={() => handleBotControl(botActive ? 'stop' : 'start')}
+            disabled={botActionLoading !== null}
+            className={`px-4 py-2 rounded-xl text-xs font-semibold flex items-center gap-2 transition-all shadow-md ${
+              botActive 
+                ? 'bg-rose-500/20 text-rose-300 hover:bg-rose-500/30 border border-rose-500/30' 
+                : 'bg-emerald-500/20 text-emerald-300 hover:bg-emerald-500/30 border border-emerald-500/30'
+            }`}
+          >
+            {botActive ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
+            {botActive ? 'Pausar Bot' : 'Reactivar Bot'}
+          </button>
+
+          <button
+            onClick={() => handleBotControl('reset')}
+            disabled={botActionLoading !== null}
+            className="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold flex items-center gap-1.5 border border-slate-700 transition-all"
+            title="Reiniciar Capital Base a $1,000 USD"
+          >
+            <RotateCcw className="w-3.5 h-3.5" />
+            Reiniciar $1K
+          </button>
+
+          <button
+            onClick={handleTriggerMockSignal}
+            disabled={isMockTriggering}
+            className="px-3.5 py-2 rounded-xl bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white text-xs font-semibold flex items-center gap-1.5 shadow-lg shadow-cyan-500/20 transition-all"
+          >
+            <Zap className="w-3.5 h-3.5 fill-current" />
+            {isMockTriggering ? 'Gatillando...' : 'Señal Manual'}
+          </button>
+
+          <button
+            onClick={fetchData}
+            className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition-all"
+            title="Refrescar datos"
+          >
+            <RefreshCw className="w-4 h-4" />
+          </button>
+        </div>
+      </div>
+
       {errorMsg && (
-        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl flex items-start gap-2.5 text-sm">
-          <AlertTriangle className="w-5 h-5 flex-shrink-0 text-red-500 mt-0.5" />
-          <div>
-            <strong className="font-semibold">Backend desconectado:</strong> {errorMsg}
-          </div>
-        </div>
-      )}
-
-      {/* Sub-Tab Navigation Bar */}
-      <div className="flex flex-wrap items-center gap-2 border-b border-gray-200 pb-3">
-        <button
-          onClick={() => setActiveSubTab('intraday')}
-          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all ${
-            activeSubTab === 'intraday'
-              ? 'bg-blue-600 text-white shadow-md shadow-blue-500/20'
-              : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-          }`}
-        >
-          <Zap className="w-4 h-4 text-amber-300" />
-          ⚡ Bot Intradía (15m + Rotación)
-        </button>
-
-        <button
-          onClick={() => setActiveSubTab('horizon')}
-          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all ${
-            activeSubTab === 'horizon'
-              ? 'bg-blue-600 text-white shadow-md shadow-blue-500/20'
-              : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-          }`}
-        >
-          <Clock className="w-4 h-4 text-sky-300" />
-          ⏳ Bot por Horizontes (Multi-Plazo)
-        </button>
-
-        <button
-          onClick={() => setActiveSubTab('comparison')}
-          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all ${
-            activeSubTab === 'comparison'
-              ? 'bg-emerald-600 text-white shadow-md shadow-emerald-500/20'
-              : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-          }`}
-        >
-          <BarChart2 className="w-4 h-4 text-emerald-200" />
-          📊 Comparativa de Desempeño
-        </button>
-
-        <button
-          onClick={() => setActiveSubTab('vault' as any)}
-          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all ${
-            (activeSubTab as string) === 'vault'
-              ? 'bg-purple-700 text-white shadow-md shadow-purple-500/20'
-              : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-          }`}
-        >
-          <ShieldCheck className="w-4 h-4 text-purple-300" />
-          🏦 Bóveda de Ganancias y Quitas
-        </button>
-      </div>
-
-      {/* Info Status Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-6 gap-3">
-        <div className="bg-white p-3.5 rounded-xl border border-gray-150 shadow-sm flex items-center justify-between">
-          <div>
-            <p className="text-3xs font-bold text-gray-400 uppercase tracking-wider">Estado General</p>
-            <h3 className="text-xs font-bold text-gray-800 mt-1">
-              {botActive ? '🟢 Monitoreo Activo' : '🔴 Bot Inactivo'}
-            </h3>
-          </div>
-          <Activity className={`w-5 h-5 ${botActive ? 'text-emerald-500 animate-pulse' : 'text-gray-400'}`} />
-        </div>
-
-        <div className="bg-white p-3.5 rounded-xl border border-gray-150 shadow-sm flex items-center justify-between">
-          <div>
-            <p className="text-3xs font-bold text-gray-400 uppercase tracking-wider">Modo Operación</p>
-            <h3 className="text-xs font-bold text-gray-800 mt-1 capitalize">
-              {exchangeMode === 'simulation' ? '⚡ Simulación' : '💰 Real en Vivo'}
-            </h3>
-          </div>
-          <Coins className="w-5 h-5 text-amber-500" />
-        </div>
-
-        <div 
-          onClick={() => setIsWaModalOpen(true)}
-          className="bg-white p-3.5 rounded-xl border border-gray-150 shadow-sm flex items-center justify-between cursor-pointer hover:border-emerald-400 hover:shadow-md transition-all group"
-          title="Haz clic para ver el Código QR o vincular WhatsApp con tu celular"
-        >
-          <div>
-            <div className="flex items-center gap-1">
-              <p className="text-3xs font-bold text-gray-400 uppercase tracking-wider">WhatsApp</p>
-              <span className="text-[9px] text-emerald-600 font-bold group-hover:underline">📱 QR</span>
-            </div>
-            <h3 className="text-xs font-bold text-gray-800 mt-1 uppercase flex items-center gap-1">
-              <span>{whatsappStatus}</span>
-            </h3>
-          </div>
-          <MessageSquare className={`w-5 h-5 transition-transform group-hover:scale-110 ${whatsappStatus === 'connected' ? 'text-emerald-500' : 'text-amber-500'}`} />
-        </div>
-
-        <div className="bg-white p-3.5 rounded-xl border border-gray-150 shadow-sm flex items-center justify-between">
-          <div>
-            <p className="text-3xs font-bold text-gray-400 uppercase tracking-wider">Tipo Cambio</p>
-            <h3 className="text-xs font-bold text-gray-800 mt-1">
-              💵 ${usdToMxn.toFixed(2)} MXN
-            </h3>
-          </div>
-          <TrendingUp className={`w-5 h-5 ${usdChangePercent >= 0 ? 'text-emerald-500' : 'text-red-500'}`} />
-        </div>
-
-        <div className="bg-white p-3.5 rounded-xl border border-gray-150 shadow-sm flex items-center justify-between">
-          <div>
-            <p className="text-3xs font-bold text-blue-600 uppercase tracking-wider">Capital Bot Intradía</p>
-            <h3 className="text-xs font-black text-gray-900 mt-1">
-              ${intradayEquity.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USD
-            </h3>
-            <p className="text-[9px] font-bold text-gray-400 mt-0.5">
-              ≈ ${(intradayEquity * usdToMxn).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} MXN
-            </p>
-          </div>
-          <Zap className="w-5 h-5 text-amber-500" />
-        </div>
-
-        <div className="bg-white p-3.5 rounded-xl border border-gray-150 shadow-sm flex items-center justify-between">
-          <div>
-            <p className="text-3xs font-bold text-purple-600 uppercase tracking-wider">Capital Bot Horizontes</p>
-            <h3 className="text-xs font-black text-gray-900 mt-1">
-              ${horizonEquity.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USD
-            </h3>
-            <p className="text-[9px] font-bold text-gray-400 mt-0.5">
-              ≈ ${(horizonEquity * usdToMxn).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} MXN
-            </p>
-          </div>
-          <Clock className="w-5 h-5 text-sky-500" />
-        </div>
-      </div>
-
-      {/* INTRADAY VIEW */}
-      {activeSubTab === 'intraday' && (
-        <div className="space-y-6">
-          {/* Bot Control Panel (Botonera de Activo / Apagar / Reinicio) */}
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <div className="relative flex h-3 w-3">
-                <span className={`animate-ping absolute inline-flex h-full w-full rounded-full ${intradayBotActive ? 'bg-emerald-400 opacity-75' : 'bg-amber-400 opacity-75'}`}></span>
-                <span className={`relative inline-flex rounded-full h-3 w-3 ${intradayBotActive ? 'bg-emerald-500' : 'bg-amber-500'}`}></span>
-              </div>
-              <div>
-                <div className="flex items-center gap-2">
-                  <h3 className="text-xs font-bold text-white uppercase tracking-wider">Control Operativo - Bot Intradía</h3>
-                  <span className={`px-2 py-0.5 rounded-full text-3xs font-extrabold border ${intradayBotActive ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30' : 'bg-amber-500/10 text-amber-400 border-amber-500/30'}`}>
-                    {intradayBotActive ? 'EN OPERACIÓN (ACTIVO)' : 'PAUSADO (APAGADO)'}
-                  </span>
-                </div>
-                <p className="text-3xs text-slate-400 mt-0.5">Controla la ejecución automática de órdenes y escaneo de señales de 15 minutos.</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-2 w-full sm:w-auto">
-              <button
-                onClick={() => handleBotControl('intraday', 'start')}
-                disabled={intradayBotActive || botActionLoading === 'intraday_start'}
-                className={`flex-1 sm:flex-none px-3.5 py-2 rounded-xl text-2xs font-bold transition-all flex items-center justify-center gap-1.5 border ${
-                  intradayBotActive
-                    ? 'bg-emerald-950/40 text-emerald-600 border-emerald-900/40 cursor-not-allowed opacity-60'
-                    : 'bg-emerald-600 hover:bg-emerald-500 text-white border-emerald-500 shadow-md shadow-emerald-600/20'
-                }`}
-              >
-                <Play className="w-3.5 h-3.5 fill-current" />
-                <span>Activar</span>
-              </button>
-              <button
-                onClick={() => handleBotControl('intraday', 'stop')}
-                disabled={!intradayBotActive || botActionLoading === 'intraday_stop'}
-                className={`flex-1 sm:flex-none px-3.5 py-2 rounded-xl text-2xs font-bold transition-all flex items-center justify-center gap-1.5 border ${
-                  !intradayBotActive
-                    ? 'bg-amber-950/40 text-amber-600 border-amber-900/40 cursor-not-allowed opacity-60'
-                    : 'bg-amber-600 hover:bg-amber-500 text-white border-amber-500 shadow-md shadow-amber-600/20'
-                }`}
-              >
-                <Pause className="w-3.5 h-3.5 fill-current" />
-                <span>Apagar</span>
-              </button>
-              <button
-                onClick={() => handleBotControl('intraday', 'reset')}
-                disabled={botActionLoading === 'intraday_reset'}
-                className="flex-1 sm:flex-none px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-2xs font-bold border border-slate-700 transition-all flex items-center justify-center gap-1.5 shadow-sm"
-                title="Reinicia el capital base ($1,000 USD) y limpia las órdenes de este bot"
-              >
-                <RotateCcw className="w-3.5 h-3.5" />
-                <span>Reiniciar</span>
-              </button>
-            </div>
-          </div>
-          {/* Target 15% Daily Yield Banner */}
-          <div className="bg-gradient-to-r from-slate-900 via-emerald-950 to-slate-900 p-5 rounded-2xl border border-emerald-500/30 text-white shadow-md flex flex-col md:flex-row items-center justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <div className="p-3 bg-emerald-500/20 border border-emerald-500/30 rounded-xl">
-                <Target className="w-6 h-6 text-emerald-400" />
-              </div>
-              <div>
-                <div className="flex items-center gap-2">
-                  <h3 className="text-sm font-bold text-white">Meta de Rendimiento Diario (+2% a +3%)</h3>
-                  <span className="px-2 py-0.5 bg-emerald-500/20 text-emerald-300 text-3xs font-extrabold rounded-full border border-emerald-500/30">
-                    $20.00 a $30.00 USD / día
-                  </span>
-                </div>
-                <p className="text-3xs text-slate-300 mt-0.5">
-                  Estrategia Intradía de 15m con Bloqueo de Posición, Regla 70/30 y Rompimientos por Volatilidad.
-                </p>
-              </div>
-            </div>
-
-            <div className="w-full md:w-72 space-y-1.5">
-              <div className="flex justify-between text-3xs font-bold">
-                <span className="text-slate-300">
-                  Rendimiento Hoy:{' '}
-                  <strong className={todayIntradayNetProfit >= 0 ? "text-emerald-400" : "text-red-400"}>
-                    {todayIntradayNetProfit >= 0 ? '+' : ''}${todayIntradayNetProfit.toFixed(2)} USD
-                  </strong>
-                </span>
-                <span className={todayIntradayNetProfit >= 0 ? "text-emerald-400 font-extrabold" : "text-red-400 font-extrabold"}>
-                  {((todayIntradayNetProfit / 25.00) * 100).toFixed(1)}% Logrado
-                </span>
-              </div>
-              <div className="w-full bg-slate-800 rounded-full h-2 overflow-hidden border border-slate-700/50">
-                <div
-                  className={`h-2 rounded-full transition-all duration-500 ${
-                    todayIntradayNetProfit >= 0
-                      ? 'bg-gradient-to-r from-emerald-500 to-teal-400'
-                      : 'bg-gradient-to-r from-red-500 to-rose-400'
-                  }`}
-                  style={{
-                    width: `${Math.min(100, Math.max(0, (todayIntradayNetProfit / 25.00) * 100))}%`
-                  }}
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* Performance Dashboard */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Metric SVG Chart (Full Width) */}
-        <div className="bg-white p-6 rounded-xl border border-gray-150 shadow-sm col-span-3 space-y-4">
-          <div className="flex justify-between items-center pb-2 border-b border-gray-100 flex-wrap gap-3">
-            <div className="flex items-center gap-4 flex-wrap">
-              <div>
-                <h2 className="text-base font-bold text-gray-900 flex items-center gap-1.5">
-                  <TrendingUp className="w-4 h-4 text-emerald-500" /> Rendimiento Acumulado Cripto
-                </h2>
-                <p className="text-2xs text-gray-400 mt-0.5">Ganancias y pérdidas del portafolio en tiempo real.</p>
-              </div>
-
-              {/* Selector de Rango (Moved to header) */}
-              <div className="flex items-center gap-1 border border-gray-100 bg-gray-50/70 p-0.5 rounded-full select-none">
-                {([
-                  { key: '1D', label: '1D' },
-                  { key: '1W', label: '1S' },
-                  { key: '1M', label: '1M' },
-                  { key: '6M', label: '6M' },
-                  { key: '1Y', label: '1A' }
-                ] as const).map(f => (
-                  <button
-                    key={f.key}
-                    type="button"
-                    onClick={() => setTimeFilter(f.key)}
-                    className={`px-2.5 py-0.5 text-[9px] font-black transition-all uppercase rounded-full ${
-                      timeFilter === f.key 
-                        ? 'bg-white text-gray-800 shadow-3xs' 
-                        : 'text-gray-400 hover:text-gray-650'
-                    }`}
-                  >
-                    {f.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-            
-            <div className="text-right">
-              <span className={`text-xs font-extrabold flex items-center justify-end gap-0.5 ${netProfit >= 0 ? 'text-emerald-600' : 'text-red-650'}`}>
-                {netProfit >= 0 ? <ArrowUpRight className="w-3.5 h-3.5" /> : <ArrowDownRight className="w-3.5 h-3.5" />}
-                {netProfit >= 0 ? '+' : ''}${netProfit.toFixed(2)} USD
-              </span>
-              <span className="block text-[9px] text-gray-400 font-bold">
-                ≈ {netProfit >= 0 ? '+' : ''}${(netProfit * usdToMxn).toFixed(2)} MXN
-              </span>
-            </div>
-          </div>
-
-          {(() => {
-            const { points: pointsWithCoords, polylinePoints, yMax, yMin } = getChartData();
-            const yMid = (yMax + yMin) / 2;
-            const yUpperMid = yMax - (yMax - yMin) * 0.25;
-            const yLowerMid = yMax - (yMax - yMin) * 0.75;
-
-            const handleMouseMove = (e: React.MouseEvent<SVGSVGElement>) => {
-              const rect = e.currentTarget.getBoundingClientRect();
-              const clientX = e.clientX - rect.left;
-              const clientY = e.clientY - rect.top;
-              
-              const xSvg = (clientX / rect.width) * 400;
-              
-              let closest = pointsWithCoords[0];
-              let minDistance = Math.abs(pointsWithCoords[0].x - xSvg);
-              
-              for (let i = 1; i < pointsWithCoords.length; i++) {
-                const dist = Math.abs(pointsWithCoords[i].x - xSvg);
-                if (dist < minDistance) {
-                  minDistance = dist;
-                  closest = pointsWithCoords[i];
-                }
-              }
-              setHoveredPoint(closest);
-            };
-
-            const handleMouseLeave = () => {
-              setHoveredPoint(null);
-            };
-
-            return (
-              <div className="bg-white border border-gray-150 rounded-xl p-4 relative flex flex-col justify-between">
-                {/* Eje Y: Dinámico (Foto 3 format) */}
-                <div className="absolute left-3 top-4 bottom-14 flex flex-col justify-between text-[9px] font-bold font-mono text-gray-400 select-none pointer-events-none z-10 border-r border-gray-100 pr-2">
-                  <span>${yMax.toLocaleString(undefined, { maximumFractionDigits: 1 })}</span>
-                  <span>${yUpperMid.toLocaleString(undefined, { maximumFractionDigits: 1 })}</span>
-                  <span>${yMid.toLocaleString(undefined, { maximumFractionDigits: 1 })}</span>
-                  <span>${yLowerMid.toLocaleString(undefined, { maximumFractionDigits: 1 })}</span>
-                  <span>${yMin.toLocaleString(undefined, { maximumFractionDigits: 1 })}</span>
-                </div>
-
-                <div className="w-full h-28 pl-14 pr-2 flex items-end relative">
-                  <svg 
-                    viewBox="0 0 400 100" 
-                    className="w-full h-full overflow-visible cursor-crosshair" 
-                    preserveAspectRatio="none"
-                    onMouseMove={handleMouseMove}
-                    onMouseLeave={handleMouseLeave}
-                  >
-                    {/* Grid horizontal lines */}
-                    <line x1="0" y1="10" x2="400" y2="10" stroke="#f3f4f6" strokeWidth="1" />
-                    <line x1="0" y1="30" x2="400" y2="30" stroke="#f3f4f6" strokeWidth="1" />
-                    <line x1="0" y1="50" x2="400" y2="50" stroke="#f3f4f6" strokeWidth="1" />
-                    <line x1="0" y1="70" x2="400" y2="70" stroke="#f3f4f6" strokeWidth="1" />
-                    <line x1="0" y1="90" x2="400" y2="90" stroke="#f3f4f6" strokeWidth="1" />
-
-                    {/* Interactive Crosshair (intersecting lines) */}
-                    {hoveredPoint && (
-                      <>
-                        <line 
-                          x1={hoveredPoint.x} 
-                          y1={0} 
-                          x2={hoveredPoint.x} 
-                          y2={100} 
-                          stroke="#9ca3af" 
-                          strokeWidth="0.8" 
-                          strokeDasharray="2,2" 
-                        />
-                        <line 
-                          x1={0} 
-                          y1={hoveredPoint.y} 
-                          x2={400} 
-                          y2={hoveredPoint.y} 
-                          stroke="#9ca3af" 
-                          strokeWidth="0.8" 
-                          strokeDasharray="2,2" 
-                        />
-                        <circle 
-                          cx={hoveredPoint.x} 
-                          cy={hoveredPoint.y} 
-                          r="4.5" 
-                          fill="#10b981" 
-                          stroke="#ffffff" 
-                          strokeWidth="1.5" 
-                          className="shadow-sm"
-                        />
-                      </>
-                    )}
-
-                    {/* Line (Foto 3 style, solid color, no gradient) */}
-                    <polyline
-                      fill="none"
-                      stroke="#10b981"
-                      strokeWidth="2.2"
-                      points={polylinePoints}
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    />
-
-                    {/* Pulsing Dot at current time (last point) */}
-                    {pointsWithCoords && pointsWithCoords.length > 0 && (() => {
-                      const lastPt = pointsWithCoords[pointsWithCoords.length - 1];
-                      return (
-                        <>
-                          <circle
-                            cx={lastPt.x}
-                            cy={lastPt.y}
-                            r="3"
-                            fill="#10b981"
-                            stroke="#ffffff"
-                            strokeWidth="1"
-                          />
-                          <circle
-                            cx={lastPt.x}
-                            cy={lastPt.y}
-                            r="3"
-                            fill="#10b981"
-                            opacity="0.4"
-                          >
-                            <animate attributeName="r" values="3;9;3" dur="2s" repeatCount="indefinite" />
-                            <animate attributeName="opacity" values="0.6;0;0.6" dur="2s" repeatCount="indefinite" />
-                          </circle>
-                        </>
-                      );
-                    })()}
-                  </svg>
-
-                  {/* Hover Floating Tooltip */}
-                  {hoveredPoint && (
-                    <div 
-                      className="absolute bg-gray-900/95 text-white p-2 rounded-lg text-[9px] shadow-lg border border-gray-800 flex flex-col gap-0.5 z-20 pointer-events-none transition-all duration-75"
-                      style={{
-                        left: `calc(${(hoveredPoint.x / 400) * 100}% - 40px)`,
-                        top: `${hoveredPoint.y - 45}px`
-                      }}
-                    >
-                      <span className="font-bold text-gray-400 font-sans">{hoveredPoint.dateStr}</span>
-                      <span className="font-black text-emerald-400 font-mono">${hoveredPoint.value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USD</span>
-                    </div>
-                  )}
-                </div>
-
-                {/* Eje X (Only labels at the bottom, Selector moved to header) */}
-                <div className="flex justify-between items-center pt-3 mt-2 border-t border-gray-100 select-none px-2">
-                  {/* Labels del Eje X */}
-                  <div className="flex justify-between items-center text-[8px] text-gray-400 font-bold font-mono pl-12 flex-grow pr-4">
-                    {pointsWithCoords.map((p, i) => {
-                      const shouldShow = timeFilter === '1D' ? (i % 2 === 0) :
-                                         timeFilter === '1W' ? true :
-                                         timeFilter === '1M' ? (i % 3 === 0) : true;
-                      return shouldShow ? <span key={i}>{p.label}</span> : null;
-                    })}
-                  </div>
-                </div>
-              </div>
-            );
-          })()}
-        </div>
-      </div>
-
-      {/* Grid 2: Wallets, WhatsApp Link & Advanced Control Deck (Modes, Backtest, IA, Capital) */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
-        {/* Left col (span 1): Tus Criptomonedas & Enlace de WhatsApp */}
-        <div className="space-y-6 lg:col-span-1">
-          {/* Tus Criptomonedas */}
-          <div className="bg-white p-6 rounded-xl border border-gray-150 shadow-sm space-y-4">
-            <div>
-              <h2 className="text-lg font-bold text-gray-900 flex items-center gap-1.5">
-                💼 Tus Criptomonedas
-              </h2>
-              <p className="text-2xs text-gray-455 mt-0.5 font-medium">Capital invertido y rendimiento de tus activos en tiempo real.</p>
-            </div>
-            
-            <div className="space-y-3">
-              {Object.keys(balances).filter(key => key && !key.startsWith('SWEEP_')).map(key => {
-                const b = balances[key];
-                const activeConfig = assetConfigs.find(c => c.asset === key);
-                const activeMode = activeConfig?.active_mode || 'moderado';
-                return (
-                  <div key={key} className="flex justify-between items-start py-2.5 border-b border-gray-100 last:border-0 last:pb-0">
-                    <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-full bg-primary-50 border border-primary-100 flex items-center justify-center font-bold text-xs text-primary-750">
-                        {key.split('/')[0]}
-                      </div>
-                      <div>
-                        <div className="flex items-center gap-1.5">
-                          <p className="text-xs font-bold text-gray-800">{b.name}</p>
-                          <span className="px-1.5 py-0.2 rounded bg-primary-50 text-primary-700 text-[8px] font-extrabold uppercase">
-                            {activeMode}
-                          </span>
-                        </div>
-                        <p className="text-3xs text-gray-455 font-mono mt-0.5">
-                          {b.coins.toFixed(6)} {key.split('/')[0]}
-                        </p>
-                        {/* Mini Sparkline Chart */}
-                        {(() => {
-                          const historyList = priceHistory[key] || [];
-                          if (historyList.length === 0) return null;
-                          const minP = Math.min(...historyList);
-                          const maxP = Math.max(...historyList);
-                          const rP = maxP - minP || 1;
-                          const wS = 80;
-                          const hS = 18;
-                          const stepS = wS / (historyList.length - 1);
-                          const pointsS = historyList.map((val, idx) => {
-                            const x = idx * stepS;
-                            const y = hS - ((val - minP) / rP) * (hS - 4) - 2;
-                            return `${x.toFixed(1)},${y.toFixed(1)}`;
-                          }).join(' ');
-                          const isUp = historyList[historyList.length - 1] >= historyList[0];
-                          return (
-                            <div className="flex justify-start py-1">
-                              <svg width={wS} height={hS} className="overflow-visible">
-                                <polyline
-                                  fill="none"
-                                  stroke={isUp ? '#10b981' : '#ef4444'}
-                                  strokeWidth="1.5"
-                                  points={pointsS}
-                                  strokeLinecap="round"
-                                  strokeLinejoin="round"
-                                />
-                              </svg>
-                            </div>
-                          );
-                        })()}
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-xs font-bold text-gray-800">
-                        ${b.valueUsd.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USD
-                      </p>
-                      <p className="text-3xs text-gray-455 mt-0.5">
-                        ≈ ${(b.valueUsd * usdToMxn).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} MXN
-                      </p>
-                      {(() => {
-                        const hasOpenPosition = b.coins > 0.000001 && b.valueUsd >= 0.01;
-                        if (hasOpenPosition) {
-                          const pct = b.cost > 0 ? ((b.profitUsd / b.cost) * 100) : 0;
-                          return (
-                            <div className={`mt-1.5 p-1.5 rounded-lg border text-3xs font-bold text-right leading-tight max-w-[200px] ml-auto ${
-                              b.profitUsd >= 0 ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-red-50 text-red-700 border-red-200'
-                            }`}>
-                              <div className="text-[9px] text-gray-500 font-semibold">Ganancia / Pérdida:</div>
-                              <div className="font-extrabold font-mono mt-0.5">
-                                {b.profitUsd >= 0 ? '▲ +' : '▼ '}${Math.abs(b.profitUsd).toFixed(2)} USD
-                                <span className="ml-1 font-bold">
-                                  ({pct >= 0 ? '+' : ''}{pct.toFixed(2)}%)
-                                </span>
-                              </div>
-                            </div>
-                          );
-                        }
-                        return (
-                          <p className="text-3xs font-semibold text-gray-400 mt-1">
-                            Sin posición abierta
-                          </p>
-                        );
-                      })()}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        </div>
-
-        {/* Right col (span 2): Advanced Control Deck Tabs */}
-        <div className="bg-white rounded-xl border border-gray-150 shadow-sm lg:col-span-2 overflow-hidden flex flex-col justify-between h-full min-h-[500px]">
-          {/* Navigation Tabs Header */}
-          <div className="bg-gray-50 border-b border-gray-150 flex flex-wrap items-stretch justify-start">
-            <button
-              onClick={() => setActiveControlTab('modes')}
-              className={`px-4 py-3 text-xs font-bold transition-all border-r border-gray-150 ${activeControlTab === 'modes' ? 'bg-white text-primary-700 border-b-2 border-b-primary-700' : 'text-gray-500 hover:bg-gray-100/50'}`}
-            >
-              ⚙ Parámetros y Perfiles
-            </button>
-            <button
-              onClick={() => setActiveControlTab('backtest')}
-              className={`px-4 py-3 text-xs font-bold transition-all border-r border-gray-150 ${activeControlTab === 'backtest' ? 'bg-white text-primary-700 border-b-2 border-b-primary-700' : 'text-gray-500 hover:bg-gray-100/50'}`}
-            >
-              📈 Backtesting Histórico
-            </button>
-            <button
-              onClick={() => setActiveControlTab('optimization')}
-              className={`px-4 py-3 text-xs font-bold transition-all border-r border-gray-150 ${activeControlTab === 'optimization' ? 'bg-white text-primary-700 border-b-2 border-b-primary-700' : 'text-gray-500 hover:bg-gray-100/50'}`}
-            >
-              🤖 Optimización IA
-            </button>
-            <button
-              onClick={() => setActiveControlTab('capital')}
-              className={`px-4 py-3 text-xs font-bold transition-all ${activeControlTab === 'capital' ? 'bg-white text-primary-700 border-b-2 border-b-primary-700' : 'text-gray-500 hover:bg-gray-100/50'}`}
-            >
-              💰 Asignación de Capital
-            </button>
-          </div>
-
-          {/* Tabs Content */}
-          <div className="p-6 flex-grow">
-                        {activeControlTab === 'modes' && (
-              <div className="space-y-6">
-                <div className="flex flex-wrap items-center justify-between gap-4 pb-3 border-b border-gray-100">
-                  <div>
-                    <h3 className="text-sm font-bold text-gray-800">Modos de Operación y Perfiles</h3>
-                    <p className="text-3xs text-gray-400">Selecciona y edita los perfiles del bot, o clona uno para crear estrategias personalizadas.</p>
-                  </div>
-                  
-                  <div className="flex items-center gap-3">
-                    <div className="flex items-center gap-1 bg-gray-50 px-2 py-1 rounded-md border border-gray-200">
-                      <span className="text-3xs font-bold text-gray-500">Perfil:</span>
-                      <select
-                        value={selectedModeForEdit}
-                        onChange={(e) => setSelectedModeForEdit(e.target.value)}
-                        className="bg-transparent border-0 text-3xs font-bold text-gray-800 focus:ring-0 p-0 cursor-pointer"
-                      >
-                        {operationModes.map(m => (
-                          <option key={m.name} value={m.name}>{m.name.toUpperCase()}</option>
-                        ))}
-                      </select>
-                    </div>
-
-                    <div className="flex items-center gap-1">
-                      <input
-                        type="text"
-                        placeholder="Nuevo perfil..."
-                        value={cloneModeName}
-                        onChange={(e) => setCloneModeName(e.target.value)}
-                        className="border border-gray-300 rounded px-2 py-1 text-3xs w-28 focus:ring-1 focus:ring-primary-500 font-bold"
-                      />
-                      <button
-                        onClick={handleCloneMode}
-                        disabled={isCloning}
-                        className="bg-primary-700 hover:bg-primary-850 disabled:opacity-50 text-white font-bold py-1 px-2.5 rounded text-3xs transition-all shadow-3xs"
-                      >
-                        {isCloning ? 'Clonando...' : 'Clonar'}
-                      </button>
-                    </div>
-                  </div>
-                </div>
-
-                {operationModes.map(mode => {
-                  if (mode.name !== selectedModeForEdit) return null;
-                  return (
-                    <div key={mode.name} className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                      <div className="md:col-span-2 bg-gray-50 p-4 rounded-xl border border-gray-155 space-y-4">
-                        <h4 className="text-xs font-bold text-primary-900 uppercase tracking-wider flex items-center gap-1.5">
-                          🔧 Parámetros de {mode.name}
-                        </h4>
-
-                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-                          <div>
-                            <label className="block text-[9px] font-bold text-gray-500 uppercase tracking-wider mb-1">Timeframe</label>
-                            <select
-                              value={mode.timeframe}
-                              onChange={(e) => handleModeFieldChange(mode.name, 'timeframe', e.target.value)}
-                              className="w-full text-xs border border-gray-300 rounded-lg p-2 bg-white font-bold text-gray-850"
-                            >
-                              <option value="15m">15 minutos</option>
-                              <option value="30m">30 minutos</option>
-                              <option value="1h">1 hora</option>
-                              <option value="4h">4 horas</option>
-                              <option value="1d">1 día</option>
-                            </select>
-                          </div>
-                          <div>
-                            <label className="block text-[9px] font-bold text-gray-500 uppercase tracking-wider mb-1">Período RSI</label>
-                            <input
-                              type="number"
-                              min="2"
-                              max="100"
-                              value={mode.rsi_period}
-                              onChange={(e) => handleModeFieldChange(mode.name, 'rsi_period', parseInt(e.target.value) || 14)}
-                              className="w-full text-xs border border-gray-300 rounded-lg p-2 bg-white font-bold text-gray-850 font-mono"
-                            />
-                          </div>
-                          <div>
-                            <label className="block text-[9px] font-bold text-gray-500 uppercase tracking-wider mb-1">Tamaño de Operación (%)</label>
-                            <input
-                              type="number"
-                              step="0.1"
-                              min="0.1"
-                              max="100"
-                              value={mode.trade_size_pct}
-                              onChange={(e) => handleModeFieldChange(mode.name, 'trade_size_pct', parseFloat(e.target.value) || 5)}
-                              className="w-full text-xs border border-gray-300 rounded-lg p-2 bg-white font-bold text-gray-850 font-mono"
-                            />
-                          </div>
-                          <div>
-                            <label className="block text-[9px] font-bold text-gray-500 uppercase tracking-wider mb-1">Compra RSI (&lt;=)</label>
-                            <input
-                              type="number"
-                              min="0"
-                              max="100"
-                              value={mode.rsi_buy}
-                              onChange={(e) => handleModeFieldChange(mode.name, 'rsi_buy', parseFloat(e.target.value) || 30)}
-                              className="w-full text-xs border border-gray-300 rounded-lg p-2 bg-white font-bold text-gray-850 font-mono"
-                            />
-                          </div>
-                          <div>
-                            <label className="block text-[9px] font-bold text-gray-500 uppercase tracking-wider mb-1">Venta RSI (&gt;=)</label>
-                            <input
-                              type="number"
-                              min="0"
-                              max="100"
-                              value={mode.rsi_sell}
-                              onChange={(e) => handleModeFieldChange(mode.name, 'rsi_sell', parseFloat(e.target.value) || 70)}
-                              className="w-full text-xs border border-gray-300 rounded-lg p-2 bg-white font-bold text-gray-850 font-mono"
-                            />
-                          </div>
-                          <div>
-                            <label className="block text-[9px] font-bold text-gray-500 uppercase tracking-wider mb-1">Filtro de Tendencia</label>
-                            <select
-                              value={mode.trend_filter_type}
-                              onChange={(e) => handleModeFieldChange(mode.name, 'trend_filter_type', e.target.value)}
-                              className="w-full text-xs border border-gray-300 rounded-lg p-2 bg-white font-bold text-gray-800"
-                            >
-                              <option value="NONE">Ninguno</option>
-                              <option value="SMA_200">SMA 200 (Tendencia principal)</option>
-                              <option value="EMA_50">EMA 50 (Mediano plazo)</option>
-                            </select>
-                          </div>
-                        </div>
-
-                        <div className="flex flex-wrap items-center gap-6 pt-2 border-t border-gray-200">
-                          <label className="flex items-center gap-2 cursor-pointer">
-                            <input
-                              type="checkbox"
-                              checked={mode.require_macd}
-                              onChange={(e) => handleModeFieldChange(mode.name, 'require_macd', e.target.checked)}
-                              className="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
-                            />
-                            <span className="text-3xs font-bold text-gray-700 uppercase tracking-wider">Requerir MACD</span>
-                          </label>
-                          <label className="flex items-center gap-2 cursor-pointer">
-                            <input
-                              type="checkbox"
-                              checked={mode.require_volume}
-                              onChange={(e) => handleModeFieldChange(mode.name, 'require_volume', e.target.checked)}
-                              className="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
-                            />
-                            <span className="text-3xs font-bold text-gray-700 uppercase tracking-wider">Requerir Filtro de Volumen</span>
-                          </label>
-                        </div>
-
-                        <div className="pt-2">
-                          <button
-                            onClick={() => handleSaveModeParams(mode.name)}
-                            disabled={isSaving}
-                            className="bg-primary-700 hover:bg-primary-850 disabled:opacity-50 text-white font-bold py-2 px-4 rounded-lg text-xs transition-all shadow-sm w-full sm:w-auto"
-                          >
-                            {isSaving ? 'Guardando...' : 'Guardar Parámetros Perfil'}
-                          </button>
-                        </div>
-                      </div>
-
-                      {/* Right panel: Active assets mapping and IA walk forward */}
-                      <div className="bg-white p-4 rounded-xl border border-gray-155 space-y-4">
-                        <h4 className="text-xs font-bold text-gray-805 uppercase tracking-wider">Activos en este Perfil</h4>
-                        <p className="text-3xs text-gray-400 leading-relaxed">Asigna qué criptomonedas operarán con el modo {mode.name.toUpperCase()} y gatilla re-calibración IA Walk-Forward.</p>
-                        
-                        <div className="divide-y divide-gray-100">
-                          {assetConfigs.map(asset => {
-                            const isAssigned = (asset.active_mode || 'moderado') === mode.name;
-                            return (
-                              <div key={asset.id} className="py-3 flex items-center justify-between">
-                                <div>
-                                  <p className="text-xs font-bold text-gray-800">{asset.asset}</p>
-                                  <span className={`text-[8px] font-extrabold uppercase ${isAssigned ? 'text-primary-700' : 'text-gray-400'}`}>
-                                    {isAssigned ? 'Operando' : `Modo: ${asset.active_mode || 'moderado'}`}
-                                  </span>
-                                </div>
-                                <div className="flex items-center gap-2">
-                                  {!isAssigned ? (
-                                    <button
-                                      onClick={() => handleSaveAssetActiveMode(asset.asset, mode.name)}
-                                      className="bg-white hover:bg-gray-50 border border-gray-250 text-gray-600 font-bold py-1 px-2 rounded text-3xs transition-all shadow-3xs"
-                                    >
-                                      Activar
-                                    </button>
-                                  ) : (
-                                    <button
-                                      onClick={() => handleTriggerWalkForward(asset.asset, mode.name)}
-                                      className="bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-800 font-extrabold py-1 px-2 rounded text-3xs transition-all flex items-center gap-1"
-                                    >
-                                      🤖 Optimizar
-                                    </button>
-                                  )}
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-
-            {activeControlTab === 'backtest' && (
-              <div className="space-y-6">
-                <div className="pb-3 border-b border-gray-100">
-                  <h3 className="text-sm font-bold text-gray-805">Backtesting Histórico</h3>
-                  <p className="text-3xs text-gray-400">Ejecuta simulaciones con parámetros de RSI y filtros de tendencia sobre velas reales históricas de Binance.</p>
-                </div>
-
-                <form onSubmit={handleRunBacktest} className="bg-gray-50 p-4 rounded-xl border border-gray-150 grid grid-cols-1 md:grid-cols-5 gap-4 items-end">
-                  <div>
-                    <label className="block text-[8px] font-bold text-gray-500 uppercase tracking-wider mb-1">Activo</label>
-                    <select value={btAsset} onChange={(e) => setBtAsset(e.target.value)} className="w-full text-3xs border border-gray-300 rounded-md p-1.5 bg-white font-bold text-gray-800">
-                      <option value="BTC/USDT">BTC/USDT</option>
-                      <option value="ETH/USDT">ETH/USDT</option>
-                      <option value="SOL/USDT">SOL/USDT</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-[8px] font-bold text-gray-500 uppercase tracking-wider mb-1">Temporalidad</label>
-                    <select value={btTimeframe} onChange={(e) => setBtTimeframe(e.target.value)} className="w-full text-3xs border border-gray-300 rounded-md p-1.5 bg-white font-bold text-gray-805">
-                      <option value="15m">15 minutos</option>
-                      <option value="30m">30 minutos</option>
-                      <option value="1h">1 hora</option>
-                      <option value="4h">4 horas</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-[8px] font-bold text-gray-500 uppercase tracking-wider mb-1">Compra RSI (&lt;=)</label>
-                    <input type="number" value={btRsiBuy} onChange={(e) => setBtRsiBuy(e.target.value)} className="w-full text-3xs border border-gray-300 rounded-md p-1.5 bg-white font-bold font-mono text-gray-805" />
-                  </div>
-                  <div>
-                    <label className="block text-[8px] font-bold text-gray-500 uppercase tracking-wider mb-1">Venta RSI (&gt;=)</label>
-                    <input type="number" value={btRsiSell} onChange={(e) => setBtRsiSell(e.target.value)} className="w-full text-3xs border border-gray-300 rounded-md p-1.5 bg-white font-bold font-mono text-gray-805" />
-                  </div>
-                  <div>
-                    <button type="submit" disabled={isBtRunning} className="bg-primary-700 hover:bg-primary-850 text-white font-bold py-2 px-3 rounded-md transition-colors text-3xs shadow-sm w-full text-center disabled:opacity-50">
-                      {isBtRunning ? 'Simulando...' : 'Ejecutar Backtest'}
-                    </button>
-                  </div>
-                </form>
-
-                {btResult && (
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    {/* Simulated Results Card */}
-                    <div className="bg-white p-4 rounded-xl border border-gray-150 space-y-4">
-                      <h4 className="text-xs font-bold text-gray-805 uppercase tracking-wider">Resultados de Simulación</h4>
-                      
-                      <div className="grid grid-cols-2 gap-3 pt-1">
-                        <div className="bg-gray-50 p-2.5 rounded-lg border border-gray-100 text-center">
-                          <p className="text-[8px] font-bold text-gray-400 uppercase">Rendimiento</p>
-                          <p className={`text-sm font-black mt-0.5 ${btResult.netProfitPct >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>
-                            {btResult.netProfitPct >= 0 ? '+' : ''}{btResult.netProfitPct.toFixed(2)}%
-                          </p>
-                        </div>
-                        <div className="bg-gray-50 p-2.5 rounded-lg border border-gray-100 text-center">
-                          <p className="text-[8px] font-bold text-gray-400 uppercase">Win Rate</p>
-                          <p className="text-sm font-black text-gray-800 mt-0.5">
-                            {btResult.winRatePct.toFixed(1)}%
-                          </p>
-                        </div>
-                        <div className="bg-gray-50 p-2.5 rounded-lg border border-gray-100 text-center col-span-2">
-                          <p className="text-[8px] font-bold text-gray-400 uppercase">Operaciones Totales</p>
-                          <p className="text-xs font-black text-gray-800 mt-0.5">
-                            {btResult.totalTrades} ({btResult.winningTrades} ganadas / {btResult.losingTrades} perdidas)
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* IA Recommender Optimization Box */}
-                    <div className="bg-emerald-50/50 p-4 rounded-xl border border-emerald-150 md:col-span-2 space-y-3">
-                      <h4 className="text-xs font-black text-emerald-900 uppercase tracking-wider flex items-center gap-1.5">
-                        🤖 Recalibración y Optimización IA
-                      </h4>
-                      <p className="text-3xs text-emerald-800 leading-relaxed font-medium">La IA ha analizado 50,000 combinaciones posibles de parámetros para {btAsset} durante el mismo intervalo de tiempo para maximizar ganancias y reducir el drawdown.</p>
-
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
-                        <div className="bg-white p-3 rounded-lg border border-emerald-100 space-y-2">
-                          <div className="text-[8px] font-bold text-gray-450 uppercase tracking-wider">Ajuste Recomendado</div>
-                          <div className="flex justify-between items-center text-xs">
-                            <span className="text-gray-500 font-medium">RSI Compra:</span>
-                            <span className="font-bold text-emerald-700 font-mono">{(btResult.rsiBuy * 0.95).toFixed(0)}</span>
-                          </div>
-                          <div className="flex justify-between items-center text-xs">
-                            <span className="text-gray-500 font-medium">RSI Venta:</span>
-                            <span className="font-bold text-emerald-700 font-mono">{(btResult.rsiSell * 1.05).toFixed(0)}</span>
-                          </div>
-                          <div className="flex justify-between items-center text-xs">
-                            <span className="text-gray-500 font-medium">Filtro Tendencia:</span>
-                            <span className="font-bold text-emerald-700">SMA 200</span>
-                          </div>
-                        </div>
-
-                        <div className="bg-white p-3 rounded-lg border border-emerald-100 space-y-2">
-                          <div className="text-[8px] font-bold text-gray-450 uppercase tracking-wider">Rendimiento Proyectado</div>
-                          <div className="flex justify-between items-center text-xs">
-                            <span className="text-gray-500 font-medium">Retorno IA:</span>
-                            <span className="font-black text-emerald-700">+{Math.max(10.5, btResult.netProfitPct * 1.62).toFixed(2)}%</span>
-                          </div>
-                          <div className="flex justify-between items-center text-xs">
-                            <span className="text-gray-500 font-medium">Win Rate IA:</span>
-                            <span className="font-black text-emerald-700">{Math.max(65.0, btResult.winRatePct * 1.15).toFixed(1)}%</span>
-                          </div>
-                          <div className="flex justify-between items-center text-xs">
-                            <span className="text-gray-500 font-medium">Max Drawdown:</span>
-                            <span className="font-black text-emerald-700">-{Math.max(2.1, Math.min(6.5, btResult.netProfitPct * 0.18)).toFixed(1)}%</span>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {activeControlTab === 'optimization' && (
-              <div className="space-y-6">
-                <div className="pb-3 border-b border-gray-100">
-                  <h3 className="text-sm font-bold text-gray-805">Optimización IA Walk-Forward</h3>
-                  <p className="text-3xs text-gray-400">Propuestas de recalibración generadas por la IA basadas en optimización walk-forward de las últimas 48 horas.</p>
-                </div>
-
-                {pendingAdjustments.length === 0 ? (
-                  <div className="bg-gray-50 p-6 rounded-xl border border-gray-150 text-center space-y-2">
-                    <p className="text-xs font-bold text-gray-500">No hay propuestas de calibración pendientes de aprobación en este momento.</p>
-                    <p className="text-3xs text-gray-400">La IA analiza y calibra las estrategias periódicamente. Recibirás propuestas cuando se detecte un rendimiento significativamente superior.</p>
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    {pendingAdjustments.map((adj) => (
-                      <div key={adj.id} className="bg-white p-5 rounded-xl border border-gray-150 shadow-sm flex flex-col justify-between space-y-4">
-                        <div className="space-y-3">
-                          <div className="flex justify-between items-start border-b border-gray-150 pb-2">
-                            <div>
-                              <span className="px-2 py-0.5 rounded bg-amber-50 text-amber-700 border border-amber-200 text-[8px] font-extrabold uppercase tracking-wide">Propuesta IA</span>
-                              <h4 className="text-xs font-bold text-gray-800 mt-1">{adj.asset} ({adj.mode_name.toUpperCase()})</h4>
-                            </div>
-                            <span className="text-3xs text-gray-400 font-medium font-mono">{new Date(adj.created_at).toLocaleString()}</span>
-                          </div>
-
-                          <div className="grid grid-cols-2 gap-4">
-                            <div className="bg-gray-50 p-3 rounded-lg border border-gray-100 space-y-1.5">
-                              <p className="text-[8px] font-bold text-gray-400 uppercase tracking-wider">Parámetros Actuales</p>
-                              <div className="flex justify-between text-3xs font-mono">
-                                <span className="text-gray-500">RSI Compra:</span>
-                                <span className="font-bold text-gray-700">{adj.current_rsi_buy}</span>
-                              </div>
-                              <div className="flex justify-between text-3xs font-mono">
-                                <span className="text-gray-500">RSI Venta:</span>
-                                <span className="font-bold text-gray-700">{adj.current_rsi_sell}</span>
-                              </div>
-                            </div>
-
-                            <div className="bg-primary-50/50 p-3 rounded-lg border border-primary-100 space-y-1.5">
-                              <p className="text-[8px] font-bold text-primary-750 uppercase tracking-wider">Propuesta Optimizada</p>
-                              <div className="flex justify-between text-3xs font-mono">
-                                <span className="text-gray-650">RSI Compra:</span>
-                                <span className="font-bold text-primary-700">{adj.proposed_rsi_buy}</span>
-                              </div>
-                              <div className="flex justify-between text-3xs font-mono">
-                                <span className="text-gray-655">RSI Venta:</span>
-                                <span className="font-bold text-primary-700">{adj.proposed_rsi_sell}</span>
-                              </div>
-                            </div>
-                          </div>
-
-                          <div className="bg-emerald-50/50 p-3 rounded-lg border border-emerald-150 text-emerald-855 text-3xs leading-relaxed">
-                            💡 <strong>Justificación de Optimización:</strong> El re-ajuste de RSI a {adj.proposed_rsi_buy}/{adj.proposed_rsi_sell} mejora la rentabilidad en un {adj.profit_improvement_pct}% y aumenta el Win Rate global de la estrategia del bot.
-                          </div>
-                        </div>
-
-                        <div className="flex gap-3">
-                          <button
-                            onClick={() => handleRejectAdjustment(adj.id)}
-                            className="w-1/2 bg-white hover:bg-gray-50 text-gray-700 border border-gray-250 py-2 rounded-lg text-3xs font-bold transition-all shadow-3xs"
-                          >
-                            Rechazar Ajuste
-                          </button>
-                          <button
-                            onClick={() => handleApproveAdjustment(adj.id)}
-                            className="w-1/2 bg-primary-700 hover:bg-primary-850 text-white py-2 rounded-lg text-3xs font-black transition-all shadow-sm"
-                          >
-                            Aprobar y Aplicar IA
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
-
-            {activeControlTab === 'capital' && (
-              <div className="space-y-6">
-                <div className="pb-3 border-b border-gray-150">
-                  <h3 className="text-sm font-bold text-gray-805">Distribución de Capital de Simulación</h3>
-                  <p className="text-3xs text-gray-400">Asigna la proporción de tus fondos que opera de manera táctica en el bot de trading frente a la simulación base.</p>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                  {/* Allocation Slider Card */}
-                  <div className="bg-gray-50 p-5 rounded-xl border border-gray-150 space-y-5">
-                    <h4 className="text-xs font-bold text-gray-805 uppercase tracking-wider">Asignación Táctica</h4>
-                    
-                    <div className="space-y-4">
-                      <div className="flex justify-between items-center">
-                        <span className="text-xs text-gray-500 font-semibold">Capital Táctico (Bot):</span>
-                        <span className="text-sm font-black text-primary-700 font-mono">{(globalSettings.tactical_capital_pct ?? 60)}%</span>
-                      </div>
-
-                      <input
-                        type="range"
-                        min="0"
-                        max="100"
-                        step="5"
-                        value={(globalSettings.tactical_capital_pct ?? 60)}
-                        onChange={(e) => handleSaveGlobalSettings(parseInt(e.target.value))}
-                        className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-primary-700"
-                      />
-
-                      <div className="flex justify-between text-3xs text-gray-400 font-bold uppercase tracking-wider">
-                        <span>Simulador Base: {100 - (globalSettings.tactical_capital_pct ?? 60)}%</span>
-                        <span>Bot IA: {(globalSettings.tactical_capital_pct ?? 60)}%</span>
-                      </div>
-                    </div>
-
-                    <div className="pt-2 border-t border-gray-200 space-y-3">
-                      <div className="flex justify-between items-center text-xs">
-                        <span className="text-gray-500 font-medium">Monto Asignado al Bot:</span>
-                        <span className="font-bold text-gray-800">
-                          \${(realTimeTotalCapital * ((globalSettings.tactical_capital_pct ?? 60) / 100)).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USD
-                        </span>
-                      </div>
-                      <div className="flex justify-between items-center text-xs">
-                        <span className="text-gray-500 font-medium">Monto en MXN:</span>
-                        <span className="font-medium text-gray-500 text-3xs">
-                          ≈ \${(realTimeTotalCapital * ((globalSettings.tactical_capital_pct ?? 60) / 100) * usdToMxn).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} MXN
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Distribution Visual Card */}
-                  <div className="bg-white p-5 rounded-xl border border-gray-150 md:col-span-2 space-y-4">
-                    <h4 className="text-xs font-bold text-gray-805 uppercase tracking-wider">Resumen de Fondos en Tiempo Real</h4>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      <div className="bg-gray-50 p-3 rounded-lg border border-gray-100 space-y-1">
-                        <div className="text-[8px] font-bold text-gray-400 uppercase tracking-wider">Capital Total de Simulación</div>
-                        <div className="text-lg font-black text-gray-850 font-mono">
-                          \${realTimeTotalCapital.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} <span className="text-xs font-bold text-gray-400">USD</span>
-                        </div>
-                        <div className="text-3xs text-gray-450 font-medium">
-                          ≈ \${(realTimeTotalCapital * usdToMxn).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} MXN
-                        </div>
-                      </div>
-
-                      <div className="bg-gray-50 p-3 rounded-lg border border-gray-100 space-y-1">
-                        <div className="text-[8px] font-bold text-gray-400 uppercase tracking-wider">Rendimiento Histórico IA</div>
-                        <div className="text-lg font-black text-emerald-600 font-mono">
-                          ▲ +\${totalProfit.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} <span className="text-xs font-bold text-emerald-400">USD</span>
-                        </div>
-                        <div className="text-3xs text-emerald-600 font-medium">
-                          ≈ +\${(totalProfit * usdToMxn).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} MXN
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="bg-emerald-50/50 p-3 rounded-lg border border-emerald-150 text-emerald-855 text-3xs leading-relaxed">
-                      ✔ <strong>Asignación Táctica Dinámica.</strong> El porcentaje asignado al Bot se distribuye automáticamente en el backend según las señales RSI activas.
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-
-
-
-      {/* Historial de Operaciones Realizadas (Foto 2 format) */}
-      <div className="bg-white p-6 rounded-xl border border-gray-150 shadow-sm space-y-4">
-        <div className="flex flex-wrap items-center justify-between gap-4 pb-3 border-b border-gray-100">
-          <div>
-            <h2 className="text-xl font-bold text-gray-900">Historial de Operaciones</h2>
-            <p className="text-sm text-gray-500 mt-1">
-              Registro completo de compras y ventas cerradas en la cuenta de simulación con sus montos en USD y MXN.
-            </p>
-          </div>
-          
+        <div className="bg-rose-500/10 border border-rose-500/30 text-rose-400 p-4 rounded-xl text-xs flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <span className="text-2xs font-bold text-gray-500 uppercase tracking-wider">Filtrar por fecha:</span>
-            <input
-              type="date"
-              value={historyDateSearch}
-              onChange={(e) => {
-                setHistoryDateSearch(e.target.value);
-                setHistoryCurrentPage(1);
-              }}
-              className="rounded-lg border border-gray-300 px-3 py-1.5 text-xs text-gray-950 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 bg-white font-semibold"
-            />
-            {historyDateSearch && (
-              <button
-                type="button"
-                onClick={() => {
-                  setHistoryDateSearch('');
-                  setHistoryCurrentPage(1);
-                }}
-                className="bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-bold py-1 px-2.5 rounded-lg border border-gray-200"
-              >
-                Limpiar
-              </button>
-            )}
+            <AlertTriangle className="w-4 h-4 shrink-0" />
+            <span>{errorMsg}</span>
           </div>
-        </div>
-
-        {(() => {
-          const itemsPerPage = 15;
-          // Calcular la base de costos y margen PnL por venta para cada operación
-          const buyLots: Record<string, Array<{ qty: number; price: number; cost: number }>> = {};
-          const lastBuyPrices: Record<string, number> = {
-            'BTC/USDT': 79956.01,
-            'ETH/USDT': 2475.84,
-            'SOL/USDT': 103.68
-          };
-          const pnlMap = new Map<string, { buyCostUsd: number; avgBuyPrice: number; profitUsd: number; profitPct: number }>();
-
-          const sortedAsc = [...history].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
-          sortedAsc.forEach(t => {
-            if (t.status !== 'executed' && t.status !== 'simulated') return;
-            if (t.trade_type === 'RETIRO' || (t.asset && t.asset.startsWith('SWEEP_'))) return;
-
-            const isIntraday = (t.bot_type || '').toUpperCase() === 'INTRADAY' || (t.horizon || '').toLowerCase() === 'intraday';
-            const key = `${t.asset}_${isIntraday ? 'INTRADAY' : (t.horizon || 'horizon')}`;
-
-            if (!buyLots[key]) buyLots[key] = [];
-
-            const price = Number(t.execution_price || 1);
-            const amountUsd = Math.abs(Number(t.executed_amount || 0));
-            const qty = price > 0 ? amountUsd / price : 0;
-
-            if (t.trade_type === 'BUY') {
-              buyLots[key].push({ qty, price, cost: amountUsd });
-              lastBuyPrices[t.asset] = price;
-            } else if (t.trade_type === 'SELL') {
-              let remainingQty = qty;
-              let matchedCost = 0;
-              let matchedQty = 0;
-
-              while (remainingQty > 0.0000001 && buyLots[key].length > 0) {
-                const lot = buyLots[key][0];
-                if (lot.qty <= remainingQty) {
-                  matchedCost += lot.cost;
-                  matchedQty += lot.qty;
-                  remainingQty -= lot.qty;
-                  buyLots[key].shift();
-                } else {
-                  const ratio = remainingQty / lot.qty;
-                  matchedCost += lot.cost * ratio;
-                  matchedQty += remainingQty;
-                  lot.cost -= lot.cost * ratio;
-                  lot.qty -= remainingQty;
-                  remainingQty = 0;
-                }
-              }
-
-              let avgBuyPrice = 0;
-              if (matchedCost > 0 && matchedQty > 0) {
-                avgBuyPrice = matchedCost / matchedQty;
-              } else {
-                avgBuyPrice = lastBuyPrices[t.asset] || (price * 0.985);
-                matchedCost = qty * avgBuyPrice;
-              }
-
-              const profitUsd = amountUsd - matchedCost;
-              const profitPct = matchedCost > 0 ? ((profitUsd / matchedCost) * 100) : 0;
-
-              pnlMap.set(t.id, {
-                buyCostUsd: matchedCost,
-                avgBuyPrice,
-                profitUsd,
-                profitPct
-              });
-            }
-          });
-
-          const filtered = [...history]
-            .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
-            .filter(h => {
-              const isIntraday = (h.bot_type || '').toUpperCase() === 'INTRADAY' || (h.horizon || '').toLowerCase() === 'intraday' || (!h.bot_type && !h.horizon);
-              const subTabStr = activeSubTab as string;
-              if (subTabStr === 'intraday' && !isIntraday) return false;
-              if (subTabStr === 'horizon' && isIntraday) return false;
-              if (!historyDateSearch) return true;
-              const hDate = new Date(h.created_at).toISOString().split('T')[0];
-              return hDate === historyDateSearch;
-            });
-
-          const totalItems = filtered.length;
-          const totalPages = Math.ceil(totalItems / itemsPerPage) || 1;
-          const currentPage = Math.min(historyCurrentPage, totalPages);
-          const paginated = filtered.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
-
-          return (
-            <div className="space-y-4">
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm text-left border-collapse">
-                  <thead>
-                    <tr className="border-b border-gray-200 text-gray-500 font-semibold text-xs">
-                      <th className="py-3 px-2">Activo</th>
-                      <th className="py-3 px-2">Tipo</th>
-                      <th className="py-3 px-2">Monto Compra (Entrada)</th>
-                      <th className="py-3 px-2">Monto Venta / Operación</th>
-                      <th className="py-3 px-2">Precio Ej. (Salida)</th>
-                      <th className="py-3 px-2">Margen PnL (Ganancia/Pérdida)</th>
-                      <th className="py-3 px-2">Plazo</th>
-                      <th className="py-3 px-2">Fecha</th>
-                      <th className="py-3 px-2">Estatus</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {paginated.length === 0 ? (
-                      <tr>
-                        <td colSpan={9} className="py-8 text-center text-gray-400 font-medium">
-                          No se encontraron operaciones en el historial.
-                        </td>
-                      </tr>
-                    ) : (
-                      paginated.map((h) => {
-                        const isSweep = h.trade_type === 'RETIRO' || (h.asset && h.asset.startsWith('SWEEP_'));
-                        
-                        const parsedPnl = (() => {
-                          const errMsg = (h as any).error_message;
-                          if (errMsg && typeof errMsg === 'string' && errMsg.includes('ENTRY_PX')) {
-                            const entryPxMatch = errMsg.match(/ENTRY_PX:\s*\$?([\d.]+)/);
-                            const pnlUsdMatch = errMsg.match(/PNL:\s*([+-\d.]+)/);
-                            const pnlPctMatch = errMsg.match(/\(([+-\d.]+)%\)/);
-
-                            if (entryPxMatch) {
-                              const avgBuyPrice = parseFloat(entryPxMatch[1]) || (h.execution_price * 0.985);
-                              const profitUsdRaw = pnlUsdMatch ? parseFloat(pnlUsdMatch[1]) : NaN;
-                              const profitPctRaw = pnlPctMatch ? parseFloat(pnlPctMatch[1]) : NaN;
-
-                              const qty = h.execution_price > 0 ? h.executed_amount / h.execution_price : 0;
-                              const buyCostUsd = qty * avgBuyPrice;
-                              const profitUsd = !isNaN(profitUsdRaw) ? profitUsdRaw : (h.executed_amount - buyCostUsd);
-                              const profitPct = !isNaN(profitPctRaw) ? profitPctRaw : (buyCostUsd > 0 ? (profitUsd / buyCostUsd) * 100 : 0);
-
-                              return {
-                                buyCostUsd: isNaN(buyCostUsd) ? 0 : buyCostUsd,
-                                avgBuyPrice: isNaN(avgBuyPrice) ? 0 : avgBuyPrice,
-                                profitUsd: isNaN(profitUsd) ? 0 : profitUsd,
-                                profitPct: isNaN(profitPct) ? 0 : profitPct
-                              };
-                            }
-                          }
-                          return null;
-                        })();
-
-                        const rawPnlInfo = parsedPnl || pnlMap.get(h.id);
-                        const pnlInfo = rawPnlInfo ? {
-                          buyCostUsd: isNaN(rawPnlInfo.buyCostUsd) ? 0 : rawPnlInfo.buyCostUsd,
-                          avgBuyPrice: isNaN(rawPnlInfo.avgBuyPrice) ? 0 : rawPnlInfo.avgBuyPrice,
-                          profitUsd: isNaN(rawPnlInfo.profitUsd) ? 0 : rawPnlInfo.profitUsd,
-                          profitPct: isNaN(rawPnlInfo.profitPct) ? 0 : rawPnlInfo.profitPct
-                        } : null;
-
-                        return (
-                          <tr key={h.id} className={`border-b border-gray-100 hover:bg-gray-50/50 text-xs ${isSweep ? 'bg-purple-50/40' : ''}`}>
-                            <td className="py-3.5 px-2 font-bold text-gray-800">
-                              {isSweep ? (h.display_label || '🛡️ RETIRO DE BÓVEDA') : h.asset}
-                            </td>
-                            <td className="py-3.5 px-2">
-                              {isSweep ? (
-                                <span className="px-2 py-0.5 rounded-full text-3xs font-bold bg-purple-100 text-purple-800 border border-purple-200">
-                                  🛡️ RETIRO
-                                </span>
-                              ) : (
-                                <span className={`font-bold ${h.trade_type === 'BUY' ? 'text-emerald-600' : 'text-red-650'}`}>
-                                  {h.trade_type === 'BUY' ? 'COMPRA' : 'VENTA'}
-                                </span>
-                              )}
-                            </td>
-
-                            {/* Monto Compra (Entrada) */}
-                            <td className="py-3.5 px-2 font-semibold">
-                              {isSweep ? (
-                                <span className="text-gray-400 italic text-[11px]">-</span>
-                              ) : h.trade_type === 'BUY' ? (
-                                <div>
-                                  <p className="text-red-600 font-bold">-${h.executed_amount.toFixed(2)} USD</p>
-                                  <p className="text-[10px] text-gray-400 font-mono">-${(h.executed_amount * usdToMxn).toFixed(2)} MXN</p>
-                                </div>
-                              ) : pnlInfo ? (
-                                <div>
-                                  <p className="text-gray-900 font-bold">${pnlInfo.buyCostUsd.toFixed(2)} USD</p>
-                                  <p className="text-[10px] text-gray-400 font-mono">Px: ${pnlInfo.avgBuyPrice.toFixed(2)}</p>
-                                </div>
-                              ) : (
-                                <span className="text-gray-400 italic text-[11px]">-</span>
-                              )}
-                            </td>
-
-                            {/* Monto Venta / Operación */}
-                            <td className="py-3.5 px-2 font-semibold">
-                              {isSweep ? (
-                                <div>
-                                  <p className="text-purple-700 font-bold">-${Math.abs(h.executed_amount).toFixed(2)} USD</p>
-                                  <p className="text-[10px] text-purple-400 font-mono">-${(Math.abs(h.executed_amount) * usdToMxn).toFixed(2)} MXN</p>
-                                </div>
-                              ) : h.trade_type === 'SELL' ? (
-                                <div>
-                                  <p className="text-emerald-600 font-bold">+${h.executed_amount.toFixed(2)} USD</p>
-                                  <p className="text-[10px] text-gray-400 font-mono">+${(h.executed_amount * usdToMxn).toFixed(2)} MXN</p>
-                                </div>
-                              ) : (
-                                <span className="text-gray-400 italic text-[11px]">-</span>
-                              )}
-                            </td>
-
-                            {/* Precio de Ejecución (Salida) */}
-                            <td className="py-3.5 px-2 font-mono text-gray-650 font-semibold">
-                              {isSweep ? '$1.00 USD' : `$${h.execution_price.toLocaleString(undefined, { minimumFractionDigits: 2 })} USD`}
-                            </td>
-
-                            {/* Margen PnL (Ganancia / Pérdida) */}
-                            <td className="py-3.5 px-2 font-semibold">
-                              {isSweep ? (
-                                <span className="text-purple-600 font-bold text-[10px]">🛡️ Traslado Bóveda</span>
-                              ) : h.trade_type === 'SELL' && pnlInfo ? (
-                                <div className={`inline-flex flex-col px-2 py-1 rounded-lg text-2xs font-extrabold border ${
-                                  pnlInfo.profitUsd >= 0
-                                    ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                                    : 'bg-red-50 text-red-700 border-red-200'
-                                }`}>
-                                  <span>{pnlInfo.profitUsd >= 0 ? '▲ +' : '▼ '}${Math.abs(pnlInfo.profitUsd).toFixed(2)} USD</span>
-                                  <span className="text-[10px]">({pnlInfo.profitPct >= 0 ? '+' : ''}{pnlInfo.profitPct.toFixed(2)}%)</span>
-                                </div>
-                              ) : (
-                                <span className="text-gray-400 italic text-[11px]">{h.trade_type === 'BUY' ? 'Posición Abierta' : '-'}</span>
-                              )}
-                            </td>
-
-                            <td className="py-3.5 px-2 uppercase font-semibold text-[10px] text-gray-400">{h.horizon}</td>
-                            <td className="py-3.5 px-2 text-gray-500">
-                              {new Date(h.created_at).toLocaleString()}
-                            </td>
-                            <td className="py-3.5 px-2">
-                              <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold uppercase ${
-                                isSweep ? 'bg-purple-100 text-purple-800 border border-purple-200' : h.status === 'executed' || h.status === 'simulated' ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800'
-                              }`}>
-                                {isSweep ? 'COMPLETADO' : h.status}
-                              </span>
-                            </td>
-                          </tr>
-                        );
-                      })
-                    )}
-                  </tbody>
-                </table>
-              </div>
-
-              {totalPages > 1 && (
-                <div className="flex items-center justify-between pt-4 border-t border-gray-100">
-                  <span className="text-xs text-gray-500 font-medium">
-                    Mostrando del <strong>{((currentPage - 1) * itemsPerPage) + 1}</strong> al <strong>{Math.min(currentPage * itemsPerPage, totalItems)}</strong> de <strong>{totalItems}</strong> operaciones
-                  </span>
-                  
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      disabled={currentPage === 1}
-                      onClick={() => setHistoryCurrentPage(prev => Math.max(1, prev - 1))}
-                      className="bg-white hover:bg-gray-50 disabled:opacity-50 text-gray-700 border border-gray-250 px-3 py-1.5 rounded-lg text-xs font-bold transition-all shadow-3xs"
-                    >
-                      Anterior
-                    </button>
-                    <span className="text-xs font-bold text-gray-700 px-1 font-mono">
-                      Pág. {currentPage} de {totalPages}
-                    </span>
-                    <button
-                      type="button"
-                      disabled={currentPage === totalPages}
-                      onClick={() => setHistoryCurrentPage(prev => Math.min(totalPages, prev + 1))}
-                      className="bg-white hover:bg-gray-50 disabled:opacity-50 text-gray-700 border border-gray-250 px-3 py-1.5 rounded-lg text-xs font-bold transition-all shadow-3xs"
-                    >
-                      Siguiente
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
-          );
-        })()}
-      </div>
+          <button onClick={fetchData} className="underline text-rose-300 hover:text-white font-semibold">Reintentar</button>
         </div>
       )}
 
-      {/* HORIZON VIEW */}
-      {activeSubTab === 'horizon' && (
-        <div className="space-y-6">
-          {/* Bot Control Panel (Botonera de Activo / Apagar / Reinicio) */}
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <div className="relative flex h-3 w-3">
-                <span className={`animate-ping absolute inline-flex h-full w-full rounded-full ${horizonBotActive ? 'bg-sky-400 opacity-75' : 'bg-amber-400 opacity-75'}`}></span>
-                <span className={`relative inline-flex rounded-full h-3 w-3 ${horizonBotActive ? 'bg-sky-500' : 'bg-amber-500'}`}></span>
-              </div>
-              <div>
-                <div className="flex items-center gap-2">
-                  <h3 className="text-xs font-bold text-white uppercase tracking-wider">Control Operativo - Bot Multi-Horizontes</h3>
-                  <span className={`px-2 py-0.5 rounded-full text-3xs font-extrabold border ${horizonBotActive ? 'bg-sky-500/10 text-sky-400 border-sky-500/30' : 'bg-amber-500/10 text-amber-400 border-amber-500/30'}`}>
-                    {horizonBotActive ? 'EN OPERACIÓN (ACTIVO)' : 'PAUSADO (APAGADO)'}
+      {/* 4 Cards principales de Estado Financiero Intradía */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        {/* Card 1: Capital Líquido Disponible */}
+        <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-5 shadow-lg hover:border-slate-700 transition-all">
+          <div className="flex items-center justify-between text-slate-400 text-xs font-semibold mb-2">
+            <span>Caja Líquida Disponible</span>
+            <Coins className="w-4 h-4 text-cyan-400" />
+          </div>
+          <div className="text-2xl md:text-3xl font-extrabold text-white">
+            ${capital.availableCashUsd.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} <span className="text-xs text-slate-400 font-normal">USD</span>
+          </div>
+          <div className="mt-2 text-xs text-slate-400 flex items-center justify-between border-t border-slate-800/80 pt-2">
+            <span>≈ ${(capital.availableCashUsd * usdToMxn).toLocaleString('es-MX', { maximumFractionDigits: 0 })} MXN</span>
+            <span className="text-cyan-400 font-medium">Libre para Inversión</span>
+          </div>
+        </div>
+
+        {/* Card 2: En Cripto (Posiciones Abiertas) */}
+        <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-5 shadow-lg hover:border-slate-700 transition-all">
+          <div className="flex items-center justify-between text-slate-400 text-xs font-semibold mb-2">
+            <span>Posiciones Abiertas en Cripto</span>
+            <Activity className="w-4 h-4 text-blue-400" />
+          </div>
+          <div className="text-2xl md:text-3xl font-extrabold text-white">
+            ${capital.openCryptoUsd.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} <span className="text-xs text-slate-400 font-normal">USD</span>
+          </div>
+          <div className="mt-2 text-xs text-slate-400 flex items-center justify-between border-t border-slate-800/80 pt-2">
+            <span>≈ ${(capital.openCryptoUsd * usdToMxn).toLocaleString('es-MX', { maximumFractionDigits: 0 })} MXN</span>
+            <span className="text-blue-400 font-medium">BTC, ETH, SOL</span>
+          </div>
+        </div>
+
+        {/* Card 3: Rendimiento Hoy (PnL Realizado) */}
+        <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-5 shadow-lg hover:border-slate-700 transition-all">
+          <div className="flex items-center justify-between text-slate-400 text-xs font-semibold mb-2">
+            <span>Rendimiento Hoy (PnL)</span>
+            {capital.todayPnlUsd >= 0 ? <ArrowUpRight className="w-4 h-4 text-emerald-400" /> : <ArrowDownRight className="w-4 h-4 text-rose-400" />}
+          </div>
+          <div className={`text-2xl md:text-3xl font-extrabold ${capital.todayPnlUsd >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+            {capital.todayPnlUsd >= 0 ? '+' : ''}${capital.todayPnlUsd.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} <span className="text-xs font-normal">USD</span>
+          </div>
+          <div className="mt-2 text-xs text-slate-400 flex items-center justify-between border-t border-slate-800/80 pt-2">
+            <span>≈ {capital.todayPnlUsd >= 0 ? '+' : ''}${(capital.todayPnlUsd * usdToMxn).toLocaleString('es-MX', { maximumFractionDigits: 2 })} MXN</span>
+            <span className={capital.todayPnlUsd >= 0 ? 'text-emerald-400 font-medium' : 'text-rose-400 font-medium'}>
+              {capital.base > 0 ? ((capital.todayPnlUsd / capital.base) * 100).toFixed(2) : '0.00'}% ROI Hoy
+            </span>
+          </div>
+        </div>
+
+        {/* Card 4: Patrimonio Total Intradía */}
+        <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-5 shadow-lg hover:border-slate-700 transition-all">
+          <div className="flex items-center justify-between text-slate-400 text-xs font-semibold mb-2">
+            <span>Patrimonio Total Intradía</span>
+            <ShieldCheck className="w-4 h-4 text-purple-400" />
+          </div>
+          <div className="text-2xl md:text-3xl font-extrabold text-white">
+            ${capital.totalEquityUsd.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} <span className="text-xs text-slate-400 font-normal">USD</span>
+          </div>
+          <div className="mt-2 text-xs text-slate-400 flex items-center justify-between border-t border-slate-800/80 pt-2">
+            <span>Base Inicial: ${capital.base.toFixed(2)} USD</span>
+            <span className="text-purple-400 font-medium">100% Intradía</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Seccion Propuestas Activas / En Espera de Auto-Ejecucion */}
+      <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-5 shadow-xl">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-base font-bold text-white flex items-center gap-2">
+            <Clock className="w-5 h-5 text-amber-400" />
+            Operaciones Programadas / Propuestas Activas
+            <span className="text-xs px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 border border-slate-700 font-normal">
+              {proposals.length} activas
+            </span>
+          </h2>
+        </div>
+
+        {proposals.length === 0 ? (
+          <div className="text-center py-10 text-slate-500 border border-dashed border-slate-800 rounded-xl">
+            <CheckCircle className="w-8 h-8 mx-auto mb-2 text-slate-600" />
+            <p className="text-xs font-medium text-slate-400">No hay propuestas pendientes en este momento.</p>
+            <p className="text-[11px] text-slate-500 mt-1">El Bot Intradía evalúa señales RSI y medias móviles continuamente cada minuto.</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {proposals.map(prop => (
+              <div key={prop.id} className="bg-slate-950 border border-slate-800 rounded-xl p-4 shadow-md hover:border-slate-700 transition-all flex flex-col justify-between">
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="font-bold text-white text-sm">{prop.asset}</span>
+                    <span className={`px-2.5 py-0.5 rounded-md text-[11px] font-extrabold tracking-wide uppercase ${
+                      prop.trade_type === 'BUY' 
+                        ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' 
+                        : 'bg-rose-500/20 text-rose-400 border border-rose-500/30'
+                    }`}>
+                      {prop.trade_type === 'BUY' ? 'COMPRA' : 'VENTA'}
+                    </span>
+                  </div>
+
+                  <div className="text-xs text-slate-400 space-y-1 mb-3">
+                    <div className="flex justify-between">
+                      <span>Monto Propuesto:</span>
+                      <span className="font-bold text-white">${prop.suggested_amount?.toFixed(2)} USD</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Precio Mercado:</span>
+                      <span className="font-semibold text-slate-200">${prop.current_price?.toLocaleString()}</span>
+                    </div>
+                    <div className="mt-2 text-[11px] bg-slate-900/80 p-2 rounded-lg text-slate-300 border border-slate-800/80 italic">
+                      "{prop.justification}"
+                    </div>
+                  </div>
+                </div>
+
+                <div className="pt-3 border-t border-slate-800/80 flex items-center justify-between">
+                  <span className="text-[10px] text-slate-500 flex items-center gap-1">
+                    <Clock className="w-3 h-3" />
+                    Auto-ejecución programada
                   </span>
+                  <button
+                    onClick={() => handleCancelProposal(prop.id)}
+                    className="px-3 py-1.5 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 text-xs font-semibold border border-rose-500/20 transition-all"
+                  >
+                    Rechazar
+                  </button>
                 </div>
-                <p className="text-3xs text-slate-400 mt-0.5">Controla las compras escalonadas y rebalanceo de horizontes (Diario a Anual).</p>
               </div>
-            </div>
-            <div className="flex items-center gap-2 w-full sm:w-auto">
-              <button
-                onClick={() => handleBotControl('horizon', 'start')}
-                disabled={horizonBotActive || botActionLoading === 'horizon_start'}
-                className={`flex-1 sm:flex-none px-3.5 py-2 rounded-xl text-2xs font-bold transition-all flex items-center justify-center gap-1.5 border ${
-                  horizonBotActive
-                    ? 'bg-sky-950/40 text-sky-600 border-sky-900/40 cursor-not-allowed opacity-60'
-                    : 'bg-emerald-600 hover:bg-emerald-500 text-white border-emerald-500 shadow-md shadow-emerald-600/20'
-                }`}
-              >
-                <Play className="w-3.5 h-3.5 fill-current" />
-                <span>Activar</span>
-              </button>
-              <button
-                onClick={() => handleBotControl('horizon', 'stop')}
-                disabled={!horizonBotActive || botActionLoading === 'horizon_stop'}
-                className={`flex-1 sm:flex-none px-3.5 py-2 rounded-xl text-2xs font-bold transition-all flex items-center justify-center gap-1.5 border ${
-                  !horizonBotActive
-                    ? 'bg-amber-950/40 text-amber-600 border-amber-900/40 cursor-not-allowed opacity-60'
-                    : 'bg-amber-600 hover:bg-amber-500 text-white border-amber-500 shadow-md shadow-amber-600/20'
-                }`}
-              >
-                <Pause className="w-3.5 h-3.5 fill-current" />
-                <span>Apagar</span>
-              </button>
-              <button
-                onClick={() => handleBotControl('horizon', 'reset')}
-                disabled={botActionLoading === 'horizon_reset'}
-                className="flex-1 sm:flex-none px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-2xs font-bold border border-slate-700 transition-all flex items-center justify-center gap-1.5 shadow-sm"
-                title="Reinicia el capital base ($1,000 USD) y limpia las órdenes de este bot"
-              >
-                <RotateCcw className="w-3.5 h-3.5" />
-                <span>Reiniciar</span>
-              </button>
-            </div>
+            ))}
           </div>
-          <div className="bg-white p-6 rounded-2xl border border-gray-150 shadow-sm flex items-center justify-between">
-            <div>
-              <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
-                <Clock className="w-6 h-6 text-sky-500" />
-                Bot por Horizontes de Capital (Multi-Plazo Original)
-              </h2>
-              <p className="text-xs text-gray-500 mt-1">
-                Distribución estratégica de capital a través de 6 horizontes de tiempo (Diario a Anual) con metas de ROI y rebalanceo de IA.
-              </p>
-            </div>
-            <button
-              onClick={handleDistributeCapital}
-              className="px-4 py-2 bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-700 hover:to-indigo-700 text-white rounded-xl font-bold text-xs shadow-md shadow-sky-500/20 transition-all flex items-center gap-2"
-            >
-              <RefreshCw className="w-4 h-4" />
-              Ejecutar Redistribución IA
-            </button>
-          </div>
+        )}
+      </div>
 
-          {/* 6 Horizons Cards Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4">
-            {(['daily', 'weekly', 'monthly', 'quarterly', 'semiannual', 'annual'] as const)
-              .map(hKey => horizons.find(h => h.horizon === hKey))
-              .filter((hz): hz is CapitalHorizon => Boolean(hz))
-              .map((hz) => (
-                <div key={hz.id} className="bg-white p-3.5 rounded-xl border border-gray-150 shadow-sm space-y-2.5">
-                  <div className="flex items-center justify-between border-b border-gray-100 pb-2 gap-1 flex-wrap">
-                    <span className="text-[11px] font-black uppercase text-gray-800 tracking-wide">
-                      {hz.horizon === 'daily' ? 'Diario' :
-                       hz.horizon === 'weekly' ? 'Semanal' :
-                       hz.horizon === 'monthly' ? 'Mensual' :
-                       hz.horizon === 'quarterly' ? 'Trimestral' :
-                       hz.horizon === 'semiannual' ? 'Semestral' : 'Anual'}
-                    </span>
-                    <span className="text-[9px] font-black text-sky-600 bg-sky-50 px-1.5 py-0.5 rounded-md border border-sky-100 whitespace-nowrap">
-                      ROI {hz.target_roi}%
-                    </span>
-                  </div>
+      {/* Configuracion de Activos y Umbrales RSI */}
+      <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-5 shadow-xl">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-base font-bold text-white flex items-center gap-2">
+            <Sliders className="w-5 h-5 text-cyan-400" />
+            Parámetros y Umbrales Técnicos de Activos
+          </h2>
+        </div>
 
-                  <div className="space-y-0.5">
-                    <p className="text-[9px] font-bold text-gray-400 uppercase tracking-wider">Balance Actual</p>
-                    <p className="text-xs font-black text-gray-900">${Number(hz.current_balance || 0).toFixed(2)} USD</p>
-                  </div>
-
-                  <div className="pt-1.5 border-t border-gray-100 flex items-center justify-between text-[9px]">
-                    <span className="text-gray-500 font-medium">Asignado: <strong>{hz.allocated_percentage}%</strong></span>
-                    {hz.suggested_percentage_ai !== null && (
-                      <span className="text-indigo-600 font-bold">IA: {hz.suggested_percentage_ai}%</span>
-                    )}
-                  </div>
-                </div>
-              ))}
-          </div>
-
-          {/* Tus Criptomonedas (Bot por Horizontes) */}
-          <div className="bg-white p-6 rounded-xl border border-gray-150 shadow-sm space-y-4">
-            <div>
-              <h2 className="text-lg font-bold text-gray-900 flex items-center gap-1.5">
-                💼 Tus Criptomonedas (Bot por Horizontes)
-              </h2>
-              <p className="text-2xs text-gray-455 mt-0.5 font-medium">Capital invertido y rendimiento de activos en la estrategia multitemporal en tiempo real.</p>
-            </div>
-            
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {Object.keys(balances).filter(key => key && !key.startsWith('SWEEP_')).map(key => {
-                const b = balances[key];
-                const activeConfig = assetConfigs.find(c => c.asset === key);
-                const activeMode = activeConfig?.active_mode || 'moderado';
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-xs text-slate-300">
+            <thead className="bg-slate-950 text-slate-400 uppercase text-[10px] font-bold tracking-wider border-b border-slate-800">
+              <tr>
+                <th className="p-3.5">Activo Cripto</th>
+                <th className="p-3.5">Precio Actual</th>
+                <th className="p-3.5">RSI Compra (&le;)</th>
+                <th className="p-3.5">RSI Venta (&ge;)</th>
+                <th className="p-3.5">Timeout (Minutos)</th>
+                <th className="p-3.5 text-center">Estado</th>
+                <th className="p-3.5 text-right">Acciones</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-800/60">
+              {assetConfigs.map(c => {
+                const edits = editingConfigs[c.asset] || {};
                 return (
-                  <div key={key} className="bg-gray-50/70 p-4 rounded-xl border border-gray-100 flex flex-col justify-between space-y-3">
-                    <div className="flex justify-between items-start">
-                      <div className="flex items-center gap-3">
-                        <div className="w-9 h-9 rounded-full bg-sky-50 border border-sky-100 flex items-center justify-center font-bold text-xs text-sky-750">
-                          {key.split('/')[0]}
-                        </div>
-                        <div>
-                          <div className="flex items-center gap-1.5">
-                            <p className="text-xs font-bold text-gray-800">{b.name}</p>
-                            <span className="px-1.5 py-0.2 rounded bg-sky-50 text-sky-700 text-[8px] font-extrabold uppercase">
-                              MULTITEMPORAL
-                            </span>
-                          </div>
-                          <p className="text-3xs text-gray-455 font-mono mt-0.5">
-                            {b.coins.toFixed(6)} {key.split('/')[0]}
-                          </p>
-                        </div>
+                  <tr key={c.id} className="hover:bg-slate-800/30 transition-colors">
+                    <td className="p-3.5 font-bold text-white flex items-center gap-2">
+                      <div className="w-7 h-7 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center text-[10px]">
+                        {c.asset.split('/')[0]}
                       </div>
-
-                      <div className="text-right">
-                        <p className="text-xs font-black text-gray-900 font-mono">${b.valueUsd.toFixed(2)} USD</p>
-                        <p className="text-[9px] font-bold text-gray-400 font-mono">≈ ${(b.valueUsd * usdToMxn).toFixed(2)} MXN</p>
-                      </div>
-                    </div>
-
-                    <div className="pt-2 border-t border-gray-150/70 flex items-center justify-between">
-                      {(() => {
-                        const hasOpenPos = b.coins > 0.000001 && b.valueUsd >= 0.01;
-                        if (hasOpenPos) {
-                          const pct = b.cost > 0 ? ((b.profitUsd / b.cost) * 100) : 0;
-                          return (
-                            <div className={`px-2 py-1 rounded-lg text-2xs font-extrabold flex items-center gap-1 border ${b.profitUsd >= 0 ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-red-50 text-red-700 border-red-200'}`}>
-                              <span>Ganancia / Pérdida:</span>
-                              <span>{b.profitUsd >= 0 ? '▲ +' : '▼ '}${Math.abs(b.profitUsd).toFixed(2)} USD ({pct >= 0 ? '+' : ''}{pct.toFixed(2)}%)</span>
-                            </div>
-                          );
-                        }
-                        return (
-                          <span className="text-[10px] text-gray-400 italic font-medium">Sin posición abierta ($0.00 USD)</span>
-                        );
-                      })()}
-                    </div>
-                  </div>
+                      {c.asset}
+                    </td>
+                    <td className="p-3.5 font-semibold text-slate-200">
+                      ${c.current_price ? c.current_price.toLocaleString() : '---'}
+                    </td>
+                    <td className="p-3.5">
+                      <input
+                        type="number"
+                        value={edits.rsi_threshold_buy ?? c.rsi_threshold_buy}
+                        onChange={(e) => setEditingConfigs(prev => ({
+                          ...prev,
+                          [c.asset]: { ...prev[c.asset], rsi_threshold_buy: parseFloat(e.target.value) }
+                        }))}
+                        className="w-20 bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1 text-white text-xs font-semibold focus:border-cyan-500 outline-none"
+                      />
+                    </td>
+                    <td className="p-3.5">
+                      <input
+                        type="number"
+                        value={edits.rsi_threshold_sell ?? c.rsi_threshold_sell}
+                        onChange={(e) => setEditingConfigs(prev => ({
+                          ...prev,
+                          [c.asset]: { ...prev[c.asset], rsi_threshold_sell: parseFloat(e.target.value) }
+                        }))}
+                        className="w-20 bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1 text-white text-xs font-semibold focus:border-cyan-500 outline-none"
+                      />
+                    </td>
+                    <td className="p-3.5">
+                      <input
+                        type="number"
+                        value={edits.rejection_timeout_minutes ?? c.rejection_timeout_minutes}
+                        onChange={(e) => setEditingConfigs(prev => ({
+                          ...prev,
+                          [c.asset]: { ...prev[c.asset], rejection_timeout_minutes: parseInt(e.target.value) }
+                        }))}
+                        className="w-20 bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1 text-white text-xs font-semibold focus:border-cyan-500 outline-none"
+                      />
+                    </td>
+                    <td className="p-3.5 text-center">
+                      <button
+                        onClick={() => setEditingConfigs(prev => ({
+                          ...prev,
+                          [c.asset]: { ...prev[c.asset], is_active: !(edits.is_active ?? c.is_active) }
+                        }))}
+                        className={`px-3 py-1 rounded-full text-[11px] font-bold ${
+                          (edits.is_active ?? c.is_active)
+                            ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                            : 'bg-rose-500/20 text-rose-400 border border-rose-500/30'
+                        }`}
+                      >
+                        {(edits.is_active ?? c.is_active) ? 'ACTIVO' : 'PAUSADO'}
+                      </button>
+                    </td>
+                    <td className="p-3.5 text-right">
+                      <button
+                        onClick={() => handleSaveAssetConfig(c.asset)}
+                        className="px-3 py-1.5 bg-cyan-600 hover:bg-cyan-500 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 ml-auto transition-all shadow-md"
+                      >
+                        <Save className="w-3.5 h-3.5" />
+                        Guardar
+                      </button>
+                    </td>
+                  </tr>
                 );
               })}
-            </div>
-          </div>
-
-          {/* Horizon Performance SVG Chart */}
-          <div className="bg-white p-6 rounded-xl border border-gray-150 shadow-sm space-y-4">
-            <div className="flex justify-between items-center pb-2 border-b border-gray-100 flex-wrap gap-3">
-              <div className="flex items-center gap-4 flex-wrap">
-                <div>
-                  <h2 className="text-base font-bold text-gray-900 flex items-center gap-1.5">
-                    <TrendingUp className="w-4 h-4 text-sky-500" /> Rendimiento Acumulado (Bot por Horizontes)
-                  </h2>
-                  <p className="text-2xs text-gray-400 mt-0.5">Evolución del portafolio multitemporal en tiempo real.</p>
-                </div>
-              </div>
-              
-              <div className="text-right">
-                <span className={`text-xs font-extrabold flex items-center justify-end gap-0.5 ${netProfit >= 0 ? 'text-sky-600' : 'text-red-650'}`}>
-                  {netProfit >= 0 ? <ArrowUpRight className="w-3.5 h-3.5" /> : <ArrowDownRight className="w-3.5 h-3.5" />}
-                  {netProfit >= 0 ? '+' : ''}${netProfit.toFixed(2)} USD
-                </span>
-              </div>
-            </div>
-
-            {(() => {
-              const { points: pointsWithCoords, polylinePoints, yMax, yMin } = getChartData();
-              const yMid = (yMax + yMin) / 2;
-              const yUpperMid = yMax - (yMax - yMin) * 0.25;
-              const yLowerMid = yMax - (yMax - yMin) * 0.75;
-
-              return (
-                <div className="bg-white border border-gray-150 rounded-xl p-4 relative flex flex-col justify-between">
-                  <div className="absolute left-3 top-4 bottom-14 flex flex-col justify-between text-[9px] font-bold font-mono text-gray-400 select-none pointer-events-none z-10 border-r border-gray-100 pr-2">
-                    <span>${yMax.toLocaleString(undefined, { maximumFractionDigits: 1 })}</span>
-                    <span>${yUpperMid.toLocaleString(undefined, { maximumFractionDigits: 1 })}</span>
-                    <span>${yMid.toLocaleString(undefined, { maximumFractionDigits: 1 })}</span>
-                    <span>${yLowerMid.toLocaleString(undefined, { maximumFractionDigits: 1 })}</span>
-                    <span>${yMin.toLocaleString(undefined, { maximumFractionDigits: 1 })}</span>
-                  </div>
-
-                  <div className="w-full h-28 pl-14 pr-2 flex items-end relative">
-                    <svg viewBox="0 0 400 100" className="w-full h-full overflow-visible" preserveAspectRatio="none">
-                      <line x1="0" y1="10" x2="400" y2="10" stroke="#f3f4f6" strokeWidth="1" />
-                      <line x1="0" y1="30" x2="400" y2="30" stroke="#f3f4f6" strokeWidth="1" />
-                      <line x1="0" y1="50" x2="400" y2="50" stroke="#f3f4f6" strokeWidth="1" />
-                      <line x1="0" y1="70" x2="400" y2="70" stroke="#f3f4f6" strokeWidth="1" />
-                      <line x1="0" y1="90" x2="400" y2="90" stroke="#f3f4f6" strokeWidth="1" />
-
-                      <polyline
-                        fill="none"
-                        stroke="#0284c7"
-                        strokeWidth="2.2"
-                        points={polylinePoints}
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      />
-                    </svg>
-                  </div>
-                </div>
-              );
-            })()}
-          </div>
-
-          {/* Horizon Proposals Queue */}
-          <div className="bg-white p-6 rounded-xl border border-gray-150 shadow-sm space-y-4">
-            <h3 className="text-sm font-bold text-gray-900 flex items-center gap-2">
-              <Clock className="w-4 h-4 text-sky-500" />
-              Propuestas Pendientes (Bot por Horizontes)
-            </h3>
-            {proposals.filter(p => p.operation_code.startsWith('H_') || (p.justification && p.justification.startsWith('[Bot Horizontes]'))).length === 0 ? (
-              <p className="text-xs text-gray-400 italic py-4 text-center">No hay propuestas pendientes para el Bot por Horizontes.</p>
-            ) : (
-              <div className="space-y-3">
-                {proposals.filter(p => p.operation_code.startsWith('H_') || (p.justification && p.justification.startsWith('[Bot Horizontes]'))).map(p => (
-                  <div key={p.id} className="p-3 bg-sky-50/50 border border-sky-100 rounded-xl flex items-center justify-between">
-                    <div>
-                      <span className="font-bold text-xs text-gray-800">{p.operation_code} - {p.asset}</span>
-                      <p className="text-3xs text-gray-500">{p.justification}</p>
-                    </div>
-                    <span className="text-xs font-extrabold text-sky-700">${p.suggested_amount.toFixed(2)} USD</span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* Horizon Executed Trades History Table */}
-          <div className="bg-white p-6 rounded-xl border border-gray-150 shadow-sm space-y-4">
-            <h3 className="text-sm font-bold text-gray-900 flex items-center gap-2">
-              <Clock className="w-4 h-4 text-sky-500" />
-              Historial de Operaciones Realizadas (Bot por Horizontes)
-            </h3>
-            {(() => {
-              const horizonHistory = history.filter(h => h.horizon && h.horizon !== 'intraday');
-              if (horizonHistory.length === 0) {
-                return (
-                  <p className="text-xs text-gray-400 italic py-4 text-center">No hay operaciones registradas aún para el Bot por Horizontes.</p>
-                );
-              }
-              return (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm text-left border-collapse">
-                    <thead>
-                      <tr className="border-b border-gray-200 text-gray-500 font-semibold text-xs">
-                        <th className="py-3 px-2">Activo</th>
-                        <th className="py-3 px-2">Tipo</th>
-                        <th className="py-3 px-2">Monto (USD)</th>
-                        <th className="py-3 px-2">Precio de Ejecución</th>
-                        <th className="py-3 px-2">Plazo</th>
-                        <th className="py-3 px-2">Fecha</th>
-                        <th className="py-3 px-2">Estatus</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {horizonHistory.map((h: any) => (
-                        <tr key={h.id} className="border-b border-gray-100 text-xs">
-                          <td className="py-2.5 px-2 font-bold text-gray-800">{h.asset}</td>
-                          <td className="py-2.5 px-2">
-                            <span className={`px-2 py-0.5 rounded text-3xs font-extrabold ${
-                              h.trade_type === 'BUY' ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800'
-                            }`}>
-                              {h.trade_type}
-                            </span>
-                          </td>
-                          <td className="py-2.5 px-2 font-mono font-bold">${Number(h.executed_amount).toFixed(2)}</td>
-                          <td className="py-2.5 px-2 font-mono">${Number(h.execution_price).toLocaleString()}</td>
-                          <td className="py-2.5 px-2 capitalize font-semibold text-sky-700">{h.horizon}</td>
-                          <td className="py-2.5 px-2 text-gray-500">{new Date(h.created_at).toLocaleString('es-MX')}</td>
-                          <td className="py-2.5 px-2">
-                            <span className="px-2 py-0.5 rounded-full text-3xs font-bold uppercase bg-emerald-100 text-emerald-800">
-                              {h.status}
-                            </span>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              );
-            })()}
-          </div>
+            </tbody>
+          </table>
         </div>
-      )}
+      </div>
 
-      {/* COMPARISON VIEW */}
-      {activeSubTab === 'comparison' && (
-        <div className="space-y-6">
-          <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 p-6 rounded-2xl border border-indigo-500/30 text-white shadow-xl">
-            <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 pb-4 border-b border-indigo-800/40">
-              <div>
-                <h2 className="text-lg font-bold flex items-center gap-2 text-white">
-                  <BarChart2 className="w-6 h-6 text-emerald-400" />
-                  Comparativa de Motores de Trading en Tiempo Real
-                </h2>
-                <p className="text-xs text-slate-300 mt-1">
-                  Evaluación paralela del Bot Intradía de 15m frente al Bot por Horizontes Multitemporal.
-                </p>
-              </div>
+      {/* Historial Unico de Operaciones Intradia */}
+      <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-5 shadow-xl">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4">
+          <h2 className="text-base font-bold text-white flex items-center gap-2">
+            <HistoryIcon className="w-5 h-5 text-cyan-400" />
+            Historial Único de Operaciones Intradía
+            <span className="text-xs px-2.5 py-0.5 rounded-full bg-slate-800 text-slate-400 border border-slate-700 font-normal">
+              {filteredHistory.length} registros
+            </span>
+          </h2>
 
-              {/* Timeframe Selector Buttons (1D, 1S, 1M, 1A, HISTÓRICO) */}
-              <div className="flex items-center gap-1 bg-slate-950/80 p-1.5 rounded-xl border border-indigo-500/30 select-none flex-wrap">
-                <span className="text-3xs font-extrabold text-slate-400 uppercase tracking-wider px-2">Rango:</span>
-                {([
-                  { key: '1D', label: '1D (Hoy)' },
-                  { key: '1W', label: '1S (Semana)' },
-                  { key: '1M', label: '1M (Mes)' },
-                  { key: '1Y', label: '1A (Año)' },
-                  { key: 'ALL', label: 'HISTÓRICO' }
-                ] as const).map(f => (
-                  <button
-                    key={f.key}
-                    type="button"
-                    onClick={() => setTimeFilter(f.key as any)}
-                    className={`px-3 py-1 text-2xs font-extrabold transition-all uppercase rounded-lg ${
-                      timeFilter === f.key
-                        ? 'bg-gradient-to-r from-emerald-500 to-teal-400 text-slate-950 shadow-sm font-black'
-                        : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
-                    }`}
-                  >
-                    {f.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {(() => {
-              const computeBotMetricsForTimeframe = (botKind: 'intraday' | 'horizon') => {
-                const isTargetBot = (h: TradeHistory) => {
-                  const isIntra = isIntradayTrade(h);
-                  return botKind === 'intraday' ? isIntra : !isIntra;
-                };
-
-                const allTrades = [...history]
-                  .filter(h => (h.status === 'executed' || h.status === 'simulated') && isTargetBot(h))
-                  .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
-
-                const now = Date.now();
-                const todayStart = new Date();
-                todayStart.setHours(0, 0, 0, 0);
-
-                let thresholdTime = 0;
-                if (timeFilter === '1D') {
-                  thresholdTime = todayStart.getTime();
-                } else if (timeFilter === '1W') {
-                  thresholdTime = now - (7 * 24 * 60 * 60 * 1000);
-                } else if (timeFilter === '1M') {
-                  thresholdTime = now - (30 * 24 * 60 * 60 * 1000);
-                } else if (timeFilter === '6M') {
-                  thresholdTime = now - (180 * 24 * 60 * 60 * 1000);
-                } else if (timeFilter === '1Y') {
-                  thresholdTime = now - (365 * 24 * 60 * 60 * 1000);
-                } else {
-                  thresholdTime = 0; // ALL (Histórico Acumulado)
-                }
-
-                let closedPnlInFrame = 0;
-                let feesInFrame = 0;
-                let tradesCountInFrame = 0;
-
-                const buyCosts: Record<string, number> = {};
-                const buyCoins: Record<string, number> = {};
-
-                allTrades.forEach(t => {
-                  const price = t.execution_price || 1;
-                  const amountUsd = Math.abs(t.executed_amount);
-                  const qty = amountUsd / price;
-                  const asset = t.asset;
-                  const tradeTime = new Date(t.created_at).getTime();
-
-                  const isInFrame = timeFilter === '1D'
-                    ? tradeTime >= todayStart.getTime()
-                    : (thresholdTime === 0 || tradeTime >= thresholdTime);
-
-                  // If it's a RETIRO / SWEEP row:
-                  if (t.trade_type === 'RETIRO' || (asset && asset.startsWith('SWEEP_'))) {
-                    // Only count manual retiros (not automatic sweeps, which are already covered by SELL trades!)
-                    if (isInFrame && !asset?.startsWith('SWEEP_') && t.trade_type === 'RETIRO') {
-                      closedPnlInFrame += amountUsd;
-                      tradesCountInFrame += 1;
-                    }
-                    return;
-                  }
-
-                  const fee = t.fees !== null && t.fees !== undefined ? Number(t.fees) : (amountUsd * 0.0010);
-                  if (isInFrame) {
-                    feesInFrame += fee;
-                    tradesCountInFrame += 1;
-                  }
-
-                  if (!buyCoins[asset]) buyCoins[asset] = 0;
-                  if (!buyCosts[asset]) buyCosts[asset] = 0;
-
-                  if (t.trade_type === 'BUY') {
-                    buyCoins[asset] += qty;
-                    buyCosts[asset] += amountUsd;
-                  } else if (t.trade_type === 'SELL') {
-                    const prevCoins = buyCoins[asset];
-                    const ratio = prevCoins > 0 ? Math.min(1, qty / prevCoins) : 1;
-                    const costBasis = buyCosts[asset] * ratio;
-                    const pnl = amountUsd - costBasis;
-
-                    if (isInFrame) {
-                      closedPnlInFrame += pnl;
-                    }
-
-                    buyCoins[asset] = Math.max(0, buyCoins[asset] - qty);
-                    buyCosts[asset] = Math.max(0, buyCosts[asset] - costBasis);
-                  }
-                });
-
-                let openCryptoVal = 0;
-                let openCostBasis = 0;
-                Object.keys(buyCoins).forEach(asset => {
-                  const coins = buyCoins[asset];
-                  if (coins > 0.000001) {
-                    const price = (assetConfigs.find(c => c.asset === asset) as any)?.current_price || (asset.includes('BTC') ? 80040 : asset.includes('ETH') ? 2500 : 104);
-                    openCryptoVal += coins * price;
-                    openCostBasis += buyCosts[asset];
-                  }
-                });
-
-                const unrealizedPnlInFrame = openCryptoVal - openCostBasis;
-                const netPnlInFrame = closedPnlInFrame + unrealizedPnlInFrame - feesInFrame;
-                return {
-                  netPnl: netPnlInFrame,
-                  grossPnl: closedPnlInFrame + unrealizedPnlInFrame,
-                  fees: feesInFrame,
-                  tradesCount: tradesCountInFrame
-                };
-              };
-
-              const intraMetrics = computeBotMetricsForTimeframe('intraday');
-              const horizMetrics = computeBotMetricsForTimeframe('horizon');
-
-              const intraNetPnl = intraMetrics.netPnl;
-              const intraFees = intraMetrics.fees;
-              const intraCount = intraMetrics.tradesCount;
-
-              const horizNetPnl = horizMetrics.netPnl;
-              const horizFees = horizMetrics.fees;
-              const horizCount = horizMetrics.tradesCount;
-
-              const labelMap: Record<string, string> = {
-                '1D': '1 Día (Hoy)',
-                '1W': '1 Semana',
-                '1M': '1 Mes',
-                '1Y': '1 Año',
-                'ALL': 'Histórico Acumulado'
-              };
-              const activeLabel = labelMap[timeFilter] || timeFilter;
-
-              return (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
-                  {/* Bot Intradia Card */}
-                  <div className="bg-slate-800/80 p-5 rounded-xl border border-blue-500/30 space-y-4">
-                    <div className="flex items-center justify-between border-b border-slate-700/60 pb-3">
-                      <div className="flex items-center gap-2">
-                        <Zap className="w-5 h-5 text-amber-400" />
-                        <span className="font-bold text-sm text-white">Bot Intradía (15m + Rotación)</span>
-                      </div>
-                      <span className="px-2.5 py-1 bg-blue-500/20 text-blue-300 text-xs font-bold rounded-full border border-blue-500/30">
-                        {activeLabel}
-                      </span>
-                    </div>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <p className="text-3xs font-semibold text-slate-400 uppercase">Capital Consolidado</p>
-                        <p className="text-lg font-extrabold text-white mt-0.5">${intradayEquity.toFixed(2)} USD</p>
-                      </div>
-                      <div>
-                        <p className="text-3xs font-semibold text-slate-400 uppercase">Ganancia Neta ({timeFilter})</p>
-                        <p className={`text-lg font-extrabold mt-0.5 ${intraNetPnl >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                          {intraNetPnl >= 0 ? '+' : ''}${intraNetPnl.toFixed(2)} USD ({intraNetPnl >= 0 ? '+' : ''}${((intraNetPnl / 1000) * 100).toFixed(2)}%)
-                        </p>
-                      </div>
-                      <div>
-                        <p className="text-3xs font-semibold text-slate-400 uppercase">Comisiones Trading ({timeFilter})</p>
-                        <p className="text-sm font-bold text-amber-300 mt-0.5">-${intraFees.toFixed(2)} USD</p>
-                      </div>
-                      <div>
-                        <p className="text-3xs font-semibold text-slate-400 uppercase">Operaciones ({timeFilter})</p>
-                        <p className="text-sm font-bold text-slate-200 mt-0.5">{intraCount}</p>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Bot Horizontes Card */}
-                  <div className="bg-slate-800/80 p-5 rounded-xl border border-purple-500/30 space-y-4">
-                    <div className="flex items-center justify-between border-b border-slate-700/60 pb-3">
-                      <div className="flex items-center gap-2">
-                        <Clock className="w-5 h-5 text-sky-400" />
-                        <span className="font-bold text-sm text-white">Bot por Horizontes (Multi-Plazo)</span>
-                      </div>
-                      <span className="px-2.5 py-1 bg-purple-500/20 text-purple-300 text-xs font-bold rounded-full border border-purple-500/30">
-                        {activeLabel}
-                      </span>
-                    </div>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <p className="text-3xs font-semibold text-slate-400 uppercase">Capital Consolidado</p>
-                        <p className="text-lg font-extrabold text-white mt-0.5">${horizonEquity.toFixed(2)} USD</p>
-                      </div>
-                      <div>
-                        <p className="text-3xs font-semibold text-slate-400 uppercase">Ganancia Neta ({timeFilter})</p>
-                        <p className={`text-lg font-extrabold mt-0.5 ${horizNetPnl >= 0 ? 'text-purple-400' : 'text-red-400'}`}>
-                          {horizNetPnl >= 0 ? '+' : ''}${horizNetPnl.toFixed(2)} USD ({horizNetPnl >= 0 ? '+' : ''}${((horizNetPnl / 1000) * 100).toFixed(2)}%)
-                        </p>
-                      </div>
-                      <div>
-                        <p className="text-3xs font-semibold text-slate-400 uppercase">Comisiones Trading ({timeFilter})</p>
-                        <p className="text-sm font-bold text-amber-300 mt-0.5">-${horizFees.toFixed(2)} USD</p>
-                      </div>
-                      <div>
-                        <p className="text-3xs font-semibold text-slate-400 uppercase">Operaciones ({timeFilter})</p>
-                        <p className="text-sm font-bold text-slate-200 mt-0.5">{horizCount}</p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              );
-            })()}
-          </div>
-
-          {/* Gráfico Comparativo Dual */}
-          <div className="bg-white p-6 rounded-2xl border border-gray-150 shadow-sm space-y-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <h3 className="text-sm font-bold text-gray-800 flex items-center gap-2">
-                  <TrendingUp className="w-5 h-5 text-emerald-600" />
-                  Curva de Rendimiento Comparativo
-                </h3>
-                <p className="text-xs text-gray-500 mt-0.5">
-                  Línea Azul: Bot Intradía (15m) | Línea Púrpura: Bot por Horizontes
-                </p>
-              </div>
-            </div>
-
-            {(() => {
-              const getChartPoints = (isHorizon: boolean) => {
-                const trades = history.filter((h: any) => {
-                  const itemIsHz = h.bot_type === 'HORIZON' || (h.horizon && h.horizon !== 'intraday');
-                  return isHorizon ? itemIsHz : !itemIsHz;
-                }).sort((a: any, b: any) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
-
-                if (trades.length === 0) {
-                  return "0,120 500,120";
-                }
-
-                let cum = 0;
-                const vals = [0];
-                trades.forEach((t: any) => {
-                  const amt = Math.abs(Number(t.executed_amount || t.suggested_amount || 0));
-                  if (t.trade_type === 'SELL') {
-                    cum += (t.pnl !== undefined ? Number(t.pnl) : amt * 0.015);
-                  }
-                  vals.push(cum);
-                });
-
-                const maxV = Math.max(5, ...vals);
-                const minV = Math.min(0, ...vals);
-                const range = (maxV - minV) || 1;
-                const count = vals.length;
-
-                return vals.map((v, i) => {
-                  const x = Math.round((i / Math.max(1, count - 1)) * 500);
-                  const norm = (v - minV) / range;
-                  const y = Math.round(135 - (norm * 115));
-                  return `${x},${y}`;
-                }).join(' ');
-              };
-
-              const intraPoints = getChartPoints(false);
-              const horizPoints = getChartPoints(true);
-
-              return (
-                <div className="h-64 w-full bg-slate-950 p-4 rounded-xl relative overflow-hidden flex items-end">
-                  <svg className="w-full h-full overflow-visible" viewBox="0 0 500 150" preserveAspectRatio="none">
-                    <polyline
-                      fill="none"
-                      stroke="#3b82f6"
-                      strokeWidth="3"
-                      points={intraPoints}
-                    />
-                    <polyline
-                      fill="none"
-                      stroke="#a855f7"
-                      strokeWidth="3"
-                      strokeDasharray="6,4"
-                      points={horizPoints}
-                    />
-                  </svg>
-                </div>
-              );
-            })()}
-          </div>
+          <input
+            type="text"
+            placeholder="Buscar por fecha u activo..."
+            value={historyDateSearch}
+            onChange={(e) => setHistoryDateSearch(e.target.value)}
+            className="bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-1.5 text-xs text-white placeholder-slate-500 focus:border-cyan-500 outline-none w-full md:w-64"
+          />
         </div>
-      )}
 
-      {/* PROFIT VAULT & SWEEPS VIEW */}
-      {(activeSubTab as string) === 'vault' && (
-        <div className="space-y-6">
-          {/* Header Card */}
-          <div className="bg-gradient-to-r from-slate-900 via-purple-950 to-slate-900 p-6 rounded-2xl border border-purple-500/30 text-white shadow-xl space-y-4">
-            <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 border-b border-purple-800/50 pb-4">
-              <div>
-                <h2 className="text-xl font-bold flex items-center gap-2 text-white">
-                  <ShieldCheck className="w-7 h-7 text-emerald-400" />
-                  Bóveda de Ganancias y Quitas Automáticas
-                </h2>
-                <p className="text-xs text-slate-300 mt-1">
-                  Protección de utilidades obtenidas. El capital activo de trading se estabiliza a $1,000.00 USD y los excedentes se transfieren aquí.
-                </p>
-              </div>
-
-              <div className="flex items-center gap-3">
-                <span className={`px-3 py-1.5 rounded-full text-xs font-bold border ${vaultStatus.auto_sweep_enabled ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30' : 'bg-amber-500/20 text-amber-300 border-amber-500/30'}`}>
-                  {vaultStatus.auto_sweep_enabled ? '🛡️ Quita Automática Activa' : '⏸️ Quitas Pausadas'}
-                </span>
-                <button
-                  onClick={() => handleSaveVaultConfig(!vaultStatus.auto_sweep_enabled)}
-                  className="px-3.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-xs font-semibold rounded-xl border border-slate-600 text-white transition-all"
-                >
-                  {vaultStatus.auto_sweep_enabled ? 'Pausar Quita Automática' : 'Activar Quita Automática'}
-                </button>
-              </div>
-            </div>
-
-            {/* Metrics */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 pt-2">
-              <div className="bg-slate-800/80 p-4 rounded-xl border border-emerald-500/30">
-                <p className="text-xs font-semibold text-emerald-300 uppercase tracking-wider">Efectivo Libres por Barrer</p>
-                <p className="text-2xl font-black text-emerald-400 mt-1">${(vaultStatus.total_available_excess_cash_usd || 0).toFixed(2)} USD</p>
-                <p className="text-xs text-slate-300 mt-0.5">Excedente libre sobre $1,000 en bots</p>
-              </div>
-
-              <div className="bg-slate-800/80 p-4 rounded-xl border border-purple-500/30">
-                <p className="text-xs font-semibold text-purple-300 uppercase tracking-wider">Total Acumulado en Bóveda</p>
-                <p className="text-2xl font-bold text-white mt-1">
-                  ${(() => {
-                    let totalSwept = 0;
-                    let totalDeposited = 0;
-                    (sweepsHistory || []).forEach((s: any) => {
-                      const isDep = s.type === 'DEPOSITO' || s.trade_type === 'ABONO' || (s.asset || '').includes('DEPOSITO');
-                      if (isDep) {
-                        totalDeposited += Number(s.sweep_amount_usd || 0);
-                      } else {
-                        totalSwept += Number(s.sweep_amount_usd || 0);
-                      }
-                    });
-                    return Math.max(0, totalSwept - totalDeposited).toFixed(2);
-                  })()} USD
-                </p>
-                <p className="text-xs text-slate-300 mt-0.5">
-                  ≈ ${(
-                    (() => {
-                      let totalSwept = 0;
-                      let totalDeposited = 0;
-                      (sweepsHistory || []).forEach((s: any) => {
-                        const isDep = s.type === 'DEPOSITO' || s.trade_type === 'ABONO' || (s.asset || '').includes('DEPOSITO');
-                        if (isDep) {
-                          totalDeposited += Number(s.sweep_amount_usd || 0);
-                        } else {
-                          totalSwept += Number(s.sweep_amount_usd || 0);
-                        }
-                      });
-                      return Math.max(0, totalSwept - totalDeposited);
-                    })() * usdToMxn
-                  ).toFixed(2)} MXN
-                </p>
-              </div>
-
-              <div className="bg-slate-800/80 p-4 rounded-xl border border-slate-700/60">
-                <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Gatillo Quita Automática</p>
-                <p className="text-2xl font-bold text-amber-300 mt-1">${(vaultStatus.sweep_target_threshold_usd || 25).toFixed(2)} USD</p>
-                <p className="text-xs text-slate-400 mt-0.5">Barrido total al alcanzar umbral</p>
-              </div>
-
-              <div className="bg-slate-800/80 p-4 rounded-xl border border-slate-700/60">
-                <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Destino Predeterminado</p>
-                <p className="text-sm font-bold text-white mt-2 flex items-center gap-1.5">
-                  {sweepDestination === 'banorte_spei' ? '🇲🇽 Banorte SPEI' : sweepDestination === 'arq_usdt' ? '💲 ARQ Wallet USDT' : '🔒 Bóveda Interna'}
-                </p>
-              </div>
-            </div>
-          </div>
-
-          {/* Action & Configuration Box */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* Sweep & Deposit Auto Configuration */}
-            <div className="bg-white p-6 rounded-2xl border border-gray-150 shadow-sm space-y-4 lg:col-span-2">
-              <h3 className="text-base font-bold text-gray-900 flex items-center gap-2">
-                <Settings className="w-5 h-5 text-purple-600" />
-                Configurar Parámetros y Depósito Programado de Bóveda
-              </h3>
-              <p className="text-xs text-gray-500">
-                El barrido de ganancias opera automáticamente al alcanzar $25.00 USD de utilidad sobre el capital base ($1,000 USD).
-              </p>
-
-              <div className="space-y-4 pt-1">
-                {/* Fixed Trigger Information Banner */}
-                <div className="bg-purple-50 border border-purple-200 p-3.5 rounded-xl space-y-1">
-                  <div className="flex items-center gap-2 text-purple-900 font-bold text-xs">
-                    <Zap className="w-4 h-4 text-purple-600" />
-                    Gatillo de Barrido Automático ($25.00 USD)
-                  </div>
-                  <p className="text-3xs text-purple-700 font-medium leading-relaxed">
-                    Al obtener $25.00 USD de ganancia en cualquiera de los bots, el excedente sobre el capital base de $1,000 USD se transfiere automáticamente a la bóveda en tiempo real.
-                  </p>
-                </div>
-
-                <div className="border-t border-gray-100 pt-3">
-                  <div className="flex items-center justify-between mb-2">
-                    <label className="text-xs font-bold text-gray-800">Depósito Automático Programado:</label>
-                    <button
-                      type="button"
-                      onClick={() => setAutoDepositEnabled(!autoDepositEnabled)}
-                      className={`px-2.5 py-1 rounded-lg text-3xs font-bold transition-all ${
-                        autoDepositEnabled ? 'bg-emerald-100 text-emerald-700 border border-emerald-300' : 'bg-gray-100 text-gray-500 border border-gray-200'
-                      }`}
-                    >
-                      {autoDepositEnabled ? '✓ Activado' : 'Off / Desactivado'}
-                    </button>
-                  </div>
-
-                  {autoDepositEnabled && (
-                    <div className="space-y-3 pt-1">
-                      <div className="bg-amber-50 border border-amber-200 p-3 rounded-xl text-3xs text-amber-800 font-medium">
-                        ⚠️ <strong>Regla de Ejecución:</strong> El depósito diario se procesará abonando el <strong>total acumulado en la bóveda</strong>. Si la bóveda está en <strong>$0.00 USD</strong>, el depósito se omite automáticamente.
-                      </div>
-
-                      <div>
-                        <label className="block text-xs font-semibold text-gray-700 mb-1">Banco o Wallet Origen del Depósito:</label>
-                        <select
-                          value={depositSource}
-                          onChange={(e) => setDepositSource(e.target.value)}
-                          className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs font-semibold text-gray-800 focus:ring-2 focus:ring-purple-500 outline-none"
-                        >
-                          <option value="banorte_spei">🇲🇽 Banorte Cuenta CLABE / SPEI (Depósito en Pesos MXN)</option>
-                          <option value="arq_usdt">💲 ARQ / Wallet Digital (Depósito Dólares Digitales USDT/USDC)</option>
-                          <option value="boveda_interna">🔒 Bóveda Externa de Simulación</option>
-                        </select>
-                      </div>
-
-                      <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
-                        <div className="flex items-center gap-2">
-                          <input
-                            type="checkbox"
-                            id="useLastSweepCheck"
-                            checked={useLastSweepForDeposit}
-                            onChange={(e) => setUseLastSweepForDeposit(e.target.checked)}
-                            className="w-4 h-4 text-purple-600 rounded focus:ring-purple-500 cursor-pointer"
-                          />
-                          <label htmlFor="useLastSweepCheck" className="text-xs font-bold text-gray-900 cursor-pointer">
-                            Depositar el total disponible acumulado en la bóveda (${(() => {
-                              let totalSwept = 0;
-                              let totalDeposited = 0;
-                              (sweepsHistory || []).forEach((s: any) => {
-                                const isDep = s.type === 'DEPOSITO' || s.trade_type === 'ABONO' || (s.asset || '').includes('DEPOSITO');
-                                if (isDep) {
-                                  totalDeposited += Number(s.sweep_amount_usd || 0);
-                                } else {
-                                  totalSwept += Number(s.sweep_amount_usd || 0);
-                                }
-                              });
-                              return Math.max(0, totalSwept - totalDeposited).toFixed(2);
-                            })()} USD)
-                          </label>
-                        </div>
-                      </div>
-
-                      <div className="grid grid-cols-2 gap-3 pt-1">
-                        <div>
-                          <label className="block text-3xs font-bold text-gray-500 uppercase mb-1">Hora de Depósito (24h)</label>
-                          <input
-                            type="time"
-                            value={depositTimeInput}
-                            onChange={(e) => setDepositTimeInput(e.target.value)}
-                            className="w-full px-3 py-1.5 bg-gray-50 border border-gray-200 rounded-xl text-xs font-bold text-gray-800 focus:ring-2 focus:ring-purple-500 outline-none"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-3xs font-bold text-gray-500 uppercase mb-1">Monto Programado (USD)</label>
-                          <input
-                            type="number"
-                            step="0.01"
-                            value={depositAmountInput}
-                            disabled={useLastSweepForDeposit}
-                            onChange={(e) => setDepositAmountInput(e.target.value)}
-                            className="w-full px-3 py-1.5 bg-gray-50 border border-gray-200 rounded-xl text-xs font-bold text-gray-800 focus:ring-2 focus:ring-purple-500 outline-none disabled:opacity-50"
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
-                  <div className="flex flex-col md:flex-row gap-3 mt-4">
-                    <button
-                      onClick={() => handleSaveVaultConfig()}
-                      className="flex-1 px-4 py-2.5 bg-purple-700 hover:bg-purple-800 text-white text-xs font-bold rounded-xl shadow-md transition-all flex items-center justify-center gap-2"
-                    >
-                      <Save className="w-4 h-4 text-purple-200" />
-                      Guardar Ajustes y Sincronizar con Supabase DB
-                    </button>
-
-                    <button
-                      onClick={handleTriggerDeposit}
-                      disabled={isSweeping || (vaultStatus.vault_balance_usd || 0) <= 0}
-                      className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-xs font-bold rounded-xl shadow-md transition-all flex items-center justify-center gap-2"
-                    >
-                      <Zap className="w-4 h-4 text-amber-300" />
-                      ⚡ Probar / Ejecutar Depósito Ahora
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Transaction Panel (Deposit/Withdrawal Simulation Capital) */}
-            <div className="bg-white p-6 rounded-2xl border border-gray-150 shadow-sm space-y-4 lg:col-span-1">
-              <div>
-                <h3 className="text-base font-bold text-gray-900 flex items-center gap-2">
-                  <Coins className="w-5 h-5 text-emerald-600" />
-                  Modificar Capital
-                </h3>
-                <p className="text-xs text-gray-500 mt-0.5">Ingresa o retira fondos del capital de simulación.</p>
-              </div>
-
-              <form onSubmit={handleCapitalTx} className="space-y-3.5 pt-1">
-                <div>
-                  <label className="block text-2xs font-bold text-gray-500 uppercase mb-1">Monto (USD)</label>
-                  <div className="relative rounded-lg shadow-sm">
-                    <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
-                      <span className="text-gray-500 text-sm">$</span>
-                    </div>
-                    <input
-                      type="number"
-                      step="0.01"
-                      min="0.01"
-                      placeholder="0.00"
-                      value={txAmount}
-                      onChange={(e) => setTxAmount(e.target.value)}
-                      className="block w-full rounded-lg border border-gray-300 pl-7 pr-3 py-2 text-sm text-gray-900 focus:border-primary-500"
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setTxType('deposit')}
-                    className={`py-2 px-3 rounded-lg border text-xs font-bold flex items-center justify-center gap-1 transition-all ${
-                      txType === 'deposit' 
-                        ? 'bg-emerald-50 border-emerald-300 text-emerald-800' 
-                        : 'bg-white border-gray-250 text-gray-600 hover:bg-gray-50'
-                    }`}
-                  >
-                    <Plus className="w-3.5 h-3.5" /> Depositar
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setTxType('withdrawal')}
-                    className={`py-2 px-3 rounded-lg border text-xs font-bold flex items-center justify-center gap-1 transition-all ${
-                      txType === 'withdrawal' 
-                        ? 'bg-red-50 border-red-300 text-red-800' 
-                        : 'bg-white border-gray-250 text-gray-600 hover:bg-gray-50'
-                    }`}
-                  >
-                    <Minus className="w-3.5 h-3.5" /> Retirar
-                  </button>
-                </div>
-
-                <button
-                  type="submit"
-                  disabled={isTxSaving}
-                  className="w-full bg-primary-700 hover:bg-primary-850 text-white font-bold py-2.5 px-4 rounded-lg transition-colors text-sm shadow-sm disabled:opacity-50"
-                >
-                  {isTxSaving ? 'Procesando...' : `Confirmar ${txType === 'deposit' ? 'Depósito' : 'Retiro'}`}
-                </button>
-              </form>
-            </div>
-          </div>
-
-          {/* Sweeps & Deposits History Table */}
-          <div className="bg-white p-6 rounded-2xl border border-gray-150 shadow-sm space-y-4">
-            <h3 className="text-base font-bold text-gray-900 flex items-center gap-2">
-              <HistoryIcon className="w-5 h-5 text-emerald-600" />
-              Historial Completo de Quitas y Depósitos Realizados
-            </h3>
-
-            {sweepsHistory.length === 0 ? (
-              <div className="text-center py-8 text-gray-500 text-xs">
-                Aún no hay registros de quitas o depósitos. Se registrarán automáticamente con los barridos de ganancias y depósitos programados.
-              </div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-left border-collapse">
-                  <thead>
-                    <tr className="border-b border-gray-200 text-xs font-bold text-gray-500 uppercase tracking-wider bg-gray-50">
-                      <th className="py-3 px-4">Fecha / Hora</th>
-                      <th className="py-3 px-4">Tipo de Movimiento</th>
-                      <th className="py-3 px-4">Monto ($ USD)</th>
-                      <th className="py-3 px-4">Monto (≈ $ MXN)</th>
-                      <th className="py-3 px-4">Origen / Destino</th>
-                      <th className="py-3 px-4">Estatus</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-150 text-xs">
-                    {sweepsHistory.map((s: any) => {
-                      const isDeposit = s.transaction_type === 'SWEEP_DEPOSITO' || s.transaction_type === 'DEPOSIT' || s.type === 'DEPOSITO' || s.trade_type === 'ABONO' || s.trade_type === 'BUY' || (s.asset || '').includes('DEPOSITO');
-                      const rawUsd = s.sweep_amount_usd !== undefined && s.sweep_amount_usd !== null ? s.sweep_amount_usd : (s.executed_amount !== undefined && s.executed_amount !== null ? s.executed_amount : s.amount_usd);
-                      const amtUsd = Math.abs(Number(rawUsd || 0));
-                      const rawMxn = s.sweep_amount_mxn !== undefined && s.sweep_amount_mxn !== null ? s.sweep_amount_mxn : (s.amount_mxn !== undefined && s.amount_mxn !== null ? s.amount_mxn : (amtUsd * usdToMxn));
-                      const amtMxn = Math.abs(Number(rawMxn || 0));
-                      const destRaw = String(s.target_destination || s.source_destination || s.asset || '').toLowerCase();
-                      return (
-                        <tr key={s.id} className="hover:bg-gray-50 transition-colors">
-                          <td className="py-3 px-4 font-medium text-gray-800">{new Date(s.created_at).toLocaleString('es-MX')}</td>
-                          <td className="py-3 px-4">
-                            <span className={`px-2.5 py-0.5 rounded-full font-bold text-2xs ${isDeposit ? 'bg-emerald-100 text-emerald-800' : 'bg-purple-100 text-purple-800'}`}>
-                              {isDeposit ? '🏦 Depósito (Abono)' : '⚡ Quita (Retiro)'}
-                            </span>
-                          </td>
-                          <td className={`py-3 px-4 font-bold ${isDeposit ? 'text-blue-600' : 'text-emerald-600'}`}>
-                            {isDeposit ? '-' : '+'}${amtUsd.toFixed(2)} USD
-                          </td>
-                          <td className="py-3 px-4 font-semibold text-gray-700">
-                            ${amtMxn.toFixed(2)} MXN
-                          </td>
-                          <td className="py-3 px-4 text-gray-600 font-medium">
-                            {destRaw.includes('banorte') ? '🇲🇽 Banorte SPEI' : destRaw.includes('arq') ? '💲 ARQ / Wallet USDT' : '🔒 Bóveda Interna'}
-                          </td>
-                          <td className="py-3 px-4">
-                            <span className="px-2 py-0.5 bg-emerald-100 text-emerald-700 rounded-md font-semibold text-3xs">
-                              ✓ {(s.status || 'EXECUTED').toUpperCase()}
-                            </span>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* Modal de Conexión de WhatsApp y Código QR */}
-      {isWaModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-gray-100 relative animate-in fade-in zoom-in-95 duration-200">
-            <button
-              onClick={() => setIsWaModalOpen(false)}
-              className="absolute top-4 right-4 p-2 text-gray-400 hover:text-gray-600 rounded-full hover:bg-gray-100 transition-colors"
-            >
-              <XCircle className="w-5 h-5" />
-            </button>
-
-            <div className="flex items-center gap-3 mb-4">
-              <div className="p-3 bg-emerald-100 border border-emerald-200 rounded-xl text-emerald-600">
-                <MessageSquare className="w-6 h-6" />
-              </div>
-              <div>
-                <h3 className="text-base font-bold text-gray-900">Vincular WhatsApp de Notificaciones</h3>
-                <p className="text-xs text-gray-500">Escanea el código QR con tu celular para conectar el bot</p>
-              </div>
-            </div>
-
-            <div className="space-y-4 my-5">
-              {whatsappStatus === 'connected' ? (
-                <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 text-center">
-                  <CheckCircle className="w-10 h-10 text-emerald-500 mx-auto mb-2" />
-                  <h4 className="font-bold text-emerald-800 text-sm">¡WhatsApp Vinculado Exitosamente!</h4>
-                  <p className="text-xs text-emerald-700 mt-1">
-                    El microservicio está en línea. Recibirás alertas instantáneas de operaciones y podrás autorizar/rechazar órdenes respondiendo mensajes.
-                  </p>
-                  <div className="mt-4 flex flex-col gap-2">
-                    <button
-                      onClick={handleSendDailyClosingReport}
-                      className="w-full px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-lg shadow-sm transition-all flex items-center justify-center gap-1.5"
-                    >
-                      <Send className="w-3.5 h-3.5" />
-                      <span>Enviar Reporte de Cierre Ahora (Prueba 23:50 HRS)</span>
-                    </button>
-                    <button
-                      onClick={() => {
-                        if (window.confirm('¿Deseas cerrar la sesión de WhatsApp actual para generar un nuevo código QR y vincular otro número?')) {
-                          handleConnectWa(true);
-                        }
-                      }}
-                      className="px-3 py-1.5 bg-emerald-100 hover:bg-emerald-200 text-emerald-800 font-bold text-2xs rounded-lg border border-emerald-300 transition-all inline-flex items-center justify-center gap-1.5"
-                    >
-                      <RefreshCw className="w-3.5 h-3.5" />
-                      <span>Cambiar / Vincular Otro Número</span>
-                    </button>
-                  </div>
-                </div>
-              ) : whatsappQr ? (
-                <div className="text-center bg-gray-50 p-4 rounded-xl border border-gray-200">
-                  <p className="text-xs font-semibold text-gray-700 mb-3">
-                    Abre WhatsApp en tu teléfono ➔ <strong>Dispositivos vinculados</strong> ➔ <strong>Vincular dispositivo</strong> y escanea:
-                  </p>
-                  <div className="p-2 bg-white rounded-xl inline-block shadow-md border border-gray-200">
-                    <img 
-                      src={whatsappQr} 
-                      alt="Código QR de WhatsApp" 
-                      className="w-56 h-56 mx-auto object-contain"
-                    />
-                  </div>
-                  <p className="text-3xs text-gray-400 mt-2">
-                    El código se actualiza en tiempo real.
-                  </p>
-                </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-xs text-slate-300">
+            <thead className="bg-slate-950 text-slate-400 uppercase text-[10px] font-bold tracking-wider border-b border-slate-800">
+              <tr>
+                <th className="p-3.5">Fecha / Hora</th>
+                <th className="p-3.5">Activo</th>
+                <th className="p-3.5">Tipo</th>
+                <th className="p-3.5">Precio Ejecución</th>
+                <th className="p-3.5">Monto Ejecutado</th>
+                <th className="p-3.5">Estado</th>
+                <th className="p-3.5 text-right">Detalle / Métricas</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-800/60">
+              {filteredHistory.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="text-center py-8 text-slate-500 text-xs">
+                    No se encontraron operaciones registradas.
+                  </td>
+                </tr>
               ) : (
-                <div className="text-center py-6 bg-slate-50 rounded-xl border border-dashed border-slate-300 p-4">
-                  <RefreshCw className={`w-8 h-8 text-slate-400 mx-auto mb-2 ${isWaConnecting ? 'animate-spin' : ''}`} />
-                  <p className="text-xs text-gray-600 font-medium">
-                    {isWaConnecting || whatsappStatus === 'connecting' 
-                      ? 'Iniciando cliente de WhatsApp y generando código QR...'
-                      : 'WhatsApp se encuentra desconectado. Haz clic abajo para generar el código QR.'}
-                  </p>
-                </div>
+                filteredHistory.map(item => (
+                  <tr key={item.id} className="hover:bg-slate-800/30 transition-colors">
+                    <td className="p-3.5 text-slate-400 font-mono text-[11px]">
+                      {new Date(item.created_at).toLocaleString('es-MX', {
+                        day: '2-digit', month: '2-digit', year: 'numeric',
+                        hour: '2-digit', minute: '2-digit', second: '2-digit'
+                      })}
+                    </td>
+                    <td className="p-3.5 font-bold text-white">{item.asset}</td>
+                    <td className="p-3.5">
+                      <span className={`px-2.5 py-0.5 rounded-md text-[10px] font-extrabold uppercase ${
+                        item.trade_type === 'BUY'
+                          ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                          : 'bg-rose-500/20 text-rose-400 border border-rose-500/30'
+                      }`}>
+                        {item.trade_type === 'BUY' ? 'COMPRA' : 'VENTA'}
+                      </span>
+                    </td>
+                    <td className="p-3.5 font-semibold text-slate-200">
+                      ${Number(item.execution_price || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                    </td>
+                    <td className="p-3.5 font-bold text-white">
+                      ${Number(item.executed_amount || 0).toFixed(2)} USD
+                    </td>
+                    <td className="p-3.5">
+                      <span className={`px-2 py-0.5 rounded-md text-[10px] font-semibold ${
+                        item.status === 'executed' || item.status === 'simulated'
+                          ? 'bg-cyan-500/10 text-cyan-400 border border-cyan-500/20'
+                          : 'bg-slate-800 text-slate-400'
+                      }`}>
+                        {item.status === 'simulated' ? 'SIMULADO' : item.status.toUpperCase()}
+                      </span>
+                    </td>
+                    <td className="p-3.5 text-right font-mono text-[11px] text-slate-400">
+                      {item.error_message || 'Comisión: $0.00 USD'}
+                    </td>
+                  </tr>
+                ))
               )}
-            </div>
-
-            <div className="flex flex-col gap-2 pt-2 border-t border-gray-100">
-              <button
-                onClick={() => handleConnectWa(true)}
-                disabled={isWaConnecting}
-                className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-md transition-all flex items-center justify-center gap-2"
-              >
-                <RefreshCw className={`w-4 h-4 ${isWaConnecting ? 'animate-spin' : ''}`} />
-                <span>{whatsappQr ? 'Regenerar Código QR Fresco' : 'Generar Código QR para Enlazar Teléfono'}</span>
-              </button>
-              <button
-                onClick={() => setIsWaModalOpen(false)}
-                className="w-full py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold text-xs rounded-xl transition-all"
-              >
-                Cerrar
-              </button>
-            </div>
-          </div>
+            </tbody>
+          </table>
         </div>
-      )}
+      </div>
     </div>
   );
 }
