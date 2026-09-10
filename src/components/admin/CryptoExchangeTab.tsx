@@ -5,34 +5,17 @@ import {
   Coins, 
   Activity, 
   AlertTriangle, 
-  CheckCircle, 
   RefreshCw, 
   ArrowUpRight,
   ArrowDownRight,
-  Save,
   TrendingUp,
   Zap,
-  Clock,
   ShieldCheck,
   History as HistoryIcon,
   Play,
   Pause,
-  RotateCcw,
-  Sliders
+  RotateCcw
 } from 'lucide-react';
-
-interface TradeProposal {
-  id: string;
-  operation_code: string;
-  asset: string;
-  trade_type: 'BUY' | 'SELL';
-  suggested_amount: number;
-  current_price: number;
-  justification: string;
-  status: 'pending_auto_exec' | 'executed' | 'rejected' | 'failed';
-  expires_at: string;
-  created_at: string;
-}
 
 interface TradeHistory {
   id: string;
@@ -47,17 +30,6 @@ interface TradeHistory {
   error_message?: string;
 }
 
-interface AssetConfig {
-  id: string;
-  asset: string;
-  rsi_threshold_buy: number;
-  rsi_threshold_sell: number;
-  rejection_timeout_minutes: number;
-  is_active: boolean;
-  active_mode?: string;
-  current_price?: number;
-}
-
 interface PortfolioCapital {
   base: number;
   openCryptoUsd: number;
@@ -67,9 +39,7 @@ interface PortfolioCapital {
 }
 
 export function CryptoExchangeTab() {
-  const [proposals, setProposals] = useState<TradeProposal[]>([]);
   const [history, setHistory] = useState<TradeHistory[]>([]);
-  const [assetConfigs, setAssetConfigs] = useState<AssetConfig[]>([]);
   const [botActive, setBotActive] = useState<boolean>(true);
   const [exchangeMode, setExchangeMode] = useState<string>('simulation');
   const [capital, setCapital] = useState<PortfolioCapital>({
@@ -84,7 +54,6 @@ export function CryptoExchangeTab() {
   const [isMockTriggering, setIsMockTriggering] = useState<boolean>(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [historyDateSearch, setHistoryDateSearch] = useState<string>('');
-  const [editingConfigs, setEditingConfigs] = useState<Record<string, Partial<AssetConfig>>>({});
   const [botActionLoading, setBotActionLoading] = useState<string | null>(null);
 
   // URL base y API Key de la API del bot
@@ -111,39 +80,11 @@ export function CryptoExchangeTab() {
         }
       }
 
-      // 2. Propuestas activas
-      const proposalsRes = await fetch(`${API_BASE}/proposals`, { headers: authHeaders() });
-      if (proposalsRes.ok) {
-        const proposalsData = await proposalsRes.json();
-        setProposals(proposalsData || []);
-      }
-
-      // 3. Historial de operaciones
+      // 2. Historial único de operaciones
       const historyRes = await fetch(`${API_BASE}/history`, { headers: authHeaders() });
       if (historyRes.ok) {
         const historyData = await historyRes.json();
         setHistory(historyData || []);
-      }
-
-      // 4. Configuraciones de activos
-      const configsRes = await fetch(`${API_BASE}/config/assets`, { headers: authHeaders() });
-      if (configsRes.ok) {
-        const configsData = await configsRes.json();
-        setAssetConfigs(configsData || []);
-        setEditingConfigs(prev => {
-          const init: Record<string, Partial<AssetConfig>> = { ...prev };
-          (configsData || []).forEach((c: AssetConfig) => {
-            if (!init[c.asset]) {
-              init[c.asset] = {
-                rejection_timeout_minutes: c.rejection_timeout_minutes,
-                rsi_threshold_buy: c.rsi_threshold_buy,
-                rsi_threshold_sell: c.rsi_threshold_sell,
-                is_active: c.is_active
-              };
-            }
-          });
-          return init;
-        });
       }
 
       setErrorMsg(null);
@@ -171,14 +112,14 @@ export function CryptoExchangeTab() {
     const interval = setInterval(() => {
       fetchData();
       fetchRate();
-    }, 6000);
+    }, 5000);
 
     return () => clearInterval(interval);
   }, []);
 
   const handleBotControl = async (action: 'start' | 'stop' | 'reset') => {
     if (action === 'reset') {
-      const confirmed = window.confirm('¿Estás seguro de reiniciar el Bot Intradía a $1,000.00 USD Base? Esto despejará posiciones y propuestas pendientes.');
+      const confirmed = window.confirm('¿Estás seguro de reiniciar el Bot Intradía a $1,000.00 USD Base? Esto despejará posiciones pendientes.');
       if (!confirmed) return;
     }
 
@@ -204,25 +145,13 @@ export function CryptoExchangeTab() {
     }
   };
 
-  const handleCancelProposal = async (id: string) => {
-    if (!confirm('¿Rechazar esta propuesta de operación?')) return;
-    try {
-      const res = await fetch(`${API_BASE}/proposals/${id}/cancel`, { method: 'POST', headers: authHeaders() });
-      if (res.ok) {
-        fetchData();
-      }
-    } catch (e) {
-      alert('Error al rechazar propuesta.');
-    }
-  };
-
   const handleTriggerMockSignal = async () => {
     setIsMockTriggering(true);
     try {
       const res = await fetch(`${API_BASE}/bot/mock-signal`, { method: 'POST', headers: authHeaders() });
       const data = await res.json();
       if (res.ok) {
-        alert('Señales de prueba enviadas exitosamente para BTC, ETH y SOL.');
+        alert('Señales de prueba generadas y ejecutadas exitosamente.');
         fetchData();
       } else {
         alert(data.error || 'Error al gatillar señales de prueba.');
@@ -231,31 +160,6 @@ export function CryptoExchangeTab() {
       alert('Error de conexión.');
     } finally {
       setIsMockTriggering(false);
-    }
-  };
-
-  const handleSaveAssetConfig = async (asset: string) => {
-    const edits = editingConfigs[asset];
-    if (!edits) return;
-
-    try {
-      const res = await fetch(`${API_BASE}/config/update`, {
-        method: 'POST',
-        headers: authHeaders({ 'Content-Type': 'application/json' }),
-        body: JSON.stringify({
-          asset,
-          rsiThresholdBuy: edits.rsi_threshold_buy,
-          rsiThresholdSell: edits.rsi_threshold_sell,
-          timeoutMinutes: edits.rejection_timeout_minutes,
-          isActive: edits.is_active
-        })
-      });
-
-      if (!res.ok) throw new Error('Error al actualizar configuración.');
-      alert(`Configuración de ${asset} guardada con éxito.`);
-      fetchData();
-    } catch (err: any) {
-      alert(err.message);
     }
   };
 
@@ -409,175 +313,7 @@ export function CryptoExchangeTab() {
         </div>
       </div>
 
-      {/* Seccion Propuestas Activas / En Espera de Auto-Ejecucion */}
-      <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-5 shadow-xl">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-base font-bold text-white flex items-center gap-2">
-            <Clock className="w-5 h-5 text-amber-400" />
-            Operaciones Programadas / Propuestas Activas
-            <span className="text-xs px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 border border-slate-700 font-normal">
-              {proposals.length} activas
-            </span>
-          </h2>
-        </div>
-
-        {proposals.length === 0 ? (
-          <div className="text-center py-10 text-slate-500 border border-dashed border-slate-800 rounded-xl">
-            <CheckCircle className="w-8 h-8 mx-auto mb-2 text-slate-600" />
-            <p className="text-xs font-medium text-slate-400">No hay propuestas pendientes en este momento.</p>
-            <p className="text-[11px] text-slate-500 mt-1">El Bot Intradía evalúa señales RSI y medias móviles continuamente cada minuto.</p>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {proposals.map(prop => (
-              <div key={prop.id} className="bg-slate-950 border border-slate-800 rounded-xl p-4 shadow-md hover:border-slate-700 transition-all flex flex-col justify-between">
-                <div>
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="font-bold text-white text-sm">{prop.asset}</span>
-                    <span className={`px-2.5 py-0.5 rounded-md text-[11px] font-extrabold tracking-wide uppercase ${
-                      prop.trade_type === 'BUY' 
-                        ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' 
-                        : 'bg-rose-500/20 text-rose-400 border border-rose-500/30'
-                    }`}>
-                      {prop.trade_type === 'BUY' ? 'COMPRA' : 'VENTA'}
-                    </span>
-                  </div>
-
-                  <div className="text-xs text-slate-400 space-y-1 mb-3">
-                    <div className="flex justify-between">
-                      <span>Monto Propuesto:</span>
-                      <span className="font-bold text-white">${prop.suggested_amount?.toFixed(2)} USD</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>Precio Mercado:</span>
-                      <span className="font-semibold text-slate-200">${prop.current_price?.toLocaleString()}</span>
-                    </div>
-                    <div className="mt-2 text-[11px] bg-slate-900/80 p-2 rounded-lg text-slate-300 border border-slate-800/80 italic">
-                      "{prop.justification}"
-                    </div>
-                  </div>
-                </div>
-
-                <div className="pt-3 border-t border-slate-800/80 flex items-center justify-between">
-                  <span className="text-[10px] text-slate-500 flex items-center gap-1">
-                    <Clock className="w-3 h-3" />
-                    Auto-ejecución programada
-                  </span>
-                  <button
-                    onClick={() => handleCancelProposal(prop.id)}
-                    className="px-3 py-1.5 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 text-xs font-semibold border border-rose-500/20 transition-all"
-                  >
-                    Rechazar
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* Configuracion de Activos y Umbrales RSI */}
-      <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-5 shadow-xl">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-base font-bold text-white flex items-center gap-2">
-            <Sliders className="w-5 h-5 text-cyan-400" />
-            Parámetros y Umbrales Técnicos de Activos
-          </h2>
-        </div>
-
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs text-slate-300">
-            <thead className="bg-slate-950 text-slate-400 uppercase text-[10px] font-bold tracking-wider border-b border-slate-800">
-              <tr>
-                <th className="p-3.5">Activo Cripto</th>
-                <th className="p-3.5">Precio Actual</th>
-                <th className="p-3.5">RSI Compra (&le;)</th>
-                <th className="p-3.5">RSI Venta (&ge;)</th>
-                <th className="p-3.5">Timeout (Minutos)</th>
-                <th className="p-3.5 text-center">Estado</th>
-                <th className="p-3.5 text-right">Acciones</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-800/60">
-              {assetConfigs.map(c => {
-                const edits = editingConfigs[c.asset] || {};
-                return (
-                  <tr key={c.id} className="hover:bg-slate-800/30 transition-colors">
-                    <td className="p-3.5 font-bold text-white flex items-center gap-2">
-                      <div className="w-7 h-7 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center text-[10px]">
-                        {c.asset.split('/')[0]}
-                      </div>
-                      {c.asset}
-                    </td>
-                    <td className="p-3.5 font-semibold text-slate-200">
-                      ${c.current_price ? c.current_price.toLocaleString() : '---'}
-                    </td>
-                    <td className="p-3.5">
-                      <input
-                        type="number"
-                        value={edits.rsi_threshold_buy ?? c.rsi_threshold_buy}
-                        onChange={(e) => setEditingConfigs(prev => ({
-                          ...prev,
-                          [c.asset]: { ...prev[c.asset], rsi_threshold_buy: parseFloat(e.target.value) }
-                        }))}
-                        className="w-20 bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1 text-white text-xs font-semibold focus:border-cyan-500 outline-none"
-                      />
-                    </td>
-                    <td className="p-3.5">
-                      <input
-                        type="number"
-                        value={edits.rsi_threshold_sell ?? c.rsi_threshold_sell}
-                        onChange={(e) => setEditingConfigs(prev => ({
-                          ...prev,
-                          [c.asset]: { ...prev[c.asset], rsi_threshold_sell: parseFloat(e.target.value) }
-                        }))}
-                        className="w-20 bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1 text-white text-xs font-semibold focus:border-cyan-500 outline-none"
-                      />
-                    </td>
-                    <td className="p-3.5">
-                      <input
-                        type="number"
-                        value={edits.rejection_timeout_minutes ?? c.rejection_timeout_minutes}
-                        onChange={(e) => setEditingConfigs(prev => ({
-                          ...prev,
-                          [c.asset]: { ...prev[c.asset], rejection_timeout_minutes: parseInt(e.target.value) }
-                        }))}
-                        className="w-20 bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1 text-white text-xs font-semibold focus:border-cyan-500 outline-none"
-                      />
-                    </td>
-                    <td className="p-3.5 text-center">
-                      <button
-                        onClick={() => setEditingConfigs(prev => ({
-                          ...prev,
-                          [c.asset]: { ...prev[c.asset], is_active: !(edits.is_active ?? c.is_active) }
-                        }))}
-                        className={`px-3 py-1 rounded-full text-[11px] font-bold ${
-                          (edits.is_active ?? c.is_active)
-                            ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
-                            : 'bg-rose-500/20 text-rose-400 border border-rose-500/30'
-                        }`}
-                      >
-                        {(edits.is_active ?? c.is_active) ? 'ACTIVO' : 'PAUSADO'}
-                      </button>
-                    </td>
-                    <td className="p-3.5 text-right">
-                      <button
-                        onClick={() => handleSaveAssetConfig(c.asset)}
-                        className="px-3 py-1.5 bg-cyan-600 hover:bg-cyan-500 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 ml-auto transition-all shadow-md"
-                      >
-                        <Save className="w-3.5 h-3.5" />
-                        Guardar
-                      </button>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      {/* Historial Unico de Operaciones Intradia */}
+      {/* Historial Único de Operaciones Intradía */}
       <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-5 shadow-xl">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4">
           <h2 className="text-base font-bold text-white flex items-center gap-2">
