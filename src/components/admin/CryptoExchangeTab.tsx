@@ -362,7 +362,7 @@ export function CryptoExchangeTab() {
 
     if (bankTab === 'withdrawal') {
       if (withdrawalType === 'profit') {
-        const maxProfit = Math.max(0, capital.netPnlHistorical ?? 0);
+        const maxProfit = Math.max(0, capital.netPnlHistorical ?? capital.todayPnlUsd ?? 0);
         if (numericAmount > maxProfit) {
           return alert(`Límite de cosecha excedido. Intentas cosechar $${numericAmount.toFixed(2)} USD pero tus rendimientos netos acumulados cosechables son de $${maxProfit.toFixed(2)} USD.`);
         }
@@ -861,7 +861,7 @@ export function CryptoExchangeTab() {
                           </div>
                           <div className="mt-3 pt-2 border-t border-slate-800/80 flex justify-between items-center text-[11px]">
                             <span className="text-slate-400">Rendimiento Cosechable:</span>
-                            <span className="font-bold text-emerald-400">${Math.max(0, capital.netPnlHistorical ?? 0).toFixed(2)} USD</span>
+                            <span className="font-bold text-emerald-400">${Math.max(0, capital.netPnlHistorical ?? capital.todayPnlUsd ?? 0).toFixed(2)} USD</span>
                           </div>
                         </button>
 
@@ -1061,7 +1061,7 @@ export function CryptoExchangeTab() {
                       <>
                         <div className="flex justify-between text-slate-400">
                           <span>Rendimientos Acumulados Cosechables:</span>
-                          <span className="font-bold text-emerald-400">${Math.max(0, capital.netPnlHistorical ?? 0).toFixed(2)} USD</span>
+                          <span className="font-bold text-emerald-400">${Math.max(0, capital.netPnlHistorical ?? capital.todayPnlUsd ?? 0).toFixed(2)} USD</span>
                         </div>
                         <div className="flex justify-between text-slate-400">
                           <span>Patrimonio Total Actual:</span>
