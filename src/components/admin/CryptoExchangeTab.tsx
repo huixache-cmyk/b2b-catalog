@@ -559,8 +559,32 @@ export function CryptoExchangeTab() {
                         {item.status === 'simulated' ? 'SIMULADO' : item.status.toUpperCase()}
                       </span>
                     </td>
-                    <td className="p-3.5 text-right font-mono text-[11px] text-slate-400">
-                      {item.error_message || 'Comisión: $0.00 USD'}
+                    <td className="p-3.5 text-right font-mono text-[11px]">
+                      {(() => {
+                        const msg = item.error_message;
+                        if (!msg) return <span className="text-slate-500">Comisión: $0.00 USD</span>;
+                        const pnlIndex = msg.indexOf('PNL:');
+                        if (pnlIndex !== -1) {
+                          const beforePnl = msg.substring(0, pnlIndex);
+                          const pnlPart = msg.substring(pnlIndex);
+                          const isLoss = pnlPart.includes('PNL: -') || pnlPart.includes('-$') || pnlPart.includes('(-');
+                          const isProfit = pnlPart.includes('PNL: +') || pnlPart.includes('+$');
+
+                          const pnlStyle = isLoss
+                            ? 'text-rose-400 font-bold bg-rose-500/20 px-2 py-0.5 rounded-md border border-rose-500/40 inline-block shadow-sm shadow-rose-900/30'
+                            : isProfit
+                            ? 'text-emerald-400 font-bold bg-emerald-500/20 px-2 py-0.5 rounded-md border border-emerald-500/40 inline-block shadow-sm shadow-emerald-900/30'
+                            : 'text-cyan-400 font-bold bg-cyan-500/20 px-2 py-0.5 rounded-md border border-cyan-500/30 inline-block';
+
+                          return (
+                            <span className="text-slate-400 inline-flex items-center gap-1.5 flex-wrap justify-end">
+                              <span>{beforePnl}</span>
+                              <span className={pnlStyle}>{pnlPart}</span>
+                            </span>
+                          );
+                        }
+                        return <span className="text-slate-400">{msg}</span>;
+                      })()}
                     </td>
                   </tr>
                 ))
