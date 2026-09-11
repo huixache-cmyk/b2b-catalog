@@ -23,7 +23,9 @@ import {
   X,
   CheckCircle2,
   Wallet,
-  Send
+  Send,
+  Sliders,
+  Check
 } from 'lucide-react';
 
 interface TradeHistory {
@@ -112,6 +114,93 @@ export function CryptoExchangeTab() {
   const [recipientAlias, setRecipientAlias] = useState<string>('');
   const [isSubmittingBank, setIsSubmittingBank] = useState<boolean>(false);
 
+  // Estados de Configuración de Estrategias y Modos (Conservador, Moderado, Agresivo)
+  const [strategyModalOpen, setStrategyModalOpen] = useState<boolean>(false);
+  const [activeBotMode, setActiveBotMode] = useState<'conservador' | 'moderado' | 'agresivo'>('moderado');
+  const [selectedModalTab, setSelectedModalTab] = useState<'conservador' | 'moderado' | 'agresivo'>('moderado');
+  const [isSavingStrategy, setIsSavingStrategy] = useState<boolean>(false);
+
+  const [strategyModes, setStrategyModes] = useState({
+    conservador: {
+      hardStopLossPct: -2.00,
+      breakEvenTriggerPct: 0.80,
+      takeProfit1Pct: 1.00,
+      takeProfit2Pct: 1.80,
+      rsiPullback: 40.00,
+      rsiSma100: 55.00,
+      breakoutBollingerMult: 1.25
+    },
+    moderado: {
+      hardStopLossPct: -3.50,
+      breakEvenTriggerPct: 1.00,
+      takeProfit1Pct: 1.50,
+      takeProfit2Pct: 2.50,
+      rsiPullback: 45.00,
+      rsiSma100: 62.00,
+      breakoutBollingerMult: 1.15
+    },
+    agresivo: {
+      hardStopLossPct: -5.00,
+      breakEvenTriggerPct: 1.20,
+      takeProfit1Pct: 2.00,
+      takeProfit2Pct: 3.50,
+      rsiPullback: 50.00,
+      rsiSma100: 68.00,
+      breakoutBollingerMult: 1.05
+    }
+  });
+
+  const fetchStrategyConfig = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/strategy-config`, { headers: authHeaders() });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success) {
+          if (data.activeMode) {
+            setActiveBotMode(data.activeMode);
+          }
+          if (data.modes) {
+            setStrategyModes(data.modes);
+          }
+        }
+      }
+    } catch (e) {}
+  };
+
+  const handleSaveStrategyConfig = async (activateImmediately: boolean = false) => {
+    setIsSavingStrategy(true);
+    try {
+      const endpoint = activateImmediately ? `${API_BASE}/strategy-config/activate` : `${API_BASE}/strategy-config`;
+      const payload = activateImmediately
+        ? { mode: selectedModalTab, modes: strategyModes }
+        : { activeMode: activeBotMode, modes: strategyModes };
+
+      const res = await fetch(endpoint, {
+        method: 'POST',
+        headers: authHeaders({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify(payload)
+      });
+
+      const data = await res.json();
+      if (res.ok && data.success) {
+        if (activateImmediately) {
+          setActiveBotMode(selectedModalTab);
+          alert(`¡Modo ${selectedModalTab.toUpperCase()} activado en tiempo real con éxito!`);
+        } else {
+          alert('¡Configuración de modos guardada exitosamente!');
+        }
+        setStrategyModalOpen(false);
+        await fetchData();
+      } else {
+        alert(data.error || 'Error al guardar la configuración de la estrategia.');
+      }
+    } catch (err: any) {
+      alert(`Error de conexión: ${err.message}`);
+    } finally {
+      setIsSavingStrategy(false);
+    }
+  };
+
   // URL base y API Key de la API del bot
   const API_BASE = process.env.NEXT_PUBLIC_CRYPTO_BOT_API_URL || 'https://exchange-trade-production.up.railway.app/api';
   const API_KEY = process.env.NEXT_PUBLIC_INTERNAL_API_KEY || 'geeky_exchange_secret_key_2026';
@@ -143,6 +232,7 @@ export function CryptoExchangeTab() {
         setHistory(historyData || []);
       }
 
+      await fetchStrategyConfig();
       setErrorMsg(null);
     } catch (e: any) {
       console.warn('Error al conectar con la API del bot de trading:', e.message);
@@ -390,97 +480,140 @@ export function CryptoExchangeTab() {
         </div>
       )}
 
-      {/* 5 Cards principales de Estado Financiero Intradía */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-        {/* Card 1: Capital Líquido Disponible */}
-        <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-5 shadow-lg hover:border-slate-700 transition-all">
-          <div className="flex items-center justify-between text-slate-400 text-xs font-semibold mb-2">
-            <span>Caja Líquida Disponible</span>
-            <Coins className="w-4 h-4 text-cyan-400" />
-          </div>
-          <div className="text-xl md:text-2xl font-extrabold text-white">
-            ${capital.availableCashUsd.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} <span className="text-xs text-slate-400 font-normal">USD</span>
-          </div>
-          <div className="mt-2 text-xs text-slate-400 flex items-center justify-between border-t border-slate-800/80 pt-2">
-            <span>≈ ${(capital.availableCashUsd * usdToMxn).toLocaleString('es-MX', { maximumFractionDigits: 0 })} MXN</span>
-            <span className="text-cyan-400 font-medium">Libre Inversión</span>
-          </div>
-        </div>
-
-        {/* Card 2: En Cripto (Posiciones Abiertas) */}
-        <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-5 shadow-lg hover:border-slate-700 transition-all">
-          <div className="flex items-center justify-between text-slate-400 text-xs font-semibold mb-2">
-            <span>Posiciones Abiertas</span>
-            <Activity className="w-4 h-4 text-blue-400" />
-          </div>
-          <div className="text-xl md:text-2xl font-extrabold text-white">
-            ${capital.openCryptoUsd.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} <span className="text-xs text-slate-400 font-normal">USD</span>
-          </div>
-          <div className="mt-2 text-xs text-slate-400 flex items-center justify-between border-t border-slate-800/80 pt-2">
-            <span>≈ ${(capital.openCryptoUsd * usdToMxn).toLocaleString('es-MX', { maximumFractionDigits: 0 })} MXN</span>
-            <span className="text-blue-400 font-medium">BTC, ETH, SOL</span>
-          </div>
-        </div>
-
-        {/* Card 3: Rendimiento Hoy (PnL Realizado) */}
-        <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-5 shadow-lg hover:border-slate-700 transition-all">
-          <div className="flex items-center justify-between text-slate-400 text-xs font-semibold mb-2">
-            <span>Rendimiento Hoy (PnL)</span>
-            {capital.todayPnlUsd >= 0 ? <ArrowUpRight className="w-4 h-4 text-emerald-400" /> : <ArrowDownRight className="w-4 h-4 text-rose-400" />}
-          </div>
-          <div className={`text-xl md:text-2xl font-extrabold ${capital.todayPnlUsd >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-            {capital.todayPnlUsd >= 0 ? '+' : ''}${capital.todayPnlUsd.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} <span className="text-xs font-normal">USD</span>
-          </div>
-          <div className="mt-2 text-xs text-slate-400 flex items-center justify-between border-t border-slate-800/80 pt-2">
-            <span>≈ {capital.todayPnlUsd >= 0 ? '+' : ''}${(capital.todayPnlUsd * usdToMxn).toLocaleString('es-MX', { maximumFractionDigits: 2 })} MXN</span>
-            <div className="flex flex-col items-end">
-              <span className={capital.todayPnlUsd >= 0 ? 'text-emerald-400 font-medium' : 'text-rose-400 font-medium'}>
-                {capital.base > 0 ? ((capital.todayPnlUsd / capital.base) * 100).toFixed(2) : '0.00'}% ROI Hoy
-              </span>
-              <span className="text-[10px] text-slate-400 font-medium mt-0.5">Cierre 6:00 pm</span>
-            </div>
-          </div>
-        </div>
-
-        {/* Card 4: Patrimonio Total Intradía */}
-        <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-5 shadow-lg hover:border-slate-700 transition-all">
-          <div className="flex items-center justify-between text-slate-400 text-xs font-semibold mb-2">
-            <span>Patrimonio Total Intradía</span>
-            <ShieldCheck className="w-4 h-4 text-purple-400" />
-          </div>
-          <div className="text-xl md:text-2xl font-extrabold text-white">
-            ${capital.totalEquityUsd.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} <span className="text-xs text-slate-400 font-normal">USD</span>
-          </div>
-          <div className="mt-2 text-xs text-slate-400 flex items-center justify-between border-t border-slate-800/80 pt-2">
-            <span>Base: ${capital.base.toFixed(0)} USD</span>
-            <span className="text-purple-400 font-medium">Acumulado Total</span>
-          </div>
-        </div>
-
-        {/* Card 5: Módulo Bancario & Transferencias SPEI */}
-        <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-5 shadow-lg hover:border-slate-700 transition-all flex flex-col justify-between">
-          <div>
+      {/* 6 Cards organizadas en 2 Líneas de 3 Tarjetas cada una */}
+      <div className="space-y-4">
+        {/* Línea Superior (3 Tarjetas) */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {/* Card 1: Capital Líquido Disponible */}
+          <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-5 shadow-lg hover:border-slate-700 transition-all">
             <div className="flex items-center justify-between text-slate-400 text-xs font-semibold mb-2">
-              <span>Bancos & Transferencias</span>
-              <Landmark className="w-4 h-4 text-emerald-400" />
+              <span>Caja Líquida Disponible</span>
+              <Coins className="w-4 h-4 text-cyan-400" />
             </div>
             <div className="text-xl md:text-2xl font-extrabold text-white">
-              {(capital.netBankInjectionsUsd || 0) >= 0 ? '+' : ''}${(capital.netBankInjectionsUsd || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} <span className="text-xs text-slate-400 font-normal">USD</span>
+              ${capital.availableCashUsd.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} <span className="text-xs text-slate-400 font-normal">USD</span>
+            </div>
+            <div className="mt-2 text-xs text-slate-400 flex items-center justify-between border-t border-slate-800/80 pt-2">
+              <span>≈ ${(capital.availableCashUsd * usdToMxn).toLocaleString('es-MX', { maximumFractionDigits: 0 })} MXN</span>
+              <span className="text-cyan-400 font-medium">Libre Inversión</span>
             </div>
           </div>
 
-          <div className="mt-2 border-t border-slate-800/80 pt-2">
-            <div className="flex items-center justify-between text-[11px] text-slate-400 mb-2">
-              <span>↑ Dep: ${(capital.totalBankDepositsUsd || 0).toFixed(0)}</span>
-              <span>↓ Ret: ${(capital.totalBankWithdrawalsUsd || 0).toFixed(0)}</span>
+          {/* Card 2: En Cripto (Posiciones Abiertas) */}
+          <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-5 shadow-lg hover:border-slate-700 transition-all">
+            <div className="flex items-center justify-between text-slate-400 text-xs font-semibold mb-2">
+              <span>Posiciones Abiertas</span>
+              <Activity className="w-4 h-4 text-blue-400" />
             </div>
-            <button
-              onClick={() => { setBankModalOpen(true); fetchBankData(); }}
-              className="w-full py-1.5 px-3 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-xs font-semibold flex items-center justify-center gap-1.5 shadow-md transition-all"
-            >
-              <Landmark className="w-3.5 h-3.5" />
-              Gestionar Fondos
-            </button>
+            <div className="text-xl md:text-2xl font-extrabold text-white">
+              ${capital.openCryptoUsd.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} <span className="text-xs text-slate-400 font-normal">USD</span>
+            </div>
+            <div className="mt-2 text-xs text-slate-400 flex items-center justify-between border-t border-slate-800/80 pt-2">
+              <span>≈ ${(capital.openCryptoUsd * usdToMxn).toLocaleString('es-MX', { maximumFractionDigits: 0 })} MXN</span>
+              <span className="text-blue-400 font-medium">BTC, ETH, SOL</span>
+            </div>
+          </div>
+
+          {/* Card 3: Rendimiento Hoy (PnL Realizado) */}
+          <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-5 shadow-lg hover:border-slate-700 transition-all">
+            <div className="flex items-center justify-between text-slate-400 text-xs font-semibold mb-2">
+              <span>Rendimiento Hoy (PnL)</span>
+              {capital.todayPnlUsd >= 0 ? <ArrowUpRight className="w-4 h-4 text-emerald-400" /> : <ArrowDownRight className="w-4 h-4 text-rose-400" />}
+            </div>
+            <div className={`text-xl md:text-2xl font-extrabold ${capital.todayPnlUsd >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+              {capital.todayPnlUsd >= 0 ? '+' : ''}${capital.todayPnlUsd.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} <span className="text-xs font-normal">USD</span>
+            </div>
+            <div className="mt-2 text-xs text-slate-400 flex items-center justify-between border-t border-slate-800/80 pt-2">
+              <span>≈ {capital.todayPnlUsd >= 0 ? '+' : ''}${(capital.todayPnlUsd * usdToMxn).toLocaleString('es-MX', { maximumFractionDigits: 2 })} MXN</span>
+              <div className="flex flex-col items-end">
+                <span className={capital.todayPnlUsd >= 0 ? 'text-emerald-400 font-medium' : 'text-rose-400 font-medium'}>
+                  {capital.base > 0 ? ((capital.todayPnlUsd / capital.base) * 100).toFixed(2) : '0.00'}% ROI Hoy
+                </span>
+                <span className="text-[10px] text-slate-400 font-medium mt-0.5">Cierre 6:00 pm</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Línea Inferior (3 Tarjetas) */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {/* Card 4: Patrimonio Total Intradía */}
+          <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-5 shadow-lg hover:border-slate-700 transition-all">
+            <div className="flex items-center justify-between text-slate-400 text-xs font-semibold mb-2">
+              <span>Patrimonio Total Intradía</span>
+              <ShieldCheck className="w-4 h-4 text-purple-400" />
+            </div>
+            <div className="text-xl md:text-2xl font-extrabold text-white">
+              ${capital.totalEquityUsd.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} <span className="text-xs text-slate-400 font-normal">USD</span>
+            </div>
+            <div className="mt-2 text-xs text-slate-400 flex items-center justify-between border-t border-slate-800/80 pt-2">
+              <span>Base: ${capital.base.toFixed(0)} USD</span>
+              <span className="text-purple-400 font-medium">Acumulado Total</span>
+            </div>
+          </div>
+
+          {/* Card 5: Módulo Bancario & Transferencias SPEI */}
+          <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-5 shadow-lg hover:border-slate-700 transition-all flex flex-col justify-between">
+            <div>
+              <div className="flex items-center justify-between text-slate-400 text-xs font-semibold mb-2">
+                <span>Bancos & Transferencias</span>
+                <Landmark className="w-4 h-4 text-emerald-400" />
+              </div>
+              <div className="text-xl md:text-2xl font-extrabold text-white">
+                {(capital.netBankInjectionsUsd || 0) >= 0 ? '+' : ''}${(capital.netBankInjectionsUsd || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} <span className="text-xs text-slate-400 font-normal">USD</span>
+              </div>
+            </div>
+
+            <div className="mt-2 border-t border-slate-800/80 pt-2">
+              <div className="flex items-center justify-between text-[11px] text-slate-400 mb-2">
+                <span>↑ Dep: ${(capital.totalBankDepositsUsd || 0).toFixed(0)}</span>
+                <span>↓ Ret: ${(capital.totalBankWithdrawalsUsd || 0).toFixed(0)}</span>
+              </div>
+              <button
+                onClick={() => { setBankModalOpen(true); fetchBankData(); }}
+                className="w-full py-1.5 px-3 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-xs font-semibold flex items-center justify-center gap-1.5 shadow-md transition-all"
+              >
+                <Landmark className="w-3.5 h-3.5" />
+                Gestionar Fondos
+              </button>
+            </div>
+          </div>
+
+          {/* Card 6: Configuración del Bot (Modos Conservador, Moderado, Agresivo) */}
+          <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-5 shadow-lg hover:border-slate-700 transition-all flex flex-col justify-between">
+            <div>
+              <div className="flex items-center justify-between text-slate-400 text-xs font-semibold mb-2">
+                <span>Configuración del Bot</span>
+                <Sliders className="w-4 h-4 text-amber-400" />
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-lg md:text-xl font-extrabold text-white capitalize">
+                  Modo {activeBotMode}
+                </span>
+                <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider border ${
+                  activeBotMode === 'conservador'
+                    ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30'
+                    : activeBotMode === 'agresivo'
+                    ? 'bg-rose-500/20 text-rose-400 border-rose-500/30'
+                    : 'bg-amber-500/20 text-amber-400 border-amber-500/30'
+                }`}>
+                  ACTIVO
+                </span>
+              </div>
+            </div>
+
+            <div className="mt-2 border-t border-slate-800/80 pt-2">
+              <div className="text-[10px] font-mono text-slate-400 mb-2 truncate">
+                SL: {strategyModes[activeBotMode]?.hardStopLossPct}% | BE: {strategyModes[activeBotMode]?.breakEvenTriggerPct}% | TP1: +{strategyModes[activeBotMode]?.takeProfit1Pct}% | TP2: +{strategyModes[activeBotMode]?.takeProfit2Pct}%
+              </div>
+              <button
+                onClick={() => { setSelectedModalTab(activeBotMode); setStrategyModalOpen(true); fetchStrategyConfig(); }}
+                className="w-full py-1.5 px-3 rounded-xl bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500 text-white text-xs font-semibold flex items-center justify-center gap-1.5 shadow-md transition-all"
+              >
+                <Sliders className="w-3.5 h-3.5" />
+                Editar Configuración
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -975,6 +1108,270 @@ export function CryptoExchangeTab() {
               >
                 Cerrar Ventana
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ============================================================ */}
+      {/* MODAL EMERGENTE DE CONFIGURACIÓN DE ESTRATEGIAS Y MODOS DEL BOT */}
+      {/* ============================================================ */}
+      {strategyModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md">
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl w-full max-w-4xl max-h-[90vh] overflow-y-auto shadow-2xl p-6 text-slate-100 flex flex-col justify-between">
+            <div>
+              {/* Header del Modal */}
+              <div className="flex items-center justify-between pb-4 border-b border-slate-800">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-amber-500/20 text-amber-400 border border-amber-500/30 flex items-center justify-center">
+                    <Sliders className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h2 className="text-lg font-bold text-white flex items-center gap-2">
+                      Configuración de Estrategias y Modos de Trading
+                      <span className="text-xs px-2.5 py-0.5 rounded-full bg-slate-800 text-slate-400 border border-slate-700 font-semibold uppercase">
+                        Modo Activo: {activeBotMode}
+                      </span>
+                    </h2>
+                    <p className="text-xs text-slate-400">Personaliza los parámetros de entrada y salida para cada perfil de riesgo</p>
+                  </div>
+                </div>
+
+                <button
+                  onClick={() => setStrategyModalOpen(false)}
+                  className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white transition-all"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Selector de Pestañas de Modos */}
+              <div className="flex items-center gap-2 mt-5 p-1.5 bg-slate-950 rounded-2xl border border-slate-800">
+                {(['conservador', 'moderado', 'agresivo'] as const).map(mode => (
+                  <button
+                    key={mode}
+                    onClick={() => setSelectedModalTab(mode)}
+                    className={`flex-1 py-2.5 px-4 rounded-xl text-xs font-bold capitalize transition-all flex items-center justify-center gap-2 ${
+                      selectedModalTab === mode
+                        ? mode === 'conservador'
+                          ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 shadow-lg'
+                          : mode === 'agresivo'
+                          ? 'bg-rose-500/20 text-rose-300 border border-rose-500/40 shadow-lg'
+                          : 'bg-amber-500/20 text-amber-300 border border-amber-500/40 shadow-lg'
+                        : 'text-slate-400 hover:text-white hover:bg-slate-900/60'
+                    }`}
+                  >
+                    <span>Modo {mode}</span>
+                    {activeBotMode === mode && (
+                      <span className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse" title="Modo Actualmente Activo"></span>
+                    )}
+                  </button>
+                ))}
+              </div>
+
+              {/* Formulario de Parámetros del Modo Seleccionado */}
+              <div className="mt-6 space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {/* Bloque 1: Parámetros de Entrada */}
+                  <div className="bg-slate-950/60 border border-slate-800/80 rounded-2xl p-5 space-y-4">
+                    <h3 className="text-xs font-bold uppercase tracking-wider text-cyan-400 flex items-center gap-2">
+                      <Zap className="w-4 h-4 text-cyan-400" />
+                      Parámetros de Entrada (Gatillos de Compra)
+                    </h3>
+
+                    <div>
+                      <label className="block text-xs text-slate-300 font-semibold mb-1">
+                        RSI Pullback (Consolidación)
+                      </label>
+                      <input
+                        type="number"
+                        step="0.1"
+                        value={strategyModes[selectedModalTab]?.rsiPullback ?? 45}
+                        onChange={(e) => {
+                          const val = Number(e.target.value);
+                          setStrategyModes(prev => ({
+                            ...prev,
+                            [selectedModalTab]: { ...prev[selectedModalTab], rsiPullback: val }
+                          }));
+                        }}
+                        className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:border-cyan-500 outline-none font-mono"
+                      />
+                      <p className="text-[10px] text-slate-500 mt-1">Umbral RSI en 15m para compras en rango o retroceso</p>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs text-slate-300 font-semibold mb-1">
+                        RSI SMA(100) (Tendencial Alcista)
+                      </label>
+                      <input
+                        type="number"
+                        step="0.1"
+                        value={strategyModes[selectedModalTab]?.rsiSma100 ?? 62}
+                        onChange={(e) => {
+                          const val = Number(e.target.value);
+                          setStrategyModes(prev => ({
+                            ...prev,
+                            [selectedModalTab]: { ...prev[selectedModalTab], rsiSma100: val }
+                          }));
+                        }}
+                        className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:border-cyan-500 outline-none font-mono"
+                      />
+                      <p className="text-[10px] text-slate-500 mt-1">Umbral RSI cuando el precio está por encima de SMA100</p>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs text-slate-300 font-semibold mb-1">
+                        Breakout Bollinger (Multiplicador de Volumen)
+                      </label>
+                      <input
+                        type="number"
+                        step="0.05"
+                        value={strategyModes[selectedModalTab]?.breakoutBollingerMult ?? 1.15}
+                        onChange={(e) => {
+                          const val = Number(e.target.value);
+                          setStrategyModes(prev => ({
+                            ...prev,
+                            [selectedModalTab]: { ...prev[selectedModalTab], breakoutBollingerMult: val }
+                          }));
+                        }}
+                        className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:border-cyan-500 outline-none font-mono"
+                      />
+                      <p className="text-[10px] text-slate-500 mt-1">Multiplicador de volumen (ej: 1.15 = 15% arriba de la media de vol 20)</p>
+                    </div>
+                  </div>
+
+                  {/* Bloque 2: Parámetros de Salida */}
+                  <div className="bg-slate-950/60 border border-slate-800/80 rounded-2xl p-5 space-y-4">
+                    <h3 className="text-xs font-bold uppercase tracking-wider text-amber-400 flex items-center gap-2">
+                      <ShieldCheck className="w-4 h-4 text-amber-400" />
+                      Parámetros de Salida (Gestión de Riesgo & TP)
+                    </h3>
+
+                    <div>
+                      <label className="block text-xs text-slate-300 font-semibold mb-1">
+                        Hard Stop Loss (%)
+                      </label>
+                      <input
+                        type="number"
+                        step="0.1"
+                        value={strategyModes[selectedModalTab]?.hardStopLossPct ?? -3.5}
+                        onChange={(e) => {
+                          const val = Number(e.target.value);
+                          setStrategyModes(prev => ({
+                            ...prev,
+                            [selectedModalTab]: { ...prev[selectedModalTab], hardStopLossPct: val }
+                          }));
+                        }}
+                        className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-rose-400 focus:border-rose-500 outline-none font-mono font-bold"
+                      />
+                      <p className="text-[10px] text-slate-500 mt-1">Pérdida máxima tolerable antes de cerrar automáticamente (ej: -3.5%)</p>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs text-slate-300 font-semibold mb-1">
+                        Escudo Break-Even Trigger (%)
+                      </label>
+                      <input
+                        type="number"
+                        step="0.1"
+                        value={strategyModes[selectedModalTab]?.breakEvenTriggerPct ?? 1.0}
+                        onChange={(e) => {
+                          const val = Number(e.target.value);
+                          setStrategyModes(prev => ({
+                            ...prev,
+                            [selectedModalTab]: { ...prev[selectedModalTab], breakEvenTriggerPct: val }
+                          }));
+                        }}
+                        className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:border-amber-500 outline-none font-mono"
+                      />
+                      <p className="text-[10px] text-slate-500 mt-1">Si la posición rozó este % y retrocede a 0%, se protege sin pérdida</p>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-xs text-slate-300 font-semibold mb-1">
+                          Take Profit 1 (%)
+                        </label>
+                        <input
+                          type="number"
+                          step="0.1"
+                          value={strategyModes[selectedModalTab]?.takeProfit1Pct ?? 1.5}
+                          onChange={(e) => {
+                            const val = Number(e.target.value);
+                            setStrategyModes(prev => ({
+                              ...prev,
+                              [selectedModalTab]: { ...prev[selectedModalTab], takeProfit1Pct: val }
+                            }));
+                          }}
+                          className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-emerald-400 focus:border-emerald-500 outline-none font-mono font-bold"
+                        />
+                        <p className="text-[10px] text-slate-500 mt-1">TP1 Rápido</p>
+                      </div>
+
+                      <div>
+                        <label className="block text-xs text-slate-300 font-semibold mb-1">
+                          Take Profit 2 (%)
+                        </label>
+                        <input
+                          type="number"
+                          step="0.1"
+                          value={strategyModes[selectedModalTab]?.takeProfit2Pct ?? 2.5}
+                          onChange={(e) => {
+                            const val = Number(e.target.value);
+                            setStrategyModes(prev => ({
+                              ...prev,
+                              [selectedModalTab]: { ...prev[selectedModalTab], takeProfit2Pct: val }
+                            }));
+                          }}
+                          className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-emerald-400 focus:border-emerald-500 outline-none font-mono font-bold"
+                        />
+                        <p className="text-[10px] text-slate-500 mt-1">TP2 Cierre Total</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Footer del Modal */}
+            <div className="pt-4 border-t border-slate-800 mt-6 flex flex-col sm:flex-row items-center justify-between gap-3">
+              <div className="text-xs text-slate-400 font-mono">
+                {activeBotMode === selectedModalTab ? (
+                  <span className="text-emerald-400 font-semibold flex items-center gap-1.5">
+                    <CheckCircle2 className="w-4 h-4" />
+                    Este modo es el ACTIVO actualmente en el Bot Intradía.
+                  </span>
+                ) : (
+                  <span>Modo visualizado: <strong className="text-white capitalize">{selectedModalTab}</strong> (Inactivo)</span>
+                )}
+              </div>
+
+              <div className="flex items-center gap-3 w-full sm:w-auto justify-end">
+                <button
+                  type="button"
+                  disabled={isSavingStrategy}
+                  onClick={() => handleSaveStrategyConfig(false)}
+                  className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold transition-all border border-slate-700"
+                >
+                  {isSavingStrategy ? 'Guardando...' : 'Guardar Cambios'}
+                </button>
+
+                <button
+                  type="button"
+                  disabled={isSavingStrategy}
+                  onClick={() => handleSaveStrategyConfig(true)}
+                  className={`px-5 py-2 rounded-xl text-white text-xs font-extrabold flex items-center gap-2 shadow-lg transition-all ${
+                    selectedModalTab === 'conservador'
+                      ? 'bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 shadow-emerald-900/30'
+                      : selectedModalTab === 'agresivo'
+                      ? 'bg-gradient-to-r from-rose-600 to-red-600 hover:from-rose-500 hover:to-red-500 shadow-rose-900/30'
+                      : 'bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500 shadow-amber-900/30'
+                  }`}
+                >
+                  <Zap className="w-4 h-4 fill-current" />
+                  {isSavingStrategy ? 'Activando...' : `Activar Modo ${selectedModalTab.toUpperCase()}`}
+                </button>
+              </div>
             </div>
           </div>
         </div>
