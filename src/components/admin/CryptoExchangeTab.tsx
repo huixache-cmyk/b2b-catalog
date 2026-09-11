@@ -861,7 +861,16 @@ export function CryptoExchangeTab() {
                           </div>
                           <div className="mt-3 pt-2 border-t border-slate-800/80 flex justify-between items-center text-[11px]">
                             <span className="text-slate-400">Rendimiento Cosechable:</span>
-                            <span className="font-bold text-emerald-400">${Math.max(0, capital.netPnlHistorical ?? capital.todayPnlUsd ?? 0).toFixed(2)} USD</span>
+                            <span className="font-bold text-emerald-400">
+                              {amountUsd && Number(amountUsd) > 0 ? (
+                                <>
+                                  <span className="line-through text-slate-500 mr-1 opacity-70">${Math.max(0, capital.netPnlHistorical ?? capital.todayPnlUsd ?? 0).toFixed(2)}</span>
+                                  → ${Math.max(0, (capital.netPnlHistorical ?? capital.todayPnlUsd ?? 0) - Number(amountUsd)).toFixed(2)} USD
+                                </>
+                              ) : (
+                                `$${Math.max(0, capital.netPnlHistorical ?? capital.todayPnlUsd ?? 0).toFixed(2)} USD`
+                              )}
+                            </span>
                           </div>
                         </button>
 
@@ -891,7 +900,16 @@ export function CryptoExchangeTab() {
                           </div>
                           <div className="mt-3 pt-2 border-t border-slate-800/80 flex justify-between items-center text-[11px]">
                             <span className="text-slate-400">Caja Disponible:</span>
-                            <span className="font-bold text-amber-400">${capital.availableCashUsd.toFixed(2)} USD</span>
+                            <span className="font-bold text-amber-400">
+                              {amountUsd && Number(amountUsd) > 0 ? (
+                                <>
+                                  <span className="line-through text-slate-500 mr-1 opacity-70">${capital.availableCashUsd.toFixed(2)}</span>
+                                  → ${Math.max(0, capital.availableCashUsd - Number(amountUsd)).toFixed(2)} USD
+                                </>
+                              ) : (
+                                `$${capital.availableCashUsd.toFixed(2)} USD`
+                              )}
+                            </span>
                           </div>
                         </button>
                       </div>
@@ -1060,20 +1078,26 @@ export function CryptoExchangeTab() {
                     ) : withdrawalType === 'profit' ? (
                       <>
                         <div className="flex justify-between text-slate-400">
-                          <span>Rendimientos Acumulados Cosechables:</span>
-                          <span className="font-bold text-emerald-400">${Math.max(0, capital.netPnlHistorical ?? capital.todayPnlUsd ?? 0).toFixed(2)} USD</span>
+                          <span>Rendimientos Acumulados Actuales:</span>
+                          <span className="font-bold text-white">${Math.max(0, capital.netPnlHistorical ?? capital.todayPnlUsd ?? 0).toFixed(2)} USD</span>
                         </div>
-                        <div className="flex justify-between text-slate-400">
+                        <div className="flex justify-between font-bold text-emerald-400">
+                          <span>Nuevos Rendimientos tras Cosecha:</span>
+                          <span>
+                            ${Math.max(0, (capital.netPnlHistorical ?? capital.todayPnlUsd ?? 0) - Number(amountUsd || 0)).toFixed(2)} USD
+                          </span>
+                        </div>
+                        <div className="flex justify-between text-slate-400 pt-1.5 border-t border-slate-900">
                           <span>Patrimonio Total Actual:</span>
                           <span className="font-bold text-white">${capital.totalEquityUsd.toFixed(2)} USD</span>
                         </div>
-                        <div className="flex justify-between font-bold pt-1 border-t border-slate-900">
-                          <span className="text-slate-300">Nuevo Patrimonio tras Cosecha:</span>
-                          <span className="text-rose-400">
-                            ${(capital.totalEquityUsd - Number(amountUsd || 0)).toFixed(2)} USD
+                        <div className="flex justify-between font-bold text-rose-400">
+                          <span>Nuevo Patrimonio Total tras Cosecha:</span>
+                          <span>
+                            ${Math.max(0, capital.totalEquityUsd - Number(amountUsd || 0)).toFixed(2)} USD
                           </span>
                         </div>
-                        <div className="flex justify-between text-[11px] text-emerald-400/90 italic">
+                        <div className="flex justify-between text-[11px] text-emerald-400/90 italic pt-0.5">
                           <span>Caja Líquida & Capital Base:</span>
                           <span>Protegidos intactos (${capital.availableCashUsd.toFixed(2)} USD)</span>
                         </div>
@@ -1081,18 +1105,24 @@ export function CryptoExchangeTab() {
                     ) : (
                       <>
                         <div className="flex justify-between text-slate-400">
-                          <span>Caja Líquida Actual:</span>
+                          <span>Caja Líquida Disponible Actual:</span>
                           <span className="font-bold text-white">${capital.availableCashUsd.toFixed(2)} USD</span>
                         </div>
-                        <div className="flex justify-between font-bold">
-                          <span className="text-slate-300">Nueva Caja tras Extracción:</span>
-                          <span className="text-rose-400">
+                        <div className="flex justify-between font-bold text-amber-400">
+                          <span>Nueva Caja Líquida tras Extracción:</span>
+                          <span>
                             ${Math.max(0, capital.availableCashUsd - Number(amountUsd || 0)).toFixed(2)} USD
                           </span>
                         </div>
-                        <div className="flex justify-between text-[11px] text-slate-400">
-                          <span>Nuevo Patrimonio Total:</span>
-                          <span className="font-bold text-slate-200">${(capital.totalEquityUsd - Number(amountUsd || 0)).toFixed(2)} USD</span>
+                        <div className="flex justify-between text-slate-400 pt-1.5 border-t border-slate-900">
+                          <span>Patrimonio Total Actual:</span>
+                          <span className="font-bold text-white">${capital.totalEquityUsd.toFixed(2)} USD</span>
+                        </div>
+                        <div className="flex justify-between font-bold text-rose-400">
+                          <span>Nuevo Patrimonio Total tras Extracción:</span>
+                          <span>
+                            ${Math.max(0, capital.totalEquityUsd - Number(amountUsd || 0)).toFixed(2)} USD
+                          </span>
                         </div>
                       </>
                     )}
