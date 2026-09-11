@@ -129,6 +129,8 @@ export function CryptoExchangeTab() {
   const [activeBotMode, setActiveBotMode] = useState<'conservador' | 'moderado' | 'agresivo'>('moderado');
   const [selectedModalTab, setSelectedModalTab] = useState<'conservador' | 'moderado' | 'agresivo'>('moderado');
   const [isSavingStrategy, setIsSavingStrategy] = useState<boolean>(false);
+  const [buysPaused, setBuysPaused] = useState<boolean>(false);
+  const [isTogglingBuys, setIsTogglingBuys] = useState<boolean>(false);
 
   const [strategyModes, setStrategyModes] = useState({
     conservador: {
@@ -172,9 +174,35 @@ export function CryptoExchangeTab() {
           if (data.modes) {
             setStrategyModes(data.modes);
           }
+          if (data.buysPaused !== undefined) {
+            setBuysPaused(data.buysPaused);
+          }
         }
       }
     } catch (e) {}
+  };
+
+  const handleToggleBuys = async () => {
+    setIsTogglingBuys(true);
+    try {
+      const res = await fetch(`${API_BASE}/strategy-config/toggle-buys`, {
+        method: 'POST',
+        headers: authHeaders({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify({ paused: !buysPaused })
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setBuysPaused(data.buysPaused);
+        alert(data.message || (data.buysPaused ? 'Compras del bot pausadas (Modo solo ventas/cash-out activo).' : 'Compras del bot reanudadas con éxito.'));
+        await fetchData();
+      } else {
+        alert(data.error || 'No se pudo cambiar el estado de pausa de compras.');
+      }
+    } catch (e: any) {
+      alert(`Error de conexión: ${e.message}`);
+    } finally {
+      setIsTogglingBuys(false);
+    }
   };
 
   const handleSaveStrategyConfig = async (activateImmediately: boolean = false) => {
@@ -230,6 +258,9 @@ export function CryptoExchangeTab() {
         const statusData = await statusRes.json();
         setBotActive(statusData.botActive ?? true);
         setExchangeMode(statusData.exchangeMode || 'simulation');
+        if (statusData.buysPaused !== undefined) {
+          setBuysPaused(statusData.buysPaused);
+        }
         if (statusData.capital) {
           setCapital(statusData.capital);
         }
@@ -606,11 +637,11 @@ export function CryptoExchangeTab() {
                 <span>Configuración del Bot</span>
                 <Sliders className="w-4 h-4 text-amber-400" />
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <span className="text-lg md:text-xl font-extrabold text-white capitalize">
                   {activeBotMode}
                 </span>
-                <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider border ${
+                <span className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider border ${
                   activeBotMode === 'conservador'
                     ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30'
                     : activeBotMode === 'agresivo'
@@ -619,20 +650,54 @@ export function CryptoExchangeTab() {
                 }`}>
                   ACTIVO
                 </span>
+                {buysPaused && (
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider border bg-rose-500/20 text-rose-400 border-rose-500/30 flex items-center gap-1 animate-pulse">
+                    <Pause className="w-3 h-3 text-rose-400" />
+                    COMPRAS PAUSADAS
+                  </span>
+                )}
               </div>
             </div>
 
-            <div className="mt-2 border-t border-slate-800/80 pt-2">
-              <div className="text-[10px] font-mono text-slate-400 mb-2 truncate">
+            <div className="mt-2 border-t border-slate-800/80 pt-2 space-y-2">
+              <div className="text-[10px] font-mono text-slate-400 truncate">
                 SL: {strategyModes[activeBotMode]?.hardStopLossPct}% | BE: {strategyModes[activeBotMode]?.breakEvenTriggerPct}% | TP1: +{strategyModes[activeBotMode]?.takeProfit1Pct}% | TP2: +{strategyModes[activeBotMode]?.takeProfit2Pct}%
               </div>
-              <button
-                onClick={() => { setSelectedModalTab(activeBotMode); setStrategyModalOpen(true); fetchStrategyConfig(); }}
-                className="w-full py-1.5 px-3 rounded-xl bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500 text-white text-xs font-semibold flex items-center justify-center gap-1.5 shadow-md transition-all"
-              >
-                <Sliders className="w-3.5 h-3.5" />
-                Editar Configuración
-              </button>
+
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  onClick={handleToggleBuys}
+                  disabled={isTogglingBuys}
+                  className={`py-1.5 px-2.5 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 shadow-md transition-all ${
+                    buysPaused
+                      ? 'bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white shadow-emerald-500/20'
+                      : 'bg-gradient-to-r from-rose-600 to-red-600 hover:from-rose-500 hover:to-red-500 text-white shadow-rose-500/20'
+                  }`}
+                  title={buysPaused ? "Reanudar compras del bot" : "Detener compras del bot (Modo solo ventas/cash-out)"}
+                >
+                  {isTogglingBuys ? (
+                    'Procesando...'
+                  ) : buysPaused ? (
+                    <>
+                      <Play className="w-3.5 h-3.5" />
+                      Reanudar Compras
+                    </>
+                  ) : (
+                    <>
+                      <Pause className="w-3.5 h-3.5" />
+                      Detener Compras
+                    </>
+                  )}
+                </button>
+
+                <button
+                  onClick={() => { setSelectedModalTab(activeBotMode); setStrategyModalOpen(true); fetchStrategyConfig(); }}
+                  className="py-1.5 px-2.5 rounded-xl bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500 text-white text-xs font-semibold flex items-center justify-center gap-1.5 shadow-md transition-all"
+                >
+                  <Sliders className="w-3.5 h-3.5" />
+                  Editar
+                </button>
+              </div>
             </div>
           </div>
         </div>
