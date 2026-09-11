@@ -54,6 +54,7 @@ interface BankTransaction {
   id: string;
   recipient_id?: string;
   transaction_type: 'deposit' | 'withdrawal' | string;
+  withdrawal_type?: 'profit' | 'capital' | string;
   amount_usd: number;
   amount_mxn: number;
   exchange_rate: number;
@@ -72,8 +73,12 @@ interface PortfolioCapital {
   availableCashUsd: number;
   totalEquityUsd: number;
   todayPnlUsd: number;
+  totalPnlHistorical?: number;
+  netPnlHistorical?: number;
   totalBankDepositsUsd?: number;
   totalBankWithdrawalsUsd?: number;
+  totalCapitalWithdrawalsUsd?: number;
+  totalProfitWithdrawalsUsd?: number;
   netBankInjectionsUsd?: number;
 }
 
@@ -87,8 +92,12 @@ export function CryptoExchangeTab() {
     availableCashUsd: 1000.00,
     totalEquityUsd: 1000.00,
     todayPnlUsd: 0,
+    totalPnlHistorical: 0,
+    netPnlHistorical: 0,
     totalBankDepositsUsd: 0,
     totalBankWithdrawalsUsd: 0,
+    totalCapitalWithdrawalsUsd: 0,
+    totalProfitWithdrawalsUsd: 0,
     netBankInjectionsUsd: 0
   });
 
@@ -101,6 +110,7 @@ export function CryptoExchangeTab() {
   // Estados del Módulo Bancario
   const [bankModalOpen, setBankModalOpen] = useState<boolean>(false);
   const [bankTab, setBankTab] = useState<'deposit' | 'withdrawal' | 'recipients' | 'history'>('deposit');
+  const [withdrawalType, setWithdrawalType] = useState<'profit' | 'capital'>('profit');
   const [recipients, setRecipients] = useState<BankRecipient[]>([]);
   const [bankHistory, setBankHistory] = useState<BankTransaction[]>([]);
 
@@ -350,21 +360,31 @@ export function CryptoExchangeTab() {
     if (!amountUsd || numericAmount <= 0) return alert('Por favor ingresa un monto válido en USD.');
     if (!clabeAccount || clabeAccount.trim().length < 10) return alert('Ingresa una CLABE o cuenta bancaria válida (mínimo 10 dígitos).');
 
-    if (bankTab === 'withdrawal' && numericAmount > capital.availableCashUsd) {
-      return alert(`Fondos insuficientes. Intientas retirar $${numericAmount.toFixed(2)} USD pero tu caja disponible actual es de $${capital.availableCashUsd.toFixed(2)} USD.`);
+    if (bankTab === 'withdrawal') {
+      if (withdrawalType === 'profit') {
+        const maxProfit = Math.max(0, capital.netPnlHistorical ?? 0);
+        if (numericAmount > maxProfit) {
+          return alert(`Límite de cosecha excedido. Intentas cosechar $${numericAmount.toFixed(2)} USD pero tus rendimientos netos acumulados cosechables son de $${maxProfit.toFixed(2)} USD.`);
+        }
+      } else {
+        if (numericAmount > capital.availableCashUsd) {
+          return alert(`Fondos insuficientes. Intentas retirar $${numericAmount.toFixed(2)} USD pero tu caja disponible actual es de $${capital.availableCashUsd.toFixed(2)} USD.`);
+        }
+      }
     }
 
     setIsSubmittingBank(true);
     try {
       const payload = {
         transaction_type: bankTab === 'withdrawal' ? 'withdrawal' : 'deposit',
+        withdrawal_type: bankTab === 'withdrawal' ? withdrawalType : undefined,
         amount_usd: numericAmount,
         amount_mxn: numericAmount * usdToMxn,
         exchange_rate: usdToMxn,
         bank_name: bankName,
         source_account: holderName || 'Cuenta Titular Principal',
         destination_clabe: clabeAccount,
-        reference: reference || `${bankTab === 'deposit' ? 'Abono SPEI' : 'Retiro SPEI'} Bot Intradía`,
+        reference: reference || `${bankTab === 'deposit' ? 'Abono SPEI' : (withdrawalType === 'profit' ? 'Cosecha Rendimientos SPEI' : 'Extracción Capital SPEI')} Bot Intradía`,
         save_recipient: saveRecipient,
         recipient_alias: recipientAlias || `${bankName} - ${holderName}`,
         holder_name: holderName || 'Titular Principal'
@@ -378,7 +398,7 @@ export function CryptoExchangeTab() {
 
       const data = await res.json();
       if (res.ok && data.success) {
-        alert(`¡${bankTab === 'deposit' ? 'Abono' : 'Retiro'} bancario de $${numericAmount.toFixed(2)} USD registrado exitosamente!`);
+        alert(`¡${bankTab === 'deposit' ? 'Abono' : (withdrawalType === 'profit' ? 'Cosecha de Rendimientos' : 'Extracción de Capital')} de $${numericAmount.toFixed(2)} USD registrado exitosamente!`);
         setAmountUsd('');
         setReference('');
         setSaveRecipient(false);
@@ -808,10 +828,80 @@ export function CryptoExchangeTab() {
               {/* CONTENIDO PESTAÑA: DEPRÓSITO O RETIRO */}
               {(bankTab === 'deposit' || bankTab === 'withdrawal') && (
                 <form onSubmit={handleBankTransactionSubmit} className="space-y-4">
+                  {/* Selector del Tipo de Retiro (Cosecha vs Extracción) */}
+                  {bankTab === 'withdrawal' && (
+                    <div className="bg-slate-950/80 p-4 rounded-2xl border border-slate-800 space-y-3">
+                      <label className="text-xs font-bold text-slate-200 block">
+                        Selecciona la modalidad de retiro:
+                      </label>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <button
+                          type="button"
+                          onClick={() => setWithdrawalType('profit')}
+                          className={`p-3.5 rounded-xl border text-left transition-all flex flex-col justify-between ${
+                            withdrawalType === 'profit'
+                              ? 'bg-emerald-500/10 border-emerald-500/50 text-white ring-1 ring-emerald-500/30 shadow-md'
+                              : 'bg-slate-900/60 border-slate-800 text-slate-400 hover:border-slate-700'
+                          }`}
+                        >
+                          <div>
+                            <div className="flex items-center justify-between mb-1">
+                              <span className="font-bold text-xs text-emerald-400 flex items-center gap-1">
+                                🌱 Cosecha de Rendimientos
+                              </span>
+                              {withdrawalType === 'profit' && (
+                                <span className="text-[10px] bg-emerald-500/20 text-emerald-300 font-bold px-2 py-0.5 rounded-full">
+                                  ACTIVO
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-[11px] text-slate-300 leading-tight">
+                              Retira utilidades cerradas acumuladas. Afecta <strong>únicamente tu Patrimonio Total</strong> sin reducir tu Capital Base ($1,000 USD) ni la Caja Líquida para operativas.
+                            </p>
+                          </div>
+                          <div className="mt-3 pt-2 border-t border-slate-800/80 flex justify-between items-center text-[11px]">
+                            <span className="text-slate-400">Rendimiento Cosechable:</span>
+                            <span className="font-bold text-emerald-400">${Math.max(0, capital.netPnlHistorical ?? 0).toFixed(2)} USD</span>
+                          </div>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => setWithdrawalType('capital')}
+                          className={`p-3.5 rounded-xl border text-left transition-all flex flex-col justify-between ${
+                            withdrawalType === 'capital'
+                              ? 'bg-amber-500/10 border-amber-500/50 text-white ring-1 ring-amber-500/30 shadow-md'
+                              : 'bg-slate-900/60 border-slate-800 text-slate-400 hover:border-slate-700'
+                          }`}
+                        >
+                          <div>
+                            <div className="flex items-center justify-between mb-1">
+                              <span className="font-bold text-xs text-amber-400 flex items-center gap-1">
+                                🏦 Extracción de Capital
+                              </span>
+                              {withdrawalType === 'capital' && (
+                                <span className="text-[10px] bg-amber-500/20 text-amber-300 font-bold px-2 py-0.5 rounded-full">
+                                  ACTIVO
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-[11px] text-slate-300 leading-tight">
+                              Retira capital inyectado o líquido base. Reduce la Caja Líquida Disponible e Inyecciones Bancarias Netas.
+                            </p>
+                          </div>
+                          <div className="mt-3 pt-2 border-t border-slate-800/80 flex justify-between items-center text-[11px]">
+                            <span className="text-slate-400">Caja Disponible:</span>
+                            <span className="font-bold text-amber-400">${capital.availableCashUsd.toFixed(2)} USD</span>
+                          </div>
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
                   {/* Selector rápido de Destinatario Registrado */}
                   {recipients.length > 0 && (
                     <div className="bg-slate-950/60 p-3 rounded-2xl border border-slate-800">
-                      <label className="text-[11px] font-semibold text-cyan-400 mb-1.5 block flex items-center gap-1.5">
+                      <label className="text-[11px] font-semibold text-cyan-400 mb-1.5 flex items-center gap-1.5">
                         <UserCheck className="w-3.5 h-3.5" />
                         Cargar desde Destinatario Registrado:
                       </label>
@@ -837,7 +927,7 @@ export function CryptoExchangeTab() {
                     {/* Monto USD */}
                     <div>
                       <label className="text-xs font-semibold text-slate-300 mb-1 block">
-                        Monto a {bankTab === 'deposit' ? 'Abonar' : 'Retirar'} (USD) *
+                        Monto a {bankTab === 'deposit' ? 'Abonar' : (withdrawalType === 'profit' ? 'Cosechar (Rendimientos)' : 'Extraer (Capital)')} (USD) *
                       </label>
                       <input
                         type="number"
@@ -952,21 +1042,60 @@ export function CryptoExchangeTab() {
                     )}
                   </div>
 
-                  {/* Previsualización de Impacto en Liquidez */}
+                  {/* Previsualización de Impacto en Liquidez / Patrimonio */}
                   <div className="bg-slate-950 p-3.5 rounded-2xl border border-slate-800 text-xs space-y-1.5">
-                    <div className="flex justify-between text-slate-400">
-                      <span>Caja Líquida Actual:</span>
-                      <span className="font-bold text-white">${capital.availableCashUsd.toFixed(2)} USD</span>
-                    </div>
-                    <div className="flex justify-between font-bold">
-                      <span className="text-slate-300">Nueva Caja tras {bankTab === 'deposit' ? 'Abono' : 'Retiro'}:</span>
-                      <span className={bankTab === 'deposit' ? 'text-emerald-400' : 'text-rose-400'}>
-                        ${(bankTab === 'deposit'
-                          ? capital.availableCashUsd + Number(amountUsd || 0)
-                          : Math.max(0, capital.availableCashUsd - Number(amountUsd || 0))
-                        ).toFixed(2)} USD
-                      </span>
-                    </div>
+                    {bankTab === 'deposit' ? (
+                      <>
+                        <div className="flex justify-between text-slate-400">
+                          <span>Caja Líquida Actual:</span>
+                          <span className="font-bold text-white">${capital.availableCashUsd.toFixed(2)} USD</span>
+                        </div>
+                        <div className="flex justify-between font-bold">
+                          <span className="text-slate-300">Nueva Caja tras Abono:</span>
+                          <span className="text-emerald-400">
+                            ${(capital.availableCashUsd + Number(amountUsd || 0)).toFixed(2)} USD
+                          </span>
+                        </div>
+                      </>
+                    ) : withdrawalType === 'profit' ? (
+                      <>
+                        <div className="flex justify-between text-slate-400">
+                          <span>Rendimientos Acumulados Cosechables:</span>
+                          <span className="font-bold text-emerald-400">${Math.max(0, capital.netPnlHistorical ?? 0).toFixed(2)} USD</span>
+                        </div>
+                        <div className="flex justify-between text-slate-400">
+                          <span>Patrimonio Total Actual:</span>
+                          <span className="font-bold text-white">${capital.totalEquityUsd.toFixed(2)} USD</span>
+                        </div>
+                        <div className="flex justify-between font-bold pt-1 border-t border-slate-900">
+                          <span className="text-slate-300">Nuevo Patrimonio tras Cosecha:</span>
+                          <span className="text-rose-400">
+                            ${(capital.totalEquityUsd - Number(amountUsd || 0)).toFixed(2)} USD
+                          </span>
+                        </div>
+                        <div className="flex justify-between text-[11px] text-emerald-400/90 italic">
+                          <span>Caja Líquida & Capital Base:</span>
+                          <span>Protegidos intactos (${capital.availableCashUsd.toFixed(2)} USD)</span>
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <div className="flex justify-between text-slate-400">
+                          <span>Caja Líquida Actual:</span>
+                          <span className="font-bold text-white">${capital.availableCashUsd.toFixed(2)} USD</span>
+                        </div>
+                        <div className="flex justify-between font-bold">
+                          <span className="text-slate-300">Nueva Caja tras Extracción:</span>
+                          <span className="text-rose-400">
+                            ${Math.max(0, capital.availableCashUsd - Number(amountUsd || 0)).toFixed(2)} USD
+                          </span>
+                        </div>
+                        <div className="flex justify-between text-[11px] text-slate-400">
+                          <span>Nuevo Patrimonio Total:</span>
+                          <span className="font-bold text-slate-200">${(capital.totalEquityUsd - Number(amountUsd || 0)).toFixed(2)} USD</span>
+                        </div>
+                      </>
+                    )}
                   </div>
 
                   {/* Botón Submit */}
@@ -980,7 +1109,13 @@ export function CryptoExchangeTab() {
                     }`}
                   >
                     <CheckCircle2 className="w-4 h-4" />
-                    {isSubmittingBank ? 'Procesando...' : `Confirmar ${bankTab === 'deposit' ? 'Abono de Fondos' : 'Retiro SPEI'}`}
+                    {isSubmittingBank
+                      ? 'Procesando...'
+                      : bankTab === 'deposit'
+                      ? 'Confirmar Abono de Fondos'
+                      : withdrawalType === 'profit'
+                      ? 'Confirmar Cosecha de Rendimientos'
+                      : 'Confirmar Extracción de Capital'}
                   </button>
                 </form>
               )}
@@ -1071,9 +1206,15 @@ export function CryptoExchangeTab() {
                                 <span className={`px-2 py-0.5 rounded-md text-[10px] font-extrabold uppercase ${
                                   tx.transaction_type === 'deposit'
                                     ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                                    : tx.withdrawal_type === 'profit'
+                                    ? 'bg-teal-500/20 text-teal-300 border border-teal-500/30'
                                     : 'bg-rose-500/20 text-rose-400 border border-rose-500/30'
                                 }`}>
-                                  {tx.transaction_type === 'deposit' ? 'ABONO' : 'RETIRO'}
+                                  {tx.transaction_type === 'deposit'
+                                    ? 'ABONO'
+                                    : tx.withdrawal_type === 'profit'
+                                    ? 'RETIRO REND.'
+                                    : 'RETIRO CAP.'}
                                 </span>
                               </td>
                               <td className="p-3 font-semibold text-white">
