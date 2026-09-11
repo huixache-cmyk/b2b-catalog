@@ -588,7 +588,7 @@ export function CryptoExchangeTab() {
               </div>
               <div className="flex items-center gap-2">
                 <span className="text-lg md:text-xl font-extrabold text-white capitalize">
-                  Modo {activeBotMode}
+                  {activeBotMode}
                 </span>
                 <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider border ${
                   activeBotMode === 'conservador'
@@ -1128,9 +1128,9 @@ export function CryptoExchangeTab() {
                   </div>
                   <div>
                     <h2 className="text-lg font-bold text-white flex items-center gap-2">
-                      Configuración de Estrategias y Modos de Trading
+                      Configuración de Estrategias y Perfiles de Trading
                       <span className="text-xs px-2.5 py-0.5 rounded-full bg-slate-800 text-slate-400 border border-slate-700 font-semibold uppercase">
-                        Modo Activo: {activeBotMode}
+                        Activo: {activeBotMode}
                       </span>
                     </h2>
                     <p className="text-xs text-slate-400">Personaliza los parámetros de entrada y salida para cada perfil de riesgo</p>
@@ -1161,9 +1161,9 @@ export function CryptoExchangeTab() {
                         : 'text-slate-400 hover:text-white hover:bg-slate-900/60'
                     }`}
                   >
-                    <span>Modo {mode}</span>
+                    <span className="capitalize">{mode}</span>
                     {activeBotMode === mode && (
-                      <span className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse" title="Modo Actualmente Activo"></span>
+                      <span className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse" title="Actualmente Activo"></span>
                     )}
                   </button>
                 ))}
@@ -1339,10 +1339,10 @@ export function CryptoExchangeTab() {
                 {activeBotMode === selectedModalTab ? (
                   <span className="text-emerald-400 font-semibold flex items-center gap-1.5">
                     <CheckCircle2 className="w-4 h-4" />
-                    Este modo es el ACTIVO actualmente en el Bot Intradía.
+                    Este perfil es el ACTIVO actualmente en el Bot Intradía.
                   </span>
                 ) : (
-                  <span>Modo visualizado: <strong className="text-white capitalize">{selectedModalTab}</strong> (Inactivo)</span>
+                  <span>Perfil visualizado: <strong className="text-white capitalize">{selectedModalTab}</strong> (Inactivo)</span>
                 )}
               </div>
 
@@ -1369,7 +1369,7 @@ export function CryptoExchangeTab() {
                   }`}
                 >
                   <Zap className="w-4 h-4 fill-current" />
-                  {isSavingStrategy ? 'Activando...' : `Activar Modo ${selectedModalTab.toUpperCase()}`}
+                  {isSavingStrategy ? 'Activando...' : `Activar ${selectedModalTab.toUpperCase()}`}
                 </button>
               </div>
             </div>
