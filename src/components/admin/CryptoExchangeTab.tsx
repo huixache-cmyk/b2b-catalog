@@ -239,8 +239,24 @@ export function CryptoExchangeTab() {
     }
   };
 
-  // URL base y API Key de la API del bot
-  const API_BASE = process.env.NEXT_PUBLIC_CRYPTO_BOT_API_URL || 'https://exchange-trade-production.up.railway.app/api';
+  // URL base y API Key de la API del bot (con detección local y fallback automático)
+  const defaultCloudUrl = 'https://exchange-trade-production.up.railway.app/api';
+  const defaultLocalUrl = 'http://localhost:3005/api';
+
+  const [apiBase, setApiBase] = useState<string>(() => {
+    if (process.env.NEXT_PUBLIC_CRYPTO_BOT_API_URL) {
+      return process.env.NEXT_PUBLIC_CRYPTO_BOT_API_URL;
+    }
+    if (typeof window !== 'undefined') {
+      const host = window.location.hostname;
+      if (host === 'localhost' || host === '127.0.0.1') {
+        return defaultLocalUrl;
+      }
+    }
+    return defaultCloudUrl;
+  });
+
+  const API_BASE = apiBase;
   const API_KEY = process.env.NEXT_PUBLIC_INTERNAL_API_KEY || 'geeky_exchange_secret_key_2026';
 
   const authHeaders = (extraHeaders?: Record<string, string>) => ({
@@ -252,9 +268,39 @@ export function CryptoExchangeTab() {
 
   const fetchData = async () => {
     try {
-      // 1. Estado general y capital
-      const statusRes = await fetch(`${API_BASE}/status`, { headers: authHeaders() });
-      if (statusRes.ok) {
+      let currentUrl = apiBase;
+      let statusRes: Response | null = null;
+      try {
+        statusRes = await fetch(`${currentUrl}/status`, { headers: authHeaders() });
+      } catch {
+        statusRes = null;
+      }
+
+      // Si falla o devuelve 404/error (ej. Railway caído) y no estamos ya en local, probar fallback local
+      if ((!statusRes || !statusRes.ok) && currentUrl !== defaultLocalUrl) {
+        try {
+          const fallbackRes = await fetch(`${defaultLocalUrl}/status`, { headers: authHeaders() });
+          if (fallbackRes.ok) {
+            currentUrl = defaultLocalUrl;
+            setApiBase(defaultLocalUrl);
+            statusRes = fallbackRes;
+          }
+        } catch {}
+      }
+
+      // Si estábamos en local y falló, intentar fallback cloud
+      if ((!statusRes || !statusRes.ok) && currentUrl !== defaultCloudUrl) {
+        try {
+          const cloudRes = await fetch(`${defaultCloudUrl}/status`, { headers: authHeaders() });
+          if (cloudRes.ok) {
+            currentUrl = defaultCloudUrl;
+            setApiBase(defaultCloudUrl);
+            statusRes = cloudRes;
+          }
+        } catch {}
+      }
+
+      if (statusRes && statusRes.ok) {
         const statusData = await statusRes.json();
         setBotActive(statusData.botActive ?? true);
         setExchangeMode(statusData.exchangeMode || 'simulation');
@@ -264,20 +310,22 @@ export function CryptoExchangeTab() {
         if (statusData.capital) {
           setCapital(statusData.capital);
         }
-      }
 
-      // 2. Historial único de operaciones
-      const historyRes = await fetch(`${API_BASE}/history`, { headers: authHeaders() });
-      if (historyRes.ok) {
-        const historyData = await historyRes.json();
-        setHistory(historyData || []);
-      }
+        // 2. Historial único de operaciones
+        const historyRes = await fetch(`${currentUrl}/history`, { headers: authHeaders() });
+        if (historyRes.ok) {
+          const historyData = await historyRes.json();
+          setHistory(historyData || []);
+        }
 
-      await fetchStrategyConfig();
-      setErrorMsg(null);
+        await fetchStrategyConfig();
+        setErrorMsg(null);
+      } else {
+        throw new Error(`Endpoint no responde en ${currentUrl}`);
+      }
     } catch (e: any) {
       console.warn('Error al conectar con la API del bot de trading:', e.message);
-      setErrorMsg(`Sin conexión con la API de Exchange Trade en ${API_BASE}. Verificando reintento automático...`);
+      setErrorMsg(`Sin conexión con la API de Exchange Trade en ${apiBase}. Verificando reintento automático...`);
     }
   };
 

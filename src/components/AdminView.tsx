@@ -19,7 +19,8 @@ import {
   LogOut, 
   BrainCircuit,
   Sliders,
-  TrendingUp
+  TrendingUp,
+  Snowflake
 } from "lucide-react";
 import dynamic from "next/dynamic";
 import { supabase } from "@/lib/supabase";
@@ -36,11 +37,12 @@ const AdminCRM = dynamic(() => import('./admin/AdminCRM').then(mod => mod.AdminC
 const AdminFacturacion = dynamic(() => import('./admin/AdminFacturacion').then(mod => mod.AdminFacturacion), { ssr: false });
 const AdminDiagnostics = dynamic(() => import('./admin/AdminDiagnostics').then(mod => mod.AdminDiagnostics), { ssr: false });
 const CryptoExchangeTab = dynamic(() => import('./admin/CryptoExchangeTab').then(mod => mod.CryptoExchangeTab), { ssr: false });
+const AdminFrimartView = dynamic(() => import('./admin/AdminFrimartView').then(mod => mod.AdminFrimartView), { ssr: false });
 
 export function AdminView() {
   const { products, isLoaded, addProduct, updateProduct, deleteProduct } = useProducts();
   const { quotes, isLoaded: quotesLoaded, updateQuoteStatus, deleteQuote, updateQuote } = useQuotes();
-  const [activeTab, setActiveTab] = useState<'products' | 'settings' | 'suppliers' | 'home' | 'quotes' | 'agent' | 'b2b-agent' | 'promotions' | 'b2b-crm' | 'factura' | 'diagnostics' | 'crypto-exchange'>('products');
+  const [activeTab, setActiveTab] = useState<'products' | 'settings' | 'suppliers' | 'home' | 'quotes' | 'agent' | 'b2b-agent' | 'promotions' | 'b2b-crm' | 'factura' | 'diagnostics' | 'crypto-exchange' | 'frimart'>('frimart');
   const { 
     categories, 
     seasons, 
@@ -218,6 +220,7 @@ export function AdminView() {
 
   const productSuppliers = homeSettings?.product_suppliers || [];
   const tabItems = [
+    { id: "frimart", name: "Frimart OS (Congeladores & Rutas)", icon: Snowflake, color: "emerald" },
     { id: "products", name: "Productos", icon: Package, color: "amber" },
     { id: "settings", name: "Ajustes / Catálogos", icon: SettingsIcon, color: "emerald" },
     { id: "suppliers", name: "Proveedores", icon: Truck, color: "indigo" },
@@ -379,6 +382,8 @@ export function AdminView() {
         return <AdminDiagnostics />;
       case 'crypto-exchange':
         return <CryptoExchangeTab />;
+      case 'frimart':
+        return <AdminFrimartView />;
       default:
         return null;
     }
