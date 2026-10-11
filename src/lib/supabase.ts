@@ -5,6 +5,11 @@ const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'sb_publish
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
+const frimartUrl = process.env.NEXT_PUBLIC_FRIMART_SUPABASE_URL || 'https://cnljjcnyjaqtjodbfgvg.supabase.co';
+const frimartAnonKey = process.env.NEXT_PUBLIC_FRIMART_SUPABASE_KEY || 'sb_publishable_LNW-SkFdIZN3jplvuT3k5w_hpnEMHmb';
+
+export const supabaseFrimart = createClient(frimartUrl, frimartAnonKey);
+
 export async function uploadImage(file: File, bucket: string = 'images'): Promise<string | null> {
   try {
     const fileExt = file.name.split('.').pop();

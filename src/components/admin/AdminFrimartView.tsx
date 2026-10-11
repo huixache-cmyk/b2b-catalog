@@ -34,7 +34,7 @@ import {
   Check,
   Eye
 } from "lucide-react";
-import { supabase } from "@/lib/supabase";
+import { supabaseFrimart as supabase } from "@/lib/supabase";
 
 export function AdminFrimartView() {
   const [activeSubTab, setActiveSubTab] = useState<
@@ -955,40 +955,77 @@ export function AdminFrimartView() {
       {/* ============================================================== */}
       {activeSubTab === "db_sync" && (
         <div className="space-y-5 animate-fade-in">
-          <div className="p-5 rounded-2xl bg-white border border-gray-200 space-y-4">
+          {/* Live Cloud Status Banner */}
+          <div className="p-4 rounded-2xl bg-gradient-to-r from-emerald-900 to-slate-900 text-white flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border border-emerald-700/50 shadow-md">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center">
-                <Database className="w-5 h-5" />
+              <div className="w-12 h-12 rounded-xl bg-emerald-500/20 border border-emerald-400/30 flex items-center justify-center text-emerald-400">
+                <Database className="w-6 h-6 animate-pulse" />
               </div>
               <div>
-                <h3 className="font-black text-sm text-gray-900">Script de Migración SQL para Supabase</h3>
-                <p className="text-xs text-gray-500">
-                  Tablas relacionales: frimart_ventas, frimart_detalle_ventas, frimart_usuarios, frimart_congeladores, frimart_planogramas e inventarios.
+                <div className="flex items-center gap-2">
+                  <h3 className="font-black text-sm text-white">Instancia Supabase: Frimart-OS</h3>
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase bg-emerald-500 text-slate-950 flex items-center gap-1">
+                    <CheckCircle2 className="w-3 h-3" /> En Vivo
+                  </span>
+                </div>
+                <p className="text-xs text-emerald-200/80 font-mono">
+                  https://cnljjcnyjaqtjodbfgvg.supabase.co
                 </p>
               </div>
             </div>
 
-            <div className="p-4 rounded-xl bg-slate-900 text-slate-100 font-mono text-xs space-y-2 border border-slate-800">
-              <div className="flex justify-between items-center text-slate-400 border-b border-slate-800 pb-2">
-                <span>supabase_frimart_setup.sql</span>
-                <button
-                  onClick={() => {
-                    navigator.clipboard.writeText("-- Archivo supabase_frimart_setup.sql disponible en la raiz de b2b-catalog");
-                    showToast("Ruta copiada al portapapeles");
-                  }}
-                  className="hover:text-emerald-400 flex items-center gap-1 cursor-pointer"
-                >
-                  <Copy className="w-3.5 h-3.5" /> Copiar referencia
-                </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={async () => {
+                  try {
+                    const { data, error } = await supabase.from('frimart_cedis').select('id, nombre');
+                    if (error) throw error;
+                    showToast(`Conexión exitosa: ${data?.length || 0} CEDIS verificados`);
+                  } catch (e: any) {
+                    showToast("Error de conexión: " + (e.message || "desconocido"));
+                  }
+                }}
+                className="tap-effect px-3.5 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs flex items-center gap-1.5 shadow-sm transition-all cursor-pointer"
+              >
+                <RefreshCw className="w-3.5 h-3.5" /> Probar Conexión en Vivo
+              </button>
+            </div>
+          </div>
+
+          <div className="p-5 rounded-2xl bg-white border border-gray-200 space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center">
+                <Layers className="w-5 h-5" />
               </div>
-              <p className="text-[11px] text-slate-400">
-                El archivo SQL completo se encuentra generado en la raíz de tu proyecto:
-                <br />
-                <code className="text-emerald-400 font-bold">b2b-catalog/supabase_frimart_setup.sql</code>
-              </p>
-              <p className="text-[11px] text-slate-400">
-                Solo cópialo y pégalo en el <strong>SQL Editor</strong> de tu panel de Supabase para activar las 10 tablas relacionales en la nube con un solo clic.
-              </p>
+              <div>
+                <h3 className="font-black text-sm text-gray-900">10 Tablas Relacionales Instaladas</h3>
+                <p className="text-xs text-gray-500">
+                  Esquema completo con RLS activo para la App PWA del Vendedor y el Panel de Control Comercial.
+                </p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5">
+              {[
+                { name: "frimart_cedis", desc: "Centros de Distribución", count: "2" },
+                { name: "frimart_usuarios", desc: "PINs y Permisos", count: "5" },
+                { name: "frimart_puntos_venta", desc: "Clientes y Rutas", count: "5" },
+                { name: "frimart_congeladores", desc: "Equipos y QR", count: "5" },
+                { name: "frimart_planogramas", desc: "Matriz de Niveles", count: "2" },
+                { name: "frimart_productos", desc: "Catálogo La Huerta", count: "7" },
+                { name: "frimart_metas_diarias", desc: "Metas Diarias", count: "Activo" },
+                { name: "frimart_ventas", desc: "Encabezados Venta", count: "4" },
+                { name: "frimart_detalle_ventas", desc: "Partidas y Margen", count: "7" },
+                { name: "frimart_inventarios", desc: "Stock CEDIS/Camión", count: "12" },
+              ].map(t => (
+                <div key={t.name} className="p-2.5 rounded-xl border border-gray-150 bg-gray-50/60 text-left">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="font-mono text-[10px] font-bold text-emerald-700 truncate">{t.name}</span>
+                    <span className="text-[9px] px-1.5 py-0.2 rounded bg-emerald-100 text-emerald-800 font-black">{t.count}</span>
+                  </div>
+                  <p className="text-[10px] text-gray-500 truncate">{t.desc}</p>
+                </div>
+              ))}
             </div>
           </div>
         </div>
