@@ -39,7 +39,48 @@ interface TradeHistory {
   created_at: string;
   display_label?: string;
   error_message?: string;
+  horizon?: string;
+  pnl?: number;
 }
+
+// Clasificación de cada registro según estrategia v4 (largos, cortos y rendimiento de efectivo)
+type TradeKind = 'LONG_OPEN' | 'LONG_CLOSE' | 'SHORT_OPEN' | 'SHORT_CLOSE' | 'EARN';
+const classifyTrade = (t: TradeHistory): TradeKind => {
+  if (t.horizon === 'earn') return 'EARN';
+  if (t.horizon === 'short') return t.trade_type === 'SELL' ? 'SHORT_OPEN' : 'SHORT_CLOSE';
+  return t.trade_type === 'BUY' ? 'LONG_OPEN' : 'LONG_CLOSE';
+};
+const TRADE_KIND_META: Record<TradeKind, { label: string; icon: string; cls: string }> = {
+  LONG_OPEN: { label: 'Compra · Abre Largo', icon: '▲', cls: 'bg-emerald-500/15 text-emerald-300 border-emerald-500/40' },
+  LONG_CLOSE: { label: 'Venta · Cierra Largo', icon: '▼', cls: 'bg-teal-500/15 text-teal-300 border-teal-500/40' },
+  SHORT_OPEN: { label: 'Abre Corto', icon: '▼', cls: 'bg-violet-500/15 text-violet-300 border-violet-500/40' },
+  SHORT_CLOSE: { label: 'Cierra Corto', icon: '▲', cls: 'bg-fuchsia-500/15 text-fuchsia-300 border-fuchsia-500/40' },
+  EARN: { label: 'Rendimiento Efectivo', icon: '◆', cls: 'bg-amber-500/15 text-amber-300 border-amber-500/40' }
+};
+type HistoryFilter = 'ALL' | 'LONG' | 'SHORT' | 'EARN';
+
+// Reconstruye posiciones abiertas (largas y cortas) a partir del historial
+const computeOpenPositions = (history: TradeHistory[]) => {
+  const sorted = [...history].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+  const book: Record<string, { side: 'LARGO' | 'CORTO'; asset: string; qty: number; cost: number; opened: string }> = {};
+  for (const t of sorted) {
+    const kind = classifyTrade(t);
+    if (kind === 'EARN' || (t.status !== 'simulated' && t.status !== 'executed')) continue;
+    const px = Number(t.execution_price || 0);
+    const amt = Number(t.executed_amount || 0);
+    const q = px > 0 ? amt / px : 0;
+    const side = kind.startsWith('SHORT') ? 'CORTO' : 'LARGO';
+    const key = `${t.asset}:${side}`;
+    if (kind === 'LONG_OPEN' || kind === 'SHORT_OPEN') {
+      if (!book[key] || book[key].qty <= 0) book[key] = { side, asset: t.asset, qty: 0, cost: 0, opened: t.created_at };
+      book[key].qty += q; book[key].cost += amt;
+    } else if (book[key] && book[key].qty > 0) {
+      const r = Math.min(1, q / book[key].qty);
+      book[key].cost *= (1 - r); book[key].qty = Math.max(0, book[key].qty - q);
+    }
+  }
+  return Object.values(book).filter(p => p.qty > 0 && p.cost >= 2).map(p => ({ ...p, entry: p.cost / p.qty }));
+};
 
 interface BankRecipient {
   id: string;
@@ -128,6 +169,7 @@ export function CryptoExchangeTab() {
   const [strategyModalOpen, setStrategyModalOpen] = useState<boolean>(false);
   const [activeBotMode, setActiveBotMode] = useState<'conservador' | 'moderado' | 'agresivo'>('moderado');
   const [selectedModalTab, setSelectedModalTab] = useState<'conservador' | 'moderado' | 'agresivo'>('moderado');
+  const [historyTypeFilter, setHistoryTypeFilter] = useState<HistoryFilter>('ALL');
   const [isSavingStrategy, setIsSavingStrategy] = useState<boolean>(false);
   const [buysPaused, setBuysPaused] = useState<boolean>(false);
   const [isTogglingBuys, setIsTogglingBuys] = useState<boolean>(false);
@@ -495,9 +537,23 @@ export function CryptoExchangeTab() {
   };
 
   const filteredHistory = history.filter(item => {
+    const kind = classifyTrade(item);
+    if (historyTypeFilter === 'LONG' && !kind.startsWith('LONG')) return false;
+    if (historyTypeFilter === 'SHORT' && !kind.startsWith('SHORT')) return false;
+    if (historyTypeFilter === 'EARN' && kind !== 'EARN') return false;
     if (!historyDateSearch) return true;
     return item.created_at.includes(historyDateSearch) || item.asset.toLowerCase().includes(historyDateSearch.toLowerCase());
   });
+
+  const openPositions = computeOpenPositions(history);
+  const openLongUsd = openPositions.filter(p => p.side === 'LARGO').reduce((s, p) => s + p.cost, 0);
+  const openShortUsd = openPositions.filter(p => p.side === 'CORTO').reduce((s, p) => s + p.cost, 0);
+  const earnTotalUsd = history.filter(t => t.horizon === 'earn').reduce((s, t) => s + Number(t.pnl || t.executed_amount || 0), 0);
+  const kindCounts = history.reduce((acc, t) => {
+    const k = classifyTrade(t);
+    if (k.startsWith('LONG')) acc.LONG++; else if (k.startsWith('SHORT')) acc.SHORT++; else acc.EARN++;
+    return acc;
+  }, { LONG: 0, SHORT: 0, EARN: 0 });
 
   return (
     <div className="space-y-6 text-slate-100 p-2 md:p-6 bg-slate-950 min-h-screen font-sans">
@@ -512,7 +568,7 @@ export function CryptoExchangeTab() {
               Bot Intradía <span className="text-xs px-2.5 py-0.5 rounded-full bg-cyan-500/10 text-cyan-400 border border-cyan-500/30 font-semibold">$1,000.00 Base</span>
             </h1>
             <p className="text-xs text-slate-400 mt-0.5">
-              Sistema de alta frecuencia y rotación dinámica • 1 USD = ${usdToMxn.toFixed(2)} MXN
+              Estrategia v4 Bidireccional · velas 4h · Largos + Cortos + Rendimiento 4.5% • 1 USD = ${usdToMxn.toFixed(2)} MXN
             </p>
           </div>
         </div>
@@ -609,7 +665,10 @@ export function CryptoExchangeTab() {
             </div>
             <div className="mt-2 text-xs text-slate-400 flex items-center justify-between border-t border-slate-800/80 pt-2">
               <span>≈ ${(capital.openCryptoUsd * usdToMxn).toLocaleString('es-MX', { maximumFractionDigits: 0 })} MXN</span>
-              <span className="text-blue-400 font-medium">BTC, ETH, SOL</span>
+              <span className="flex items-center gap-2">
+                <span className="text-emerald-400 font-medium">▲ Largos ${openLongUsd.toFixed(0)}</span>
+                <span className="text-violet-400 font-medium">▼ Cortos ${openShortUsd.toFixed(0)}</span>
+              </span>
             </div>
           </div>
 
@@ -647,7 +706,7 @@ export function CryptoExchangeTab() {
             </div>
             <div className="mt-2 text-xs text-slate-400 flex items-center justify-between border-t border-slate-800/80 pt-2">
               <span>Base: ${capital.base.toFixed(0)} USD</span>
-              <span className="text-purple-400 font-medium">Acumulado Total</span>
+              <span className="text-amber-400 font-medium">◆ Rend. efectivo +${earnTotalUsd.toFixed(2)}</span>
             </div>
           </div>
 
@@ -686,30 +745,24 @@ export function CryptoExchangeTab() {
                 <Sliders className="w-4 h-4 text-amber-400" />
               </div>
               <div className="flex flex-wrap items-center gap-2">
-                <span className="text-lg md:text-xl font-extrabold text-white capitalize">
-                  {activeBotMode}
+                <span className="text-lg md:text-xl font-extrabold text-white">
+                  v4 Bidireccional 4h
                 </span>
-                <span className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider border ${
-                  activeBotMode === 'conservador'
-                    ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30'
-                    : activeBotMode === 'agresivo'
-                    ? 'bg-rose-500/20 text-rose-400 border-rose-500/30'
-                    : 'bg-amber-500/20 text-amber-400 border-amber-500/30'
-                }`}>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider border bg-cyan-500/20 text-cyan-300 border-cyan-500/30">
                   ACTIVO
                 </span>
                 {buysPaused && (
                   <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider border bg-rose-500/20 text-rose-400 border-rose-500/30 flex items-center gap-1 animate-pulse">
                     <Pause className="w-3 h-3 text-rose-400" />
-                    COMPRAS PAUSADAS
+                    ENTRADAS PAUSADAS
                   </span>
                 )}
               </div>
             </div>
 
             <div className="mt-2 border-t border-slate-800/80 pt-2 space-y-2">
-              <div className="text-[10px] font-mono text-slate-400 truncate">
-                SL: {strategyModes[activeBotMode]?.hardStopLossPct}% | BE: {strategyModes[activeBotMode]?.breakEvenTriggerPct}% | TP1: +{strategyModes[activeBotMode]?.takeProfit1Pct}% | TP2: +{strategyModes[activeBotMode]?.takeProfit2Pct}%
+              <div className="text-[10px] font-mono text-slate-400 truncate" title="BTC > EMA50 diaria: solo largos · BTC < EMA50 diaria: solo cortos · cierre inmediato si cambia el régimen">
+                SL: -5% | BE: +3% | TP1: +3% (50%) | Trailing 2% tras +10% | Cierre por cambio de régimen
               </div>
 
               <div className="grid grid-cols-2 gap-2">
@@ -728,12 +781,12 @@ export function CryptoExchangeTab() {
                   ) : buysPaused ? (
                     <>
                       <Play className="w-3.5 h-3.5" />
-                      Reanudar Compras
+                      Reanudar Entradas
                     </>
                   ) : (
                     <>
                       <Pause className="w-3.5 h-3.5" />
-                      Detener Compras
+                      Pausar Entradas
                     </>
                   )}
                 </button>
@@ -751,24 +804,92 @@ export function CryptoExchangeTab() {
         </div>
       </div>
 
+      {/* Posiciones Abiertas (Largos / Cortos) */}
+      <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-5 shadow-xl">
+        <h2 className="text-base font-bold text-white flex items-center gap-2 mb-4">
+          <Activity className="w-5 h-5 text-blue-400" />
+          Posiciones Abiertas
+          <span className="text-xs px-2.5 py-0.5 rounded-full bg-slate-800 text-slate-400 border border-slate-700 font-normal">
+            {openPositions.length} activas
+          </span>
+        </h2>
+        {openPositions.length === 0 ? (
+          <p className="text-xs text-slate-500">Sin posiciones abiertas. El bot espera una señal válida en velas de 4h.</p>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            {openPositions.map(p => (
+              <div
+                key={`${p.asset}-${p.side}`}
+                className={`rounded-xl p-4 border transition-all hover:-translate-y-0.5 ${
+                  p.side === 'LARGO'
+                    ? 'bg-emerald-500/5 border-emerald-500/30 hover:border-emerald-400/60'
+                    : 'bg-violet-500/5 border-violet-500/30 hover:border-violet-400/60'
+                }`}
+              >
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-white">{p.asset}</span>
+                  <span className={`px-2 py-0.5 rounded-md text-[10px] font-extrabold uppercase border ${
+                    p.side === 'LARGO' ? TRADE_KIND_META.LONG_OPEN.cls : TRADE_KIND_META.SHORT_OPEN.cls
+                  }`}>
+                    {p.side === 'LARGO' ? '▲ Largo (compra)' : '▼ Corto'}
+                  </span>
+                </div>
+                <div className="mt-2 grid grid-cols-2 gap-1 text-[11px] text-slate-400">
+                  <span>Entrada</span>
+                  <span className="text-right font-mono text-slate-200">${p.entry.toLocaleString(undefined, { maximumFractionDigits: 4 })}</span>
+                  <span>Monto</span>
+                  <span className="text-right font-mono text-slate-200">${p.cost.toFixed(2)} USD</span>
+                  <span>Abierta</span>
+                  <span className="text-right font-mono">{new Date(p.opened).toLocaleString('es-MX', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</span>
+                </div>
+                <p className="mt-2 text-[10px] text-slate-500">
+                  {p.side === 'LARGO' ? 'Gana si el precio sube' : 'Gana si el precio baja'}
+                </p>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
       {/* Historial Único de Operaciones Intradía */}
       <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-5 shadow-xl">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4">
           <h2 className="text-base font-bold text-white flex items-center gap-2">
             <HistoryIcon className="w-5 h-5 text-cyan-400" />
-            Historial Único de Operaciones Intradía
+            Historial de Operaciones
             <span className="text-xs px-2.5 py-0.5 rounded-full bg-slate-800 text-slate-400 border border-slate-700 font-normal">
               {filteredHistory.length} registros
             </span>
           </h2>
 
-          <input
-            type="text"
-            placeholder="Buscar por fecha u activo..."
-            value={historyDateSearch}
-            onChange={(e) => setHistoryDateSearch(e.target.value)}
-            className="bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-1.5 text-xs text-white placeholder-slate-500 focus:border-cyan-500 outline-none w-full md:w-64"
-          />
+          <div className="flex flex-col md:flex-row gap-2 md:items-center">
+            <div className="flex flex-wrap gap-1.5">
+              {([
+                ['ALL', `Todos (${history.length})`, 'bg-slate-700/60 text-white border-slate-500'],
+                ['LONG', `▲ Largos (${kindCounts.LONG})`, 'bg-emerald-500/20 text-emerald-300 border-emerald-500/50'],
+                ['SHORT', `▼ Cortos (${kindCounts.SHORT})`, 'bg-violet-500/20 text-violet-300 border-violet-500/50'],
+                ['EARN', `◆ Rendimiento (${kindCounts.EARN})`, 'bg-amber-500/20 text-amber-300 border-amber-500/50']
+              ] as [HistoryFilter, string, string][]).map(([key, label, activeCls]) => (
+                <button
+                  key={key}
+                  id={`history-filter-${key.toLowerCase()}`}
+                  onClick={() => setHistoryTypeFilter(key)}
+                  className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold border transition-all ${
+                    historyTypeFilter === key ? activeCls : 'bg-slate-950 text-slate-400 border-slate-800 hover:border-slate-600 hover:text-slate-200'
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            <input
+              type="text"
+              placeholder="Buscar por fecha u activo..."
+              value={historyDateSearch}
+              onChange={(e) => setHistoryDateSearch(e.target.value)}
+              className="bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-1.5 text-xs text-white placeholder-slate-500 focus:border-cyan-500 outline-none w-full md:w-56"
+            />
+          </div>
         </div>
 
         <div className="overflow-x-auto">
@@ -800,21 +921,22 @@ export function CryptoExchangeTab() {
                         hour: '2-digit', minute: '2-digit', second: '2-digit'
                       })}
                     </td>
-                    <td className="p-3.5 font-bold text-white">{item.asset}</td>
+                    <td className="p-3.5 font-bold text-white">{item.asset === 'USDT/EARN' ? 'USDT (Earn)' : item.asset}</td>
                     <td className="p-3.5">
-                      <span className={`px-2.5 py-0.5 rounded-md text-[10px] font-extrabold uppercase ${
-                        item.trade_type === 'BUY'
-                          ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
-                          : 'bg-rose-500/20 text-rose-400 border border-rose-500/30'
-                      }`}>
-                        {item.trade_type === 'BUY' ? 'COMPRA' : 'VENTA'}
-                      </span>
+                      {(() => {
+                        const meta = TRADE_KIND_META[classifyTrade(item)];
+                        return (
+                          <span className={`px-2.5 py-0.5 rounded-md text-[10px] font-extrabold uppercase border whitespace-nowrap ${meta.cls}`}>
+                            {meta.icon} {meta.label}
+                          </span>
+                        );
+                      })()}
                     </td>
                     <td className="p-3.5 font-semibold text-slate-200">
-                      ${Number(item.execution_price || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                      {item.horizon === 'earn' ? <span className="text-slate-500">—</span> : `$${Number(item.execution_price || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`}
                     </td>
-                    <td className="p-3.5 font-bold text-white">
-                      ${Number(item.executed_amount || 0).toFixed(2)} USD
+                    <td className={`p-3.5 font-bold ${item.horizon === 'earn' ? 'text-amber-300' : 'text-white'}`}>
+                      {item.horizon === 'earn' ? '+' : ''}${Number(item.executed_amount || 0).toFixed(item.horizon === 'earn' ? 4 : 2)} USD
                     </td>
                     <td className="p-3.5">
                       <span className={`px-2 py-0.5 rounded-md text-[10px] font-semibold ${
