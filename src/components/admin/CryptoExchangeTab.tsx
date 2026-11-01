@@ -170,6 +170,7 @@ export function CryptoExchangeTab() {
   const [activeBotMode, setActiveBotMode] = useState<'conservador' | 'moderado' | 'agresivo'>('moderado');
   const [selectedModalTab, setSelectedModalTab] = useState<'conservador' | 'moderado' | 'agresivo'>('moderado');
   const [historyTypeFilter, setHistoryTypeFilter] = useState<HistoryFilter>('ALL');
+  const [v4InfoOpen, setV4InfoOpen] = useState<boolean>(false);
   const [isSavingStrategy, setIsSavingStrategy] = useState<boolean>(false);
   const [buysPaused, setBuysPaused] = useState<boolean>(false);
   const [isTogglingBuys, setIsTogglingBuys] = useState<boolean>(false);
@@ -792,11 +793,12 @@ export function CryptoExchangeTab() {
                 </button>
 
                 <button
-                  onClick={() => { setSelectedModalTab(activeBotMode); setStrategyModalOpen(true); fetchStrategyConfig(); }}
-                  className="py-1.5 px-2.5 rounded-xl bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500 text-white text-xs font-semibold flex items-center justify-center gap-1.5 shadow-md transition-all"
+                  onClick={() => setV4InfoOpen(true)}
+                  id="btn-view-v4-strategy"
+                  className="py-1.5 px-2.5 rounded-xl bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white text-xs font-semibold flex items-center justify-center gap-1.5 shadow-md transition-all"
                 >
-                  <Sliders className="w-3.5 h-3.5" />
-                  Editar
+                  <ShieldCheck className="w-3.5 h-3.5" />
+                  Ver Estrategia
                 </button>
               </div>
             </div>
@@ -981,6 +983,92 @@ export function CryptoExchangeTab() {
           </table>
         </div>
       </div>
+
+      {/* ============================================================ */}
+      {/* PANEL DE SOLO LECTURA — ESTRATEGIA v4 BIDIRECCIONAL 4h       */}
+      {/* ============================================================ */}
+      {v4InfoOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md" onClick={() => setV4InfoOpen(false)}>
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl w-full max-w-2xl max-h-[90vh] overflow-y-auto shadow-2xl p-6 text-slate-100" onClick={e => e.stopPropagation()}>
+            <div className="flex items-start justify-between mb-5">
+              <div>
+                <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                  <ShieldCheck className="w-5 h-5 text-cyan-400" />
+                  Estrategia v4 Bidireccional · 4h
+                </h3>
+                <p className="text-xs text-slate-400 mt-1">
+                  Parámetros fijos validados con backtest de 3 años y prueba de robustez (243/243 combinaciones superan CETES). Solo lectura.
+                </p>
+              </div>
+              <button onClick={() => setV4InfoOpen(false)} id="btn-close-v4-strategy" className="p-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white transition-all">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
+              <div className="rounded-xl p-4 border bg-emerald-500/5 border-emerald-500/30">
+                <div className="text-xs font-extrabold uppercase text-emerald-300 mb-2">▲ Largos (compras)</div>
+                <ul className="text-[11px] text-slate-300 space-y-1">
+                  <li>• Solo si BTC cierra <b>sobre</b> su EMA50 diaria</li>
+                  <li>• Precio sobre SMA100 (4h)</li>
+                  <li>• RSI(4h) ≤ 55 · sin sobre-extensión</li>
+                  <li>• Gana si el precio sube</li>
+                </ul>
+              </div>
+              <div className="rounded-xl p-4 border bg-violet-500/5 border-violet-500/30">
+                <div className="text-xs font-extrabold uppercase text-violet-300 mb-2">▼ Cortos</div>
+                <ul className="text-[11px] text-slate-300 space-y-1">
+                  <li>• Solo si BTC cierra <b>bajo</b> su EMA50 diaria</li>
+                  <li>• Precio bajo SMA100 (4h)</li>
+                  <li>• RSI(4h) ≥ 45 · sin sobre-extensión</li>
+                  <li>• Gana si el precio baja · solo en simulación</li>
+                </ul>
+              </div>
+            </div>
+
+            <div className="rounded-xl border border-slate-800 overflow-hidden mb-4">
+              <table className="w-full text-xs">
+                <tbody className="divide-y divide-slate-800">
+                  {[
+                    ['Activos', 'BTC/USDT · ETH/USDT · SOL/USDT'],
+                    ['Temporalidad', 'Velas de 4 horas (régimen con velas diarias de BTC)'],
+                    ['Tamaño por posición', '30% del capital base · 1 posición por activo'],
+                    ['Stop Loss', '-5%'],
+                    ['Take Profit 1', '+3% → cierra 50%'],
+                    ['Break-even', 'Tras pico ≥ +3%, cierra si regresa a +0.3%'],
+                    ['Trailing stop', '2% desde el pico, una vez alcanzado +10%'],
+                    ['Cambio de régimen', 'Cierre inmediato de posiciones contrarias'],
+                    ['Efectivo ocioso', 'Rendimiento simulado 4.5% anual (abono diario)'],
+                    ['Comisiones simuladas', 'Spot 0.10% · Futuros 0.05% por lado']
+                  ].map(([k, v]) => (
+                    <tr key={k}>
+                      <td className="p-2.5 text-slate-400 font-semibold w-44 bg-slate-950/50">{k}</td>
+                      <td className="p-2.5 text-slate-200 font-mono text-[11px]">{v}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="grid grid-cols-3 gap-3 mb-4">
+              {[
+                ['Rend. anual (backtest)', '~17–20%', 'text-emerald-300'],
+                ['Caída máx. esperada', '~22%', 'text-rose-300'],
+                ['Evaluación', '31 dic 2026', 'text-cyan-300']
+              ].map(([k, v, c]) => (
+                <div key={k} className="rounded-xl p-3 bg-slate-950/60 border border-slate-800 text-center">
+                  <div className={`text-base font-extrabold ${c}`}>{v}</div>
+                  <div className="text-[10px] text-slate-500 mt-0.5">{k}</div>
+                </div>
+              ))}
+            </div>
+
+            <p className="text-[10px] text-slate-500">
+              Para modificar parámetros se requiere un nuevo backtest antes de desplegar. Use “Pausar Entradas” para detener nuevas posiciones sin cerrar las abiertas.
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* ============================================================ */}
       {/* MODAL EMERGENTE DEL MÓDULO BANCARIO & DESTINATARIOS SPEI      */}
